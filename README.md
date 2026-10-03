@@ -2,7 +2,7 @@
 
 PWA para Windows para el trabajo diario de Dispatcher:
 
-- **Incidencias:** importas el Excel/CSV del día y las incidencias se agrupan por operario (columna K). Hay filtro **Andalucía**, vista **En ruta total** (visitas presenciales de hoy, una tarjeta por técnico) y filtros *En ruta / Fuera de ruta* en cada técnico.
+- **Incidencias:** se cargan **en tiempo real desde ATGO** (o importando un Excel/CSV) y se agrupan por operario. Hay vista **En ruta total** (visitas presenciales de hoy, una tarjeta por técnico) y filtros *En ruta / Fuera de ruta* en cada técnico. Solo se cargan los operarios y estados configurados.
 - **Plantillas:** correos por cliente con campos variables (`{tecnico}`, `{num}`, `{sede}`, `{fecha}`, `{hora}`, `{direccion}`, `{tiempo}`, `{cliente}`) que se pueden rellenar desde una incidencia, y recordatorios para técnicos.
 
 No hace falta compilar nada: son archivos estáticos (HTML + JS) y GitHub Pages los publica tal cual.
@@ -14,6 +14,7 @@ No hace falta compilar nada: son archivos estáticos (HTML + JS) y GitHub Pages 
 | `index.html` | La aplicación completa |
 | `manifest.webmanifest` | Nombre, iconos y ajustes para instalarla como app de Windows |
 | `sw.js` | Service worker: funcionamiento sin conexión y actualizaciones |
+| `atgo-sync.js` | Sincronización con ATGO (se ejecuta dentro de la pestaña de ATGO mediante el marcador) |
 | `icon-192.png`, `icon-512.png`, `icon-maskable-512.png`, `favicon.svg` | Iconos |
 | `.nojekyll` | Hace que GitHub Pages publique los archivos sin procesarlos |
 
@@ -38,6 +39,23 @@ Una vez instalada:
 - Funciona **sin conexión** después de abrirla una vez con internet.
 - Puedes **arrastrar el Excel** sobre la ventana, o en el Explorador usar *clic derecho → Abrir con → Despacho*.
 
+## Incidencias en tiempo real desde ATGO
+
+ATGO (`https://atgo.tier1.es`) no permite que otra web lea sus datos directamente. Por eso la lectura se hace **dentro de la propia pestaña de ATGO**, con tu sesión, mediante un marcador:
+
+1. **Solo la primera vez:** en Despacho, con la lista vacía, arrastra el botón **⟳ Despacho ATGO** a la barra de favoritos (si no la ves: `Ctrl+Mayús+B`).
+2. En Despacho pulsa **ATGO** (cabecera). Se abre ATGO: inicia sesión si te lo pide.
+3. En esa pestaña de ATGO pulsa el favorito **⟳ Despacho ATGO**. Abajo a la derecha aparece un recuadro con el progreso.
+4. Deja la pestaña de ATGO abierta (puede estar en segundo plano): se actualiza sola **cada 5 minutos**. El botón ⟳ del recuadro fuerza una actualización y ✕ la detiene.
+
+Detalles:
+- Solo se piden a ATGO los estados **PRESENCIAL, PUESTO OPERATIVO, FUERA DE MANTENIMIENTO, MATERIAL PTE. FABRICANTE, PTE. MOVER MATERIAL, EN FABRICANTE y ESCALADO TIER1**, y solo se quedan los operarios configurados.
+- La API de ATGO es lenta (unos 13 s por página de 20). Una carga completa tarda unos minutos; la primera vez las incidencias van apareciendo según llegan.
+- El token de ATGO **nunca sale de su pestaña**: a Despacho solo le llegan los datos de las incidencias.
+- El Nº de cada incidencia es un enlace que la abre en ATGO.
+- Despacho guarda la última carga, así que al abrirla ves los últimos datos (marcados con la hora) hasta que llegue la siguiente.
+- Si la sesión de ATGO caduca, el recuadro lo indica: vuelve a iniciar sesión y pulsa ⟳.
+
 ## Tus datos
 
 - **El Excel no sale de tu equipo:** se lee en el navegador y no se guarda en ningún sitio. Hay que importarlo cada vez que abres la app.
@@ -50,7 +68,9 @@ Una vez instalada:
 2. En `sw.js`, cambia `VERSION` (por ejemplo, de `despacho-v1.0.0` a `despacho-v1.0.1`). Si no lo cambias, la app instalada puede seguir usando la versión antigua.
 3. La próxima vez que abras la app aparecerá el aviso **"Hay una versión nueva" → Actualizar**.
 
-## Configuración rápida (en `index.html`)
+## Configuración rápida
 
-- `ANDALUCIA_TECHS`: iniciales de los técnicos del filtro Andalucía.
-- `COLS`: qué columna del Excel corresponde a cada dato (0 = A, 1 = B, …).
+- `OPERARIOS`: iniciales de los técnicos que se cargan. Está en **`index.html` y en `atgo-sync.js`**: cámbialo en los dos.
+- `ESTADOS`: estados que se cargan. En `index.html` por nombre; en `atgo-sync.js` por código de ATGO (10 PRESENCIAL, 20 PUESTO OPERATIVO, 30 FUERA DE MANTENIMIENTO, 40 MATERIAL PTE. FABRICANTE, 80 PTE. MOVER MATERIAL, 100 EN FABRICANTE, 110 ESCALADO TIER1).
+- `REFRESCO_MIN` (en `atgo-sync.js`): minutos entre actualizaciones.
+- `COLS` (en `index.html`): qué columna del Excel corresponde a cada dato (0 = A, 1 = B, …).

@@ -113,6 +113,15 @@
   .btn.pri{background:var(--amber); color:#fff; border-color:var(--amber);}
   .hint{color:var(--ink-faint); font-size:11px; display:flex; gap:6px; flex-wrap:wrap; align-items:center;}
   #toast{position:fixed; bottom:calc(20px + env(safe-area-inset-bottom,0px)); left:50%; transform:translateX(-50%); background:var(--ink); color:var(--bg); padding:6px 14px; border-radius:999px; font-size:12px; opacity:0; transition:opacity .2s; pointer-events:none; z-index:20;}
+  .howto{max-width:520px; margin:12px auto 0; text-align:left;}
+  .howto ol{margin:6px 0; padding-left:20px; display:grid; gap:6px;}
+  .howto p{margin:6px 0;}
+  .bookmarklet{display:inline-block; padding:3px 10px; border-radius:999px; background:var(--amber); color:#fff; text-decoration:none; font-weight:600; cursor:grab;}
+  .line a.num{text-decoration:none;}
+  .line a.num:hover{text-decoration:underline;}
+  .live{display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--teal); margin-right:5px; vertical-align:middle;}
+  .live.off{background:var(--ink-faint);}
+  .live.err{background:#d9614f;}
   #updateBar{display:none; position:fixed; bottom:calc(20px + env(safe-area-inset-bottom,0px)); right:20px; background:var(--panel); border:1px solid var(--amber); border-radius:var(--radius); padding:8px 12px; font-size:12px; gap:10px; align-items:center; z-index:21; box-shadow:0 4px 16px rgba(0,0,0,.15);}
 </style>
 </head>
@@ -122,9 +131,11 @@
   <span style="font-size:13px; font-weight:600; letter-spacing:.2px;">Despacho</span>
   <nav class="tabs"><button class="tab active" id="tabInc" onclick="showTab('inc')">Incidencias</button><button class="tab" id="tabTpl" onclick="showTab('tpl')">Plantillas</button></nav>
   <span class="sub" id="fileStatus">Sin datos</span>
+  <span class="sub" id="atgoStatus"></span>
   <div class="spacer"></div>
   <button class="btn ghost" id="installBtn" style="display:none;" title="Instalar como aplicación de Windows">Instalar app</button>
-  <button class="btn ghost" id="clearBtn" style="display:none;" title="Quitar datos importados">✕</button>
+  <button class="btn ghost" id="clearBtn" style="display:none;" title="Quitar datos cargados">✕</button>
+  <button class="btn ghost" id="atgoBtn" title="Abrir ATGO para sincronizar las incidencias">ATGO</button>
   <button class="btn ghost" id="importBtn">Importar</button>
   <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
   <input type="file" id="backupInput" accept=".json,application/json">
@@ -134,7 +145,16 @@
   <div id="viewInc">
   <div class="empty" id="emptyState">
     <h2>Todavía no hay incidencias cargadas</h2>
-    <div>Importa tu archivo (o arrástralo aquí). Se toman las columnas B, E, F, G, I, J, K, L, N, P y S, y se agrupa por operario (columna K).</div>
+    <div class="howto">
+      <p><b>En tiempo real desde ATGO</b> (se actualiza solo cada 5 minutos):</p>
+      <ol>
+        <li>Solo la primera vez: arrastra este botón a tu barra de favoritos → <a class="bookmarklet" id="bookmarklet" href="#" title="Arrástrame a la barra de favoritos">⟳ Despacho ATGO</a></li>
+        <li>Pulsa <b>ATGO</b> (arriba a la derecha) e inicia sesión en Mis tickets.</li>
+        <li>En esa pestaña de ATGO, pulsa el favorito <b>⟳ Despacho ATGO</b>. Deja la pestaña abierta.</li>
+      </ol>
+      <p class="hint" style="justify-content:center">Solo se cargan los operarios y estados configurados. Tu sesión de ATGO no sale de su pestaña.</p>
+      <p style="margin-top:14px">O <b>importa un Excel</b> (o arrástralo aquí). Se toman las columnas B, E, F, G, I, J, K, L, N, P y S, y se agrupa por operario (columna K).</p>
+    </div>
   </div>
 
   <div id="dataView" style="display:none;">
@@ -151,12 +171,18 @@
 <div id="updateBar"><span>Hay una versión nueva.</span><button class="btn pri" id="updateBtn">Actualizar</button></div>
 
 <script>
-const ANDALUCIA_TECHS = ['AMRG','ACAB','JMOG','DSG','CLH','JCGM','ADJC','LGV','LEOC','IFF','FMNT','JVR','ILG','MMHG','DSJ','EACL','JRHG','AAR'];
+// Solo se cargan incidencias de estos operarios y en estos estados (también al importar Excel).
+// Si cambias algo aquí, cámbialo igual en atgo-sync.js.
+const OPERARIOS = ['ACAB','DSG','AMRG','CLH','JGAM','MLOR','JCGM','ADJC','LGV','LEOC','IFF','FMNT','ILG','JVR','MMHG','EACL','DSJ','AAR','JRHG'];
+const ESTADOS = ['PRESENCIAL','PUESTO OPERATIVO','FUERA DE MANTENIMIENTO','MATERIAL PTE. FABRICANTE','PTE. MOVER MATERIAL','EN FABRICANTE','ESCALADO TIER1'];
+const ATGO_URL = 'https://atgo.tier1.es/#/mistickets/';
+const ATGO_ORIGIN = 'https://atgo.tier1.es';
+const ATGO_KEY = 'dispatcher_atgo_v1';
 // Índices de columna (0 = A, 1 = B, ...)
 const COLS = { num:1, fVisita:4, desdeHora:5, fCaducidad:6, descSede:8, referencia:9, operario:10, estado:11, descCliente:13, estCaducidad:15, domicilio:18 };
 
 let rows = [];
-let activeFilters = { andalucia: false };
+let source = null;   // 'excel' | 'atgo'
 let totalRuta = false;
 let collapsed = {};
 let groupFilter = {};
@@ -230,6 +256,8 @@ if ('launchQueue' in window){
 
 document.getElementById('clearBtn').addEventListener('click', () => {
   rows = [];
+  source = null;
+  try{ localStorage.removeItem(ATGO_KEY); }catch(e){}
   document.getElementById('emptyState').style.display = 'block';
   document.getElementById('dataView').style.display = 'none';
   document.getElementById('clearBtn').style.display = 'none';
@@ -237,53 +265,100 @@ document.getElementById('clearBtn').addEventListener('click', () => {
   document.getElementById('fileInput').value = '';
 });
 
+const ESTADOS_N = ESTADOS.map(norm);
+function permitido(r){ return OPERARIOS.includes(cleanInitials(r.operario)) && ESTADOS_N.includes(norm(r.estado)); }
+
+// Muestra un conjunto de incidencias. keepView=true conserva grupos plegados y filtros (refrescos de ATGO).
+function setRows(newRows, label, keepView){
+  rows = newRows.filter(permitido);
+  pickIdxC = '';
+  if (!keepView){ collapsed = {}; groupFilter = {}; totalRuta = false; }
+  document.getElementById('fileStatus').textContent = `${label} · ${rows.length} incidencias`;
+  document.getElementById('emptyState').style.display = 'none';
+  document.getElementById('dataView').style.display = 'block';
+  document.getElementById('clearBtn').style.display = 'inline-block';
+  renderFilters();
+  render();
+  if (document.getElementById('viewTpl').style.display !== 'none' && tplSub==='cli' && !editKind) renderClienteMain();
+}
+
 function loadData(dataRows, filename){
-  rows = dataRows.map(r => {
+  const parsed = dataRows.map(r => {
     const o = {};
     for (const [field, idx] of Object.entries(COLS)) o[field] = fmt(r[idx]);
     return o;
   }).filter(r => r.operario);
-
-  activeFilters = { andalucia: false };
-  collapsed = {};
-  groupFilter = {};
-  totalRuta = false;
-  pickIdxC = '';
-  document.getElementById('fileStatus').textContent = `${filename} · ${rows.length} incidencias`;
-  document.getElementById('emptyState').style.display = 'none';
-  document.getElementById('dataView').style.display = 'block';
-  document.getElementById('clearBtn').style.display = 'inline-block';
+  source = 'excel';
+  setAtgoStatus('', 'off');
   document.getElementById('fileInput').value = '';
-  renderFilters();
-  render();
+  setRows(parsed, filename, false);
+  const fuera = parsed.length - rows.length;
+  if (fuera > 0) toast(`${fuera} filas ignoradas (otros operarios o estados)`);
 }
 
 function renderFilters(){
   const el = document.getElementById('filters');
   el.innerHTML = '';
-  const andChip = document.createElement('button');
-  andChip.className = 'chip' + (activeFilters.andalucia ? ' active' : '');
-  andChip.textContent = 'Andalucía';
-  andChip.title = ANDALUCIA_TECHS.join(', ');
-  andChip.onclick = () => { activeFilters.andalucia = !activeFilters.andalucia; renderFilters(); render(); };
-  el.appendChild(andChip);
-
   const trChip = document.createElement('button');
   trChip.className = 'chip' + (totalRuta ? ' active' : '');
   trChip.textContent = 'En ruta total';
-  trChip.onclick = () => { totalRuta = !totalRuta; if (totalRuta) activeFilters.andalucia = true; renderFilters(); render(); };
+  trChip.title = 'Visitas presenciales de hoy, una tarjeta por técnico';
+  trChip.onclick = () => { totalRuta = !totalRuta; renderFilters(); render(); };
   el.appendChild(trChip);
 }
 
-function filteredRows(){
-  return rows.filter(r =>
-    (!activeFilters.andalucia || ANDALUCIA_TECHS.includes(cleanInitials(r.operario)))
-  );
+function filteredRows(){ return rows; }
+
+// ===== Sincronización en tiempo real con ATGO (ver atgo-sync.js) =====
+function setAtgoStatus(text, state){
+  const el = document.getElementById('atgoStatus');
+  el.innerHTML = text ? `<span class="live ${state||''}"></span>${esc(text)}` : '';
 }
+function horaCorta(ts){ return new Date(ts).toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit'}); }
+function applyAtgo(msg, fromCache){
+  const firstAtgo = source !== 'atgo';
+  source = 'atgo';
+  setRows(Array.isArray(msg.rows) ? msg.rows : [], 'ATGO', !firstAtgo);
+  if (msg.partial) setAtgoStatus(`Cargando… ${msg.progress||''}`, '');
+  else if (fromCache) setAtgoStatus(`Último dato ${new Date(msg.at).toLocaleString('es-ES',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})} · sin conexión con ATGO`, 'off');
+  else setAtgoStatus(`En vivo · ${horaCorta(msg.at)}`, '');
+  if (!msg.partial && !fromCache){ try{ localStorage.setItem(ATGO_KEY, JSON.stringify(msg)); }catch(e){} }
+}
+window.addEventListener('message', (e) => {
+  if (e.origin !== ATGO_ORIGIN || !e.data || typeof e.data !== 'object') return;
+  const m = e.data;
+  if (m.type === 'atgo-data') applyAtgo(m, false);
+  else if (m.type === 'atgo-status') setAtgoStatus(String(m.text||''), m.error ? 'err' : '');
+  else if (m.type === 'atgo-hello') e.source.postMessage({type:'despacho-ready'}, ATGO_ORIGIN);
+});
+// Si esta ventana la abrió ATGO (con el marcador), avisamos de que estamos listos.
+if (window.opener){ try{ window.opener.postMessage({type:'despacho-ready'}, ATGO_ORIGIN); }catch(e){} }
+
+let atgoWin = null;
+document.getElementById('atgoBtn').addEventListener('click', () => {
+  if (atgoWin && !atgoWin.closed){
+    try{ atgoWin.postMessage({type:'despacho-refresh'}, ATGO_ORIGIN); }catch(e){}
+    try{ atgoWin.focus(); }catch(e){}
+    return;
+  }
+  // Sin "noopener": ATGO necesita esta referencia para enviar los datos de vuelta.
+  atgoWin = window.open(ATGO_URL, 'atgo-tier1');
+  if (!atgoWin) toast('El navegador bloqueó la ventana. Abre ' + ATGO_URL);
+});
+
+// Marcador: carga atgo-sync.js (de esta misma web) dentro de la pestaña de ATGO.
+(function(){
+  const src = new URL('atgo-sync.js', location.href.split('#')[0]).href;
+  const code = "(function(){if(location.hostname!=='atgo.tier1.es'){alert('Abre primero https://atgo.tier1.es e inicia sesión.');return;}var s=document.createElement('script');s.src='" + src + "?v='+Date.now();document.body.appendChild(s);})();";
+  const a = document.getElementById('bookmarklet');
+  a.href = 'javascript:' + encodeURIComponent(code);
+  a.addEventListener('click', e => { e.preventDefault(); toast('Arrástralo a la barra de favoritos (Ctrl+Mayús+B para mostrarla)'); });
+})();
 
 function render(){
   const data = filteredRows();
-  document.getElementById('countLabel').textContent = `${data.length} de ${rows.length} incidencias` + (activeFilters.andalucia ? ' · Andalucía' : '');
+  const nOps = new Set(data.map(r => r.operario)).size;
+  document.getElementById('countLabel').textContent = `${data.length} incidencias · ${nOps} técnico${nOps===1?'':'s'}` + (totalRuta ? ` · ${data.filter(isEnRuta).length} en ruta hoy` : '');
 
   const panel = document.getElementById('groupsPanel');
   updToggle();
@@ -331,9 +406,10 @@ function render(){
       <div class="body">
       ${list.map(r => `
         <div class="line" style="border-left-color:${colorFor(r.estado)}">
-          <span class="num mono">Nº ${esc(r.num || '—')}</span>
-          <span>· <b>${esc(r.fVisita || '—')}</b>${r.desdeHora ? ' '+esc(r.desdeHora) : ''}</span>
-          <span>· Caduca <b>${esc(r.fCaducidad || '—')}</b> (${esc(r.estCaducidad || '—')})</span>
+          ${numHtml(r)}
+          <span>· <b>${esc(r.fVisita || '—')}</b>${r.desdeHora ? ' '+esc(r.desdeHora) : ''}${r.hastaHora ? '–'+esc(r.hastaHora) : ''}</span>
+          ${r.fCaducidad || r.estCaducidad ? `<span>· Caduca <b>${esc(r.fCaducidad || '—')}</b> (${esc(r.estCaducidad || '—')})</span>` : ''}
+          ${r.tipo ? `<span>· ${esc(r.tipo)}</span>` : ''}
           <span>· ${esc(r.descSede || '—')}</span>
           <span>· Ref ${esc(r.referencia || '—')}</span>
           <span>· <span class="dot" style="background:${colorFor(r.estado)}"></span> <b>${esc(r.estado || '—')}</b></span>
@@ -343,6 +419,13 @@ function render(){
       </div>
     </div>`;
   }).join('');
+}
+
+function numHtml(r){
+  const n = esc(r.num || '—');
+  if (r.url && String(r.url).startsWith(ATGO_ORIGIN + '/'))
+    return `<a class="num mono" href="${esc(r.url)}" target="atgo-ticket" rel="noopener" title="Abrir en ATGO">Nº ${n}</a>`;
+  return `<span class="num mono">Nº ${n}</span>`;
 }
 
 function toggleGroup(op){
@@ -612,6 +695,12 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:'){
     }catch(e){ console.warn('Service worker no registrado:', e); }
   });
 }
+
+// Al abrir, mostramos la última carga de ATGO mientras llega la nueva.
+try{
+  const cached = JSON.parse(localStorage.getItem(ATGO_KEY));
+  if (cached && Array.isArray(cached.rows) && !rows.length) applyAtgo(cached, true);
+}catch(e){}
 
 showTab(location.hash === '#tpl' ? 'tpl' : 'inc');
 </script>
