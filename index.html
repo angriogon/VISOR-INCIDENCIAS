@@ -204,7 +204,10 @@
 
 <script>
 // Zonas: ordenan y agrupan a los técnicos en todas las vistas.
+// La zona "dispatcher" es quien controla (no es un técnico): va la primera en Incidencias
+// y no cuenta en la carga de Mañana ni recibe WhatsApp.
 const ZONAS = [
+  { nombre:'DISPATCHER',     ops:['AMRG'], dispatcher:true },
   { nombre:'SEVILLA/HUELVA', ops:['DSG','ACAB','CLH','JGAM'] },
   { nombre:'CÓRDOBA/JAÉN',   ops:['JCGM'] },
   { nombre:'GRANADA',        ops:['LGV','ADJC'] },
@@ -213,9 +216,10 @@ const ZONAS = [
   { nombre:'CÁDIZ',          ops:['EACL','AAR','DSJ','JRHG'] },
   { nombre:'CEUTA',          ops:['JIFC'] },
   { nombre:'MELILLA',        ops:['PHEP'] },
-  { nombre:'EXTREMADURA',    ops:['MLOR'] },
-  { nombre:'SIN ZONA',       ops:['AMRG'] }
+  { nombre:'EXTREMADURA',    ops:['MLOR'] }
 ];
+const ZONAS_TEC = ZONAS.filter(z => !z.dispatcher);
+const TECNICOS = ZONAS_TEC.flatMap(z => z.ops);
 // Solo se cargan incidencias de estos operarios y en estos estados (también al importar Excel).
 // Si cambias algo aquí, cámbialo igual en atgo-sync.js.
 const OPERARIOS = ZONAS.flatMap(z => z.ops);
@@ -357,7 +361,7 @@ function porZona(list, sortOps){
     return { zona: z.nombre, ops: ops.map(op => ({ op, items: byOp[op] })) };
   }).filter(g => g.ops.length);
 }
-function zoneChips(onPick, counts){
+function zoneChips(onPick, counts, lista){
   const el = document.createElement('span');
   el.className = 'filters';
   const mk = (label, val, n) => {
@@ -368,7 +372,7 @@ function zoneChips(onPick, counts){
     return b;
   };
   el.appendChild(mk('Todas', null));
-  ZONAS.forEach(z => { if (counts[z.nombre]) el.appendChild(mk(z.nombre, z.nombre, counts[z.nombre])); });
+  (lista || ZONAS).forEach(z => { if (counts[z.nombre]) el.appendChild(mk(z.nombre, z.nombre, counts[z.nombre])); });
   return el;
 }
 function zoneCounts(list){ const c = {}; list.forEach(r => { const z = zonaDe(r.operario); c[z] = (c[z]||0) + 1; }); return c; }
@@ -463,7 +467,7 @@ function render(){
   if (!data.length){ panel.innerHTML = '<div class="empty">Sin incidencias para este filtro.</div>'; return; }
 
   panel.innerHTML = porZona(data, null).map(g => `
-    <div class="zhead">${esc(g.zona)} <span>${plural(g.ops.reduce((s,o)=>s+o.items.length,0), 'incidencia')} · ${plural(g.ops.length, 'técnico')}</span></div>
+    <div class="zhead"${g.zona === 'DISPATCHER' ? ' style="color:var(--amber)"' : ''}>${esc(g.zona)} <span>${plural(g.ops.reduce((s,o)=>s+o.items.length,0), 'incidencia')}${g.zona === 'DISPATCHER' ? ' a tu nombre' : ' · ' + plural(g.ops.length, 'técnico')}</span></div>
     ${g.ops.map(({op, items}) => groupHtml(op, items)).join('')}`).join('');
 }
 
@@ -601,9 +605,12 @@ function renderManana(){
     body.innerHTML = '<div class="empty"><h2>Sin incidencias cargadas</h2><div>Sincroniza con ATGO o importa un Excel desde la pestaña Incidencias.</div></div>';
     return;
   }
+  if (zonaSel && !ZONAS_TEC.some(z => z.nombre === zonaSel)) zonaSel = null;   // la zona Dispatcher no aplica aquí
   const todas = visitasDe(manDate);
-  const vis = todas.filter(enZona);
-  const zonas = zonaSel ? ZONAS.filter(z => z.nombre === zonaSel) : ZONAS;
+  const esDisp = r => !TECNICOS.includes(cleanInitials(r.operario));
+  const disp = todas.filter(esDisp);
+  const vis = todas.filter(r => !esDisp(r) && enZona(r));
+  const zonas = zonaSel ? ZONAS_TEC.filter(z => z.nombre === zonaSel) : ZONAS_TEC;
   // Todos los técnicos de las zonas visibles, también los que no tienen visitas (para ver huecos).
   const byOp = {}; vis.forEach(r => { (byOp[r.operario] = byOp[r.operario] || []).push(r); });
   const opsZona = zonas.flatMap(z => z.ops);
@@ -618,16 +625,18 @@ function renderManana(){
       <div class="kpi"><b>${conVis ? (vis.length / conVis).toFixed(1) : '0'}</b>media por técnico</div>
     </div>
     <div id="manChips"></div>
+    ${disp.length ? `<div class="zhead" style="color:var(--amber)">DISPATCHER <span>${disp.length} visita${disp.length===1?' presencial':'s presenciales'} a tu nombre: asígnala${disp.length===1?'':'s'} a un técnico</span></div>
+      <div class="tgrid">${[...new Set(disp.map(r => r.operario))].map(op => tecCard(op, disp.filter(r => r.operario === op), max, true)).join('')}</div>` : ''}
     ${zonas.map(z => {
       const nz = z.ops.reduce((s, op) => s + (byOp[op] ? byOp[op].length : 0), 0);
       return `<div class="zhead">${esc(z.nombre)} <span>${nz} visita${nz===1?'':'s'}</span></div>
       <div class="tgrid">${z.ops.slice().sort((a,b) => (byOp[b]||[]).length - (byOp[a]||[]).length || opIndex(a) - opIndex(b)).map(op => tecCard(op, byOp[op] || [], max)).join('')}</div>`;
     }).join('')}`;
   const chipsHost = document.getElementById('manChips');
-  chipsHost.appendChild(zoneChips(() => renderManana(), Object.fromEntries(ZONAS.map(z => [z.nombre, todas.filter(r => zonaDe(r.operario) === z.nombre).length || '0']))));
+  chipsHost.appendChild(zoneChips(() => renderManana(), Object.fromEntries(ZONAS_TEC.map(z => [z.nombre, todas.filter(r => zonaDe(r.operario) === z.nombre).length || '0'])), ZONAS_TEC));
 }
 
-function tecCard(op, items, max){
+function tecCard(op, items, max, sinEnvio){
   const n = items.length;
   const cls = n >= CARGA_MUY ? 'muy' : n >= CARGA_ALTA ? 'alta' : '';
   const tel = tecCfg.tel[op];
@@ -644,7 +653,7 @@ function tecCard(op, items, max){
       <span class="d">${esc(r.domicilio || '—')}</span>
       <span class="d">${esc([r.tipo, r.referencia && 'Ref ' + r.referencia, r.descCliente].filter(Boolean).join(' · '))}</span>
     </div>`).join('')}
-    ${n ? `<div class="acts" style="padding:8px 10px;border-top:1px solid var(--line)">
+    ${n && !sinEnvio ? `<div class="acts" style="padding:8px 10px;border-top:1px solid var(--line)">
       <button class="btn wa" onclick="sendWhatsApp('${jsq(op)}')" title="${tel ? 'Enviar a ' + esc(tel) : 'Sin teléfono: WhatsApp te pedirá elegir el contacto ' + esc(op)}">WhatsApp${tel ? '' : ' · elegir contacto'}</button>
       <button class="btn sm" onclick="copyText(mensajeTecnico('${jsq(op)}'))">Copiar</button>
     </div>` : ''}
@@ -685,8 +694,8 @@ function sendWhatsApp(op){
 }
 
 function copyResumenDia(){
-  const vis = visitasDe(manDate).filter(enZona);
-  const zonas = zonaSel ? ZONAS.filter(z => z.nombre === zonaSel) : ZONAS;
+  const vis = visitasDe(manDate).filter(r => TECNICOS.includes(cleanInitials(r.operario)) && enZona(r));
+  const zonas = zonaSel ? ZONAS_TEC.filter(z => z.nombre === zonaSel) : ZONAS_TEC;
   const out = [`Carga presencial · ${diaLargo(manDate)}${zonaSel ? ' · ' + zonaSel : ''}`, ''];
   zonas.forEach(z => {
     const ls = z.ops.map(op => { const n = vis.filter(r => r.operario === op).length; return `  ${op}: ${n ? n + ' visita' + (n===1?'':'s') : 'libre'}`; });
@@ -704,7 +713,7 @@ function togglePhones(){
   p.innerHTML = `<div class="mhead"><span>Teléfonos de los técnicos <em>opcional</em></span><button class="btn sm" onclick="togglePhones()">Cerrar</button></div>
   <div class="mbody">
     <div class="hint">Con teléfono, WhatsApp abre directamente el chat del técnico. Sin teléfono, abre el selector y eliges el contacto (búscalo por sus siglas). Se guarda solo en este equipo y se incluye en "Exportar copia".</div>
-    <div class="phones">${OPERARIOS.map(op => `<label><b>${esc(op)}</b><input inputmode="tel" placeholder="600 000 000" value="${esc(tecCfg.tel[op] || '')}" oninput="tecCfg.tel['${jsq(op)}']=this.value.trim();saveTec()" onchange="renderManana()"></label>`).join('')}</div>
+    <div class="phones">${TECNICOS.map(op => `<label><b>${esc(op)}</b><input inputmode="tel" placeholder="600 000 000" value="${esc(tecCfg.tel[op] || '')}" oninput="tecCfg.tel['${jsq(op)}']=this.value.trim();saveTec()" onchange="renderManana()"></label>`).join('')}</div>
     <div class="fgrid">
       <label class="fl">Abrir en<select onchange="tecCfg.modo=this.value;saveTec()"><option value="app"${tecCfg.modo==='app'?' selected':''}>WhatsApp de escritorio</option><option value="web"${tecCfg.modo==='web'?' selected':''}>WhatsApp Web</option></select></label>
     </div>
