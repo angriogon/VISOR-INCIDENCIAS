@@ -122,6 +122,37 @@
   .live{display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--teal); margin-right:5px; vertical-align:middle;}
   .live.off{background:var(--ink-faint);}
   .live.err{background:#d9614f;}
+  .zhead{font-size:11px; font-weight:700; letter-spacing:.6px; color:var(--teal); margin:10px 2px 0; display:flex; gap:8px; align-items:baseline;}
+  .zhead:first-child{margin-top:0;}
+  .zhead span{color:var(--ink-faint); font-weight:500; letter-spacing:0;}
+  /* Vista Mañana */
+  .daynav{display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
+  .daynav .day{font-weight:700; font-size:14px; min-width:150px; text-align:center;}
+  .kpis{display:flex; gap:8px; flex-wrap:wrap;}
+  .kpi{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:6px 12px; font-size:11px; color:var(--ink-dim);}
+  .kpi b{display:block; font-size:18px; color:var(--ink);}
+  .tgrid{display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:8px; align-items:start;}
+  .tcard{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden;}
+  .tcard.empty0{opacity:.75;}
+  .thead{padding:8px 10px; display:flex; align-items:center; gap:8px; border-bottom:1px solid var(--line);}
+  .thead .op{font-weight:700; font-size:13px;}
+  .thead .nm{color:var(--ink-faint); font-size:11px; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .load{height:4px; background:var(--panel2);}
+  .load i{display:block; height:100%; background:var(--teal);}
+  .load i.alta{background:var(--amber);}
+  .load i.muy{background:#d9614f;}
+  .vis{padding:6px 10px; border-top:1px dashed var(--line); font-size:11.5px; display:grid; grid-template-columns:auto 1fr; gap:0 8px;}
+  .vis:first-of-type{border-top:none;}
+  .vis .h{font-family:'IBM Plex Mono',monospace; color:var(--ink); font-weight:500;}
+  .vis .d{color:var(--ink-dim); grid-column:2;}
+  .vis .t{grid-column:2; color:var(--ink);}
+  .btn.wa{background:#25d366; border-color:#25d366; color:#fff; padding:4px 10px;}
+  .btn.wa:hover{background:#1ebe5a; color:#fff;}
+  .btn.sm{padding:4px 9px; font-size:11px;}
+  .phones{display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:6px 12px;}
+  .phones label{display:flex; gap:6px; align-items:center; font-size:12px;}
+  .phones label b{width:44px;}
+  .phones input{flex:1; min-width:0; font-family:inherit; font-size:12px; padding:4px 6px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--ink);}
   #updateBar{display:none; position:fixed; bottom:calc(20px + env(safe-area-inset-bottom,0px)); right:20px; background:var(--panel); border:1px solid var(--amber); border-radius:var(--radius); padding:8px 12px; font-size:12px; gap:10px; align-items:center; z-index:21; box-shadow:0 4px 16px rgba(0,0,0,.15);}
 </style>
 </head>
@@ -129,7 +160,7 @@
 
 <header>
   <span style="font-size:13px; font-weight:600; letter-spacing:.2px;">Despacho</span>
-  <nav class="tabs"><button class="tab active" id="tabInc" onclick="showTab('inc')">Incidencias</button><button class="tab" id="tabTpl" onclick="showTab('tpl')">Plantillas</button></nav>
+  <nav class="tabs"><button class="tab active" id="tabInc" onclick="showTab('inc')">Incidencias</button><button class="tab" id="tabMan" onclick="showTab('man')">Mañana</button><button class="tab" id="tabTpl" onclick="showTab('tpl')">Plantillas</button></nav>
   <span class="sub" id="fileStatus">Sin datos</span>
   <span class="sub" id="atgoStatus"></span>
   <div class="spacer"></div>
@@ -164,6 +195,7 @@
   </div>
   </div>
 
+  <div id="viewMan" style="display:none;"></div>
   <div id="viewTpl" style="display:none;"></div>
 </main>
 
@@ -171,9 +203,22 @@
 <div id="updateBar"><span>Hay una versión nueva.</span><button class="btn pri" id="updateBtn">Actualizar</button></div>
 
 <script>
+// Zonas: ordenan y agrupan a los técnicos en todas las vistas.
+const ZONAS = [
+  { nombre:'SEVILLA/HUELVA', ops:['DSG','ACAB','CLH','JGAM'] },
+  { nombre:'CÓRDOBA/JAÉN',   ops:['JCGM'] },
+  { nombre:'GRANADA',        ops:['LGV','ADJC'] },
+  { nombre:'ALMERÍA',        ops:['LEOC','IFF'] },
+  { nombre:'MÁLAGA',         ops:['JVR','ILG','MMHG','FMNT'] },
+  { nombre:'CÁDIZ',          ops:['EACL','AAR','DSJ','JRHG'] },
+  { nombre:'CEUTA',          ops:['JIFC'] },
+  { nombre:'MELILLA',        ops:['PHEP'] },
+  { nombre:'EXTREMADURA',    ops:['MLOR'] },
+  { nombre:'SIN ZONA',       ops:['AMRG'] }
+];
 // Solo se cargan incidencias de estos operarios y en estos estados (también al importar Excel).
 // Si cambias algo aquí, cámbialo igual en atgo-sync.js.
-const OPERARIOS = ['ACAB','DSG','AMRG','CLH','JGAM','MLOR','JCGM','ADJC','LGV','LEOC','IFF','FMNT','ILG','JVR','MMHG','EACL','DSJ','AAR','JRHG'];
+const OPERARIOS = ZONAS.flatMap(z => z.ops);
 const ESTADOS = ['PRESENCIAL','PUESTO OPERATIVO','FUERA DE MANTENIMIENTO','MATERIAL PTE. FABRICANTE','PTE. MOVER MATERIAL','EN FABRICANTE','ESCALADO TIER1'];
 const ATGO_URL = 'https://atgo.tier1.es/#/mistickets/';
 const ATGO_ORIGIN = 'https://atgo.tier1.es';
@@ -281,6 +326,7 @@ function setRows(newRows, label, keepView){
   renderFilters();
   render();
   if (document.getElementById('viewTpl').style.display !== 'none' && tplSub==='cli' && !editKind) renderClienteMain();
+  if (document.getElementById('viewMan').style.display !== 'none') renderManana();
 }
 
 function loadData(dataRows, filename){
@@ -297,6 +343,36 @@ function loadData(dataRows, filename){
   if (fuera > 0) toast(`${fuera} filas ignoradas (otros operarios o estados)`);
 }
 
+// ===== Zonas =====
+let zonaSel = null;   // nombre de zona o null = todas (compartido por Incidencias y Mañana)
+function zonaDe(op){ const i = cleanInitials(op); const z = ZONAS.find(z => z.ops.includes(i)); return z ? z.nombre : 'SIN ZONA'; }
+function opIndex(op){ const i = OPERARIOS.indexOf(cleanInitials(op)); return i === -1 ? 999 : i; }
+function enZona(r){ return !zonaSel || zonaDe(r.operario) === zonaSel; }
+// Agrupa filas por zona (en el orden de ZONAS) y, dentro, por técnico.
+function porZona(list, sortOps){
+  const byOp = {};
+  list.forEach(r => { (byOp[r.operario] = byOp[r.operario] || []).push(r); });
+  return ZONAS.map(z => {
+    const ops = Object.keys(byOp).filter(op => zonaDe(op) === z.nombre).sort(sortOps || ((a,b) => opIndex(a) - opIndex(b)));
+    return { zona: z.nombre, ops: ops.map(op => ({ op, items: byOp[op] })) };
+  }).filter(g => g.ops.length);
+}
+function zoneChips(onPick, counts){
+  const el = document.createElement('span');
+  el.className = 'filters';
+  const mk = (label, val, n) => {
+    const b = document.createElement('button');
+    b.className = 'chip' + (zonaSel === val ? ' active' : '');
+    b.textContent = n != null ? `${label} · ${n}` : label;
+    b.onclick = () => { zonaSel = zonaSel === val ? null : val; onPick(); };
+    return b;
+  };
+  el.appendChild(mk('Todas', null));
+  ZONAS.forEach(z => { if (counts[z.nombre]) el.appendChild(mk(z.nombre, z.nombre, counts[z.nombre])); });
+  return el;
+}
+function zoneCounts(list){ const c = {}; list.forEach(r => { const z = zonaDe(r.operario); c[z] = (c[z]||0) + 1; }); return c; }
+
 function renderFilters(){
   const el = document.getElementById('filters');
   el.innerHTML = '';
@@ -306,9 +382,11 @@ function renderFilters(){
   trChip.title = 'Visitas presenciales de hoy, una tarjeta por técnico';
   trChip.onclick = () => { totalRuta = !totalRuta; renderFilters(); render(); };
   el.appendChild(trChip);
+  const sep = document.createElement('span'); sep.style.cssText = 'width:1px;height:18px;background:var(--line)'; el.appendChild(sep);
+  el.appendChild(zoneChips(() => { renderFilters(); render(); }, zoneCounts(rows)));
 }
 
-function filteredRows(){ return rows; }
+function filteredRows(){ return rows.filter(enZona); }
 
 // ===== Sincronización en tiempo real con ATGO (ver atgo-sync.js) =====
 function setAtgoStatus(text, state){
@@ -367,31 +445,32 @@ function render(){
   if (totalRuta){
     const enRuta = data.filter(isEnRuta);
     if (!enRuta.length){ panel.innerHTML = '<div class="empty">Nadie en ruta hoy con estas condiciones.</div>'; return; }
-    const byOpR = {};
-    enRuta.forEach(r => { (byOpR[r.operario] = byOpR[r.operario] || []).push(r); });
-    const opsR = Object.keys(byOpR).sort();
-    panel.innerHTML = `<div class="cardgrid">` + opsR.map(op => `
+    panel.innerHTML = porZona(enRuta).map(g => `
+      <div class="zhead">${esc(g.zona)} <span>${plural(g.ops.reduce((s,o)=>s+o.items.length,0), 'visita')} · ${plural(g.ops.length, 'técnico')}</span></div>
+      <div class="cardgrid">${g.ops.map(({op, items}) => `
       <div class="rcard" style="border-top-color:${colorFor(op)}">
         <div class="rop">${esc(op)}</div>
-        ${byOpR[op].map(r => `
+        ${sortByHora(items).map(r => `
           <div class="rline">
             <span class="rnum mono">Nº${esc(r.num || '—')}</span>
             <span class="rhora">${esc(r.desdeHora || '—')}</span>
             <span class="rsite" title="${esc(r.descSede || r.domicilio || '')}">${esc(r.descSede || r.domicilio || '—')}</span>
           </div>`).join('')}
-      </div>`).join('') + `</div>`;
+      </div>`).join('')}</div>`).join('');
     return;
   }
 
-  const byOp = {};
-  data.forEach(r => { (byOp[r.operario] = byOp[r.operario] || []).push(r); });
-  const ops = Object.keys(byOp).sort((a,b) => byOp[b].length - byOp[a].length);
+  if (!data.length){ panel.innerHTML = '<div class="empty">Sin incidencias para este filtro.</div>'; return; }
 
-  if (!ops.length){ panel.innerHTML = '<div class="empty">Sin incidencias para este filtro.</div>'; return; }
+  panel.innerHTML = porZona(data, null).map(g => `
+    <div class="zhead">${esc(g.zona)} <span>${plural(g.ops.reduce((s,o)=>s+o.items.length,0), 'incidencia')} · ${plural(g.ops.length, 'técnico')}</span></div>
+    ${g.ops.map(({op, items}) => groupHtml(op, items)).join('')}`).join('');
+}
 
-  panel.innerHTML = ops.map(op => {
+function groupHtml(op, all){
     const gf = groupFilter[op];
-    let list = byOp[op];
+    let list = all;
+    const byOp = { [op]: all };
     if (gf === 'enruta') list = list.filter(isEnRuta);
     else if (gf === 'fuera') list = list.filter(r => !isEnRuta(r));
     return `
@@ -419,8 +498,13 @@ function render(){
         </div>`).join('')}
       </div>
     </div>`;
-  }).join('');
 }
+
+function plural(n, w){ return n + ' ' + w + (n === 1 ? '' : 's'); }
+
+// Hora "09:30" → minutos para ordenar; sin hora, al final.
+function horaMin(h){ const m = /^(\d{1,2}):(\d{2})/.exec(h || ''); return m ? (+m[1])*60 + (+m[2]) : 9999; }
+function sortByHora(list){ return list.slice().sort((a,b) => horaMin(a.desdeHora) - horaMin(b.desdeHora)); }
 
 function numHtml(r){
   const n = esc(r.num || '—');
@@ -455,6 +539,180 @@ function toggleAll(){
   ops.forEach(o => collapsed[o] = !allC);
   render();
 }
+// ===== Mañana: visitas presenciales por técnico para preparar el día siguiente =====
+const CARGA_ALTA = 5, CARGA_MUY = 7;   // nº de visitas a partir del cual la barra se pone naranja / roja
+const TEC_KEY = 'dispatcher_tecnicos_v1';
+const TEC_DEF = {
+  tel: {},          // teléfono por siglas (opcional): si falta, WhatsApp abre el selector de contacto
+  modo: 'app',      // 'app' = WhatsApp de escritorio, 'web' = WhatsApp Web
+  saludo: 'Hola {nombre}, tu planificación para el {dia}:',
+  despedida: 'Total: {total}. Cualquier cosa me dices. ¡Gracias!'
+};
+let tecCfg = (() => { try{ return { ...TEC_DEF, ...JSON.parse(localStorage.getItem(TEC_KEY)||'{}') }; }catch(e){ return { ...TEC_DEF }; } })();
+if (!tecCfg.tel || typeof tecCfg.tel !== 'object') tecCfg.tel = {};
+function saveTec(){ try{ localStorage.setItem(TEC_KEY, JSON.stringify(tecCfg)); }catch(e){ toast('No se pudo guardar en este equipo'); } }
+
+const DIAS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+function ddmmyyyy(d){ return String(d.getDate()).padStart(2,'0') + '/' + String(d.getMonth()+1).padStart(2,'0') + '/' + d.getFullYear(); }
+// Siguiente día laborable (viernes y sábado → lunes).
+function nextWorkday(from){ const d = new Date(from || Date.now()); d.setHours(12,0,0,0); do { d.setDate(d.getDate()+1); } while (d.getDay()===0 || d.getDay()===6); return d; }
+let manDate = nextWorkday();
+let manPhones = false;
+function diaLargo(d){ return DIAS[d.getDay()] + ' ' + ddmmyyyy(d).slice(0,5); }
+function esPresencial(r){ return norm(r.estado).includes('presencial'); }
+function visitasDe(d){ const f = ddmmyyyy(d); return rows.filter(r => esPresencial(r) && r.fVisita === f); }
+// "GARCIA SUTIL, JESUS" → "Jesús"; si no hay nombre, las siglas.
+function nombrePila(r){
+  const n = String(r && r.desOperario || '').split(',')[1];
+  const first = n ? n.trim().split(/\s+/)[0] : '';
+  return first ? first.charAt(0).toUpperCase() + first.slice(1).toLowerCase() : (r ? r.operario : '');
+}
+
+function moveDay(delta){
+  const d = new Date(manDate); d.setDate(d.getDate() + delta); manDate = d; renderManana();
+}
+function setDay(which){ manDate = which === 'hoy' ? (() => { const d = new Date(); d.setHours(12,0,0,0); return d; })() : nextWorkday(); renderManana(); }
+
+function renderManana(){
+  const root = document.getElementById('viewMan');
+  if (!root.dataset.shell){
+    root.dataset.shell = '1';
+    root.innerHTML = `<div style="display:grid;gap:10px">
+      <div class="toprow">
+        <div class="daynav">
+          <button class="iconbtn" onclick="moveDay(-1)" title="Día anterior" aria-label="Día anterior">◀</button>
+          <span class="day" id="manDay"></span>
+          <button class="iconbtn" onclick="moveDay(1)" title="Día siguiente" aria-label="Día siguiente">▶</button>
+          <button class="btn sm" onclick="setDay('man')">Próximo laborable</button>
+          <button class="btn sm" onclick="setDay('hoy')">Hoy</button>
+        </div>
+        <div class="acts">
+          <button class="btn sm" onclick="copyResumenDia()" title="Copia la carga de todos los técnicos visibles">Copiar resumen</button>
+          <button class="btn sm" id="phonesBtn" onclick="togglePhones()">Teléfonos y mensaje</button>
+        </div>
+      </div>
+      <div id="phonesPanel" class="mpanel" style="display:none"></div>
+      <div id="manBody" style="display:grid;gap:10px"></div>
+    </div>`;
+  }
+  document.getElementById('manDay').textContent = diaLargo(manDate).replace(/^./, c => c.toUpperCase()) + '/' + manDate.getFullYear();
+  const body = document.getElementById('manBody');
+  if (!rows.length){
+    body.innerHTML = '<div class="empty"><h2>Sin incidencias cargadas</h2><div>Sincroniza con ATGO o importa un Excel desde la pestaña Incidencias.</div></div>';
+    return;
+  }
+  const todas = visitasDe(manDate);
+  const vis = todas.filter(enZona);
+  const zonas = zonaSel ? ZONAS.filter(z => z.nombre === zonaSel) : ZONAS;
+  // Todos los técnicos de las zonas visibles, también los que no tienen visitas (para ver huecos).
+  const byOp = {}; vis.forEach(r => { (byOp[r.operario] = byOp[r.operario] || []).push(r); });
+  const opsZona = zonas.flatMap(z => z.ops);
+  const conVis = opsZona.filter(op => byOp[op]).length;
+  const max = Math.max(CARGA_MUY, ...Object.values(byOp).map(l => l.length));
+
+  body.innerHTML = `
+    <div class="kpis">
+      <div class="kpi"><b>${vis.length}</b>visitas presenciales</div>
+      <div class="kpi"><b>${conVis}</b>técnicos con visitas</div>
+      <div class="kpi"><b>${opsZona.length - conVis}</b>técnicos libres</div>
+      <div class="kpi"><b>${conVis ? (vis.length / conVis).toFixed(1) : '0'}</b>media por técnico</div>
+    </div>
+    <div id="manChips"></div>
+    ${zonas.map(z => {
+      const nz = z.ops.reduce((s, op) => s + (byOp[op] ? byOp[op].length : 0), 0);
+      return `<div class="zhead">${esc(z.nombre)} <span>${nz} visita${nz===1?'':'s'}</span></div>
+      <div class="tgrid">${z.ops.slice().sort((a,b) => (byOp[b]||[]).length - (byOp[a]||[]).length || opIndex(a) - opIndex(b)).map(op => tecCard(op, byOp[op] || [], max)).join('')}</div>`;
+    }).join('')}`;
+  const chipsHost = document.getElementById('manChips');
+  chipsHost.appendChild(zoneChips(() => renderManana(), Object.fromEntries(ZONAS.map(z => [z.nombre, todas.filter(r => zonaDe(r.operario) === z.nombre).length || '0']))));
+}
+
+function tecCard(op, items, max){
+  const n = items.length;
+  const cls = n >= CARGA_MUY ? 'muy' : n >= CARGA_ALTA ? 'alta' : '';
+  const tel = tecCfg.tel[op];
+  return `<div class="tcard${n ? '' : ' empty0'}">
+    <div class="thead">
+      <span class="op">${esc(op)}</span>
+      <span class="nm">${esc(items[0] && items[0].desOperario || '')}</span>
+      <span class="count" style="color:var(--teal);font-weight:600;font-size:12px">${n ? n + ' visita' + (n===1?'':'s') : 'Libre'}</span>
+    </div>
+    <div class="load"><i class="${cls}" style="width:${Math.round(n / max * 100)}%"></i></div>
+    ${sortByHora(items).map(r => `<div class="vis">
+      <span class="h">${esc(r.desdeHora || '--:--')}${r.hastaHora ? '–' + esc(r.hastaHora) : ''}</span>
+      <span class="t">${numHtml(r).replace('class="num mono"', 'class="num mono" style="color:var(--amber);font-weight:600;text-decoration:none"')} · ${esc(r.descSede || '—')}</span>
+      <span class="d">${esc(r.domicilio || '—')}</span>
+      <span class="d">${esc([r.tipo, r.referencia && 'Ref ' + r.referencia, r.descCliente].filter(Boolean).join(' · '))}</span>
+    </div>`).join('')}
+    ${n ? `<div class="acts" style="padding:8px 10px;border-top:1px solid var(--line)">
+      <button class="btn wa" onclick="sendWhatsApp('${jsq(op)}')" title="${tel ? 'Enviar a ' + esc(tel) : 'Sin teléfono: WhatsApp te pedirá elegir el contacto ' + esc(op)}">WhatsApp${tel ? '' : ' · elegir contacto'}</button>
+      <button class="btn sm" onclick="copyText(mensajeTecnico('${jsq(op)}'))">Copiar</button>
+    </div>` : ''}
+  </div>`;
+}
+
+function mensajeTecnico(op){
+  const items = sortByHora(visitasDe(manDate).filter(r => r.operario === op));
+  const dia = diaLargo(manDate);
+  const vars = { nombre: nombrePila(items[0]) || op, dia, total: items.length + ' visita' + (items.length===1?'':'s'), tecnico: op };
+  const fillV = s => String(s || '').replace(/\{(\w+)\}/g, (m, k) => vars[k] != null ? vars[k] : m);
+  const lines = items.map((r, i) => {
+    const hora = (r.desdeHora || 'Sin hora') + (r.hastaHora ? '–' + r.hastaHora : '');
+    return [
+      `*${i+1}) ${hora}* · Nº ${r.num}`,
+      r.descSede, r.domicilio,
+      [r.tipo, r.referencia && 'Ref: ' + r.referencia].filter(Boolean).join(' · ')
+    ].filter(Boolean).join('\n');
+  });
+  return [fillV(tecCfg.saludo), '', lines.join('\n\n'), '', fillV(tecCfg.despedida)].join('\n').trim();
+}
+
+function telWa(t){
+  let d = String(t || '').replace(/[^\d+]/g, '').replace(/^\+/, '').replace(/^00/, '');
+  if (/^[6789]\d{8}$/.test(d)) d = '34' + d;   // móvil español sin prefijo
+  return d;
+}
+function sendWhatsApp(op){
+  const msg = mensajeTecnico(op);
+  const tel = telWa(tecCfg.tel[op]);
+  copyText(msg);   // por si WhatsApp no recoge el texto, queda en el portapapeles
+  let url;
+  if (tecCfg.modo === 'web') url = tel ? `https://web.whatsapp.com/send?phone=${tel}&text=${encodeURIComponent(msg)}` : `https://web.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
+  else url = `whatsapp://send?${tel ? 'phone=' + tel + '&' : ''}text=${encodeURIComponent(msg)}`;
+  if (tecCfg.modo === 'web') window.open(url, 'whatsapp-web');
+  else { const a = document.createElement('a'); a.href = url; a.click(); }
+  toast(tel ? `Abriendo WhatsApp con ${op}…` : `Elige el contacto «${op}» en WhatsApp (el mensaje también está copiado)`);
+}
+
+function copyResumenDia(){
+  const vis = visitasDe(manDate).filter(enZona);
+  const zonas = zonaSel ? ZONAS.filter(z => z.nombre === zonaSel) : ZONAS;
+  const out = [`Carga presencial · ${diaLargo(manDate)}${zonaSel ? ' · ' + zonaSel : ''}`, ''];
+  zonas.forEach(z => {
+    const ls = z.ops.map(op => { const n = vis.filter(r => r.operario === op).length; return `  ${op}: ${n ? n + ' visita' + (n===1?'':'s') : 'libre'}`; });
+    out.push(z.nombre, ...ls, '');
+  });
+  out.push(`Total: ${vis.length} visitas`);
+  copyText(out.join('\n'));
+}
+
+function togglePhones(){
+  manPhones = !manPhones;
+  const p = document.getElementById('phonesPanel');
+  p.style.display = manPhones ? '' : 'none';
+  if (!manPhones) return;
+  p.innerHTML = `<div class="mhead"><span>Teléfonos de los técnicos <em>opcional</em></span><button class="btn sm" onclick="togglePhones()">Cerrar</button></div>
+  <div class="mbody">
+    <div class="hint">Con teléfono, WhatsApp abre directamente el chat del técnico. Sin teléfono, abre el selector y eliges el contacto (búscalo por sus siglas). Se guarda solo en este equipo y se incluye en "Exportar copia".</div>
+    <div class="phones">${OPERARIOS.map(op => `<label><b>${esc(op)}</b><input inputmode="tel" placeholder="600 000 000" value="${esc(tecCfg.tel[op] || '')}" oninput="tecCfg.tel['${jsq(op)}']=this.value.trim();saveTec()" onchange="renderManana()"></label>`).join('')}</div>
+    <div class="fgrid">
+      <label class="fl">Abrir en<select onchange="tecCfg.modo=this.value;saveTec()"><option value="app"${tecCfg.modo==='app'?' selected':''}>WhatsApp de escritorio</option><option value="web"${tecCfg.modo==='web'?' selected':''}>WhatsApp Web</option></select></label>
+    </div>
+    <label class="fl">Saludo (campos: {nombre}, {dia}, {tecnico})<input value="${esc(tecCfg.saludo)}" oninput="tecCfg.saludo=this.value;saveTec()"></label>
+    <label class="fl">Despedida (campos: {total}, {nombre})<input value="${esc(tecCfg.despedida)}" oninput="tecCfg.despedida=this.value;saveTec()"></label>
+  </div>`;
+}
+
 // ===== Plantillas: correos por cliente + recordatorios a técnicos =====
 const CLI_KEY='dispatcher_clientes_v1', REC_KEY='dispatcher_recordatorios_v1';
 const MLAB={cliente:'Cliente',tecnico:'Técnico',tiempo:'Tiempo estimado',num:'Nº incidencia',sede:'Sede',fecha:'Fecha visita',hora:'Hora',direccion:'Dirección'};
@@ -481,11 +739,15 @@ function openMail(subject, body){ const a=document.createElement('a'); a.href='m
 
 function showTab(t){
   document.getElementById('viewInc').style.display = t==='inc' ? '' : 'none';
+  document.getElementById('viewMan').style.display = t==='man' ? '' : 'none';
   document.getElementById('viewTpl').style.display = t==='tpl' ? '' : 'none';
   document.getElementById('tabInc').classList.toggle('active', t==='inc');
+  document.getElementById('tabMan').classList.toggle('active', t==='man');
   document.getElementById('tabTpl').classList.toggle('active', t==='tpl');
   if (location.hash !== '#'+t) history.replaceState(null, '', '#'+t);
   if (t==='tpl') renderTpl();
+  if (t==='man') renderManana();
+  if (t==='inc' && rows.length){ renderFilters(); render(); }
 }
 function renderTpl(){
   const root=document.getElementById('viewTpl');
@@ -501,7 +763,7 @@ function renderTpl(){
 
 // ---- Copia de seguridad de plantillas ----
 function exportBackup(){
-  const data = { app:'panel-despacho', version:1, fecha:new Date().toISOString(), clientes, recordatorios };
+  const data = { app:'panel-despacho', version:1, fecha:new Date().toISOString(), clientes, recordatorios, tecnicos: tecCfg };
   const blob = new Blob([JSON.stringify(data,null,2)], {type:'application/json'});
   const a = document.createElement('a');
   const d = new Date();
@@ -525,6 +787,7 @@ function restoreBackup(file){
       clientes = merge(clientes, d.clientes);
       recordatorios = merge(recordatorios, d.recordatorios);
       saveJSON(CLI_KEY, clientes); saveJSON(REC_KEY, recordatorios);
+      if (d.tecnicos && typeof d.tecnicos === 'object'){ tecCfg = { ...tecCfg, ...d.tecnicos, tel: { ...tecCfg.tel, ...(d.tecnicos.tel||{}) } }; saveTec(); }
       selCli = selCli || (clientes[0]&&clientes[0].id); selRec = selRec || (recordatorios[0]&&recordatorios[0].id);
       showTab('tpl');
       toast(`Restaurado: ${d.clientes.length} clientes, ${d.recordatorios.length} recordatorios`);
@@ -703,7 +966,7 @@ try{
   if (cached && Array.isArray(cached.rows) && !rows.length) applyAtgo(cached, true);
 }catch(e){}
 
-showTab(location.hash === '#tpl' ? 'tpl' : 'inc');
+showTab(['#tpl','#man'].includes(location.hash) ? location.hash.slice(1) : 'inc');
 </script>
 </body>
 </html>

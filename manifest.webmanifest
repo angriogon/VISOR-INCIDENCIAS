@@ -30,6 +30,7 @@
   ],
   "shortcuts": [
     { "name": "Incidencias", "url": "./#inc", "icons": [{ "src": "icon-192.png", "sizes": "192x192" }] },
+    { "name": "Mañana", "url": "./#man", "icons": [{ "src": "icon-192.png", "sizes": "192x192" }] },
     { "name": "Plantillas", "url": "./#tpl", "icons": [{ "src": "icon-192.png", "sizes": "192x192" }] }
   ]
 }

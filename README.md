@@ -3,6 +3,8 @@
 PWA para Windows para el trabajo diario de Dispatcher:
 
 - **Incidencias:** se cargan **en tiempo real desde ATGO** (o importando un Excel/CSV) y se agrupan por operario. Hay vista **En ruta total** (visitas presenciales de hoy, una tarjeta por técnico) y filtros *En ruta / Fuera de ruta* en cada técnico. Solo se cargan los operarios y estados configurados.
+- **Zonas:** los técnicos se agrupan y ordenan por zona (Sevilla/Huelva, Córdoba/Jaén, Granada, Almería, Málaga, Cádiz, Ceuta, Melilla, Extremadura), con chips para filtrar por zona.
+- **Mañana:** visitas presenciales del próximo día laborable (se puede cambiar de día) por técnico y zona, con barra de carga, técnicos libres y botón **WhatsApp** que envía a cada técnico su planificación.
 - **Plantillas:** correos por cliente con campos variables (`{tecnico}`, `{num}`, `{sede}`, `{fecha}`, `{hora}`, `{direccion}`, `{tiempo}`, `{cliente}`) que se pueden rellenar desde una incidencia, y recordatorios para técnicos.
 
 No hace falta compilar nada: son archivos estáticos (HTML + JS) y GitHub Pages los publica tal cual.
@@ -56,6 +58,16 @@ Detalles:
 - Despacho guarda la última carga, así que al abrirla ves los últimos datos (marcados con la hora) hasta que llegue la siguiente.
 - Si la sesión de ATGO caduca, el recuadro lo indica: vuelve a iniciar sesión y pulsa ⟳.
 
+## Mañana y WhatsApp
+
+- Por defecto muestra el **próximo día laborable** (el viernes y el sábado muestran el lunes). Con ◀ ▶ cambias de día.
+- Cuenta como visita toda incidencia en estado **PRESENCIAL** con fecha de visita ese día. Se ordenan por hora.
+- La barra de carga se pone naranja desde `CARGA_ALTA` (5) visitas y roja desde `CARGA_MUY` (7); se cambia en `index.html`.
+- **WhatsApp:** el botón abre WhatsApp con el mensaje ya escrito (y lo deja también en el portapapeles).
+  - Sin teléfono configurado, WhatsApp te pide elegir el contacto: búscalo por sus siglas.
+  - En **Teléfonos y mensaje** puedes guardar el móvil de cada técnico (así abre directamente su chat), elegir WhatsApp de escritorio o WhatsApp Web, y cambiar el saludo y la despedida.
+- **Copiar resumen** copia la carga de todos los técnicos de la zona visible.
+
 ## Tus datos
 
 - **El Excel no sale de tu equipo:** se lee en el navegador y no se guarda en ningún sitio. Hay que importarlo cada vez que abres la app.
@@ -70,7 +82,7 @@ Detalles:
 
 ## Configuración rápida
 
-- `OPERARIOS`: iniciales de los técnicos que se cargan. Está en **`index.html` y en `atgo-sync.js`**: cámbialo en los dos.
+- `ZONAS` (en `index.html`): zonas y sus técnicos. Los técnicos que se cargan son los de todas las zonas; en `atgo-sync.js` está la misma lista en `OPERARIOS`: si añades o quitas un técnico, cámbialo en los dos.
 - `ESTADOS`: estados que se cargan. En `index.html` por nombre; en `atgo-sync.js` por código de ATGO (10 PRESENCIAL, 20 PUESTO OPERATIVO, 30 FUERA DE MANTENIMIENTO, 40 MATERIAL PTE. FABRICANTE, 80 PTE. MOVER MATERIAL, 100 EN FABRICANTE, 110 ESCALADO TIER1).
 - `REFRESCO_MIN` (en `atgo-sync.js`): minutos entre actualizaciones.
 - `COLS` (en `index.html`): qué columna del Excel corresponde a cada dato (0 = A, 1 = B, …).
