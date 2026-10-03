@@ -1,0 +1,35 @@
+{
+  "name": "Visor de Incidencias · Panel de Despacho",
+  "short_name": "Despacho",
+  "description": "Seguimiento de incidencias de técnicos, rutas del día y plantillas de correo para Dispatcher.",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone"],
+  "orientation": "any",
+  "lang": "es",
+  "dir": "ltr",
+  "background_color": "#14181c",
+  "theme_color": "#1b2126",
+  "categories": ["business", "productivity"],
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "file_handlers": [
+    {
+      "action": "./",
+      "accept": {
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"],
+        "application/vnd.ms-excel": [".xls"],
+        "text/csv": [".csv"]
+      }
+    }
+  ],
+  "shortcuts": [
+    { "name": "Incidencias", "url": "./#inc", "icons": [{ "src": "icon-192.png", "sizes": "192x192" }] },
+    { "name": "Plantillas", "url": "./#tpl", "icons": [{ "src": "icon-192.png", "sizes": "192x192" }] }
+  ]
+}

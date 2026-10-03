@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Panel de Despacho</title>
+<meta name="description" content="Seguimiento de incidencias de técnicos, rutas del día y plantillas de correo.">
+<meta name="theme-color" content="#f7f5f0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1b2126" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="icon" href="icon-192.png" type="image/png" sizes="192x192">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.gstatic.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    box-sizing:border-box;
+    --bg:#f7f5f0; --panel:#ffffff; --panel2:#f1efe9; --line:#e2ded4;
+    --ink:#26282c; --ink-dim:#6b7178; --ink-faint:#9aa0a6;
+    --amber:#c9862b; --amber-dim:#faedd1;
+    --teal:#2f8f87; --teal-dim:#dcf0ee;
+    --radius:9px;
+    padding-top:env(safe-area-inset-top,0px);
+    padding-bottom:env(safe-area-inset-bottom,0px);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#14181c; --panel:#1b2126; --panel2:#20272d; --line:#2c353c;
+      --ink:#e8ecef; --ink-dim:#8b98a3; --ink-faint:#5c6a73;
+      --amber-dim:#4a3a1c; --teal-dim:#1c3a38;
+    }
+  }
+  :root[data-theme="light"]{ --bg:#f7f5f0; --panel:#ffffff; --panel2:#f1efe9; --line:#e2ded4; --ink:#26282c; }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--ink);font-family:'IBM Plex Sans',system-ui,sans-serif;}
+  html{scroll-padding-top:env(safe-area-inset-top,0px);}
+  body{min-height:100vh;font-size:14px;line-height:1.45;}
+  .mono{font-family:'IBM Plex Mono',monospace;}
+  header{
+    position:sticky; top:env(safe-area-inset-top,0px); z-index:5;
+    background:var(--panel); border-bottom:1px solid var(--line);
+    padding:10px 14px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+  }
+  header .sub{color:var(--ink-faint); font-size:11px;}
+  .spacer{flex:1;}
+  .btn{ background:transparent; color:var(--ink-dim); border:1px solid var(--line); padding:6px 13px; border-radius:var(--radius); font-weight:500; font-size:12px; cursor:pointer; font-family:inherit;}
+  .btn:hover{border-color:var(--amber); color:var(--amber);}
+  .btn.ghost{background:transparent;}
+  #fileInput,#backupInput{display:none;}
+  main{max-width:900px; margin:0 auto; padding:14px; display:grid; gap:10px;}
+  .empty{ padding:50px 24px; text-align:center; color:var(--ink-dim); border:1px dashed var(--line); border-radius:var(--radius); background:var(--panel);}
+  .empty h2{color:var(--ink); font-size:15px; margin:0 0 6px;}
+  body.dragging .empty{border-color:var(--amber); background:var(--amber-dim);}
+  .filters{display:flex; gap:8px; flex-wrap:wrap; align-items:center;}
+  .chip{ padding:5px 12px; border-radius:999px; border:1px solid var(--line); background:var(--panel2); color:var(--ink-dim); font-size:12px; cursor:pointer; user-select:none; font-family:inherit;}
+  .chip.active{border-color:var(--amber); color:var(--amber); background:var(--amber-dim);}
+  .countbar{color:var(--ink-faint); font-size:11.5px;}
+  .group{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden;}
+  .group .ghead{ padding:8px 12px; border-bottom:1px solid var(--line); font-weight:700; font-size:12.5px; display:flex; justify-content:space-between; align-items:center; background:var(--panel2); cursor:pointer; user-select:none;}
+  .group.collapsed .ghead{border-bottom:none;}
+  .group .ghead .left{display:flex; align-items:center; gap:8px;}
+  .group .ghead .chev{color:var(--ink-faint); font-size:10px; transition:transform .15s;}
+  .group.collapsed .ghead .chev{transform:rotate(-90deg);}
+  .group .ghead .subf{display:flex; gap:6px; flex:1; justify-content:center;}
+  .chip.sm{padding:3px 9px; font-size:10.5px;}
+  .group .ghead .count{color:var(--teal); font-weight:500; font-size:11px;}
+  .group .body{display:grid;}
+  .group.collapsed .body{display:none;}
+  .line{ padding:5px 12px; border-top:1px solid var(--line); font-size:11.5px; color:var(--ink-dim); display:flex; flex-wrap:wrap; gap:2px 8px; align-items:center; border-left:3px solid transparent;}
+  .line:first-child{border-top:none;}
+  .line b{color:var(--ink); font-weight:600;}
+  .line .num{color:var(--amber); font-weight:600;}
+  .dot{width:7px; height:7px; border-radius:50%; display:inline-block; flex-shrink:0;}
+  ::selection{background:var(--teal-dim);}
+  #groupsPanel{display:grid; gap:8px;}
+  .cardgrid{display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:8px; align-items:start;}
+  .rcard{background:var(--panel); border:1px solid var(--line); border-top:3px solid var(--teal); border-radius:8px; padding:8px 10px;}
+  .rcard .rop{font-weight:700; font-size:12.5px; letter-spacing:.3px; margin-bottom:4px;}
+  .rline{display:flex; gap:6px; align-items:baseline; font-size:10.5px; color:var(--ink-dim); padding:2px 0; border-top:1px dashed var(--line);}
+  .rline:first-of-type{border-top:none;}
+  .rline .rnum{color:var(--amber); font-weight:600; flex-shrink:0;}
+  .rline .rhora{flex-shrink:0; color:var(--ink);}
+  .rline .rsite{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .toprow{display:flex; align-items:center; justify-content:space-between; gap:8px;}
+  .iconbtn{display:inline-flex; align-items:center; justify-content:center; width:30px; height:30px; padding:0; border:1px solid var(--line); border-radius:var(--radius); background:transparent; color:var(--ink-dim); cursor:pointer; flex-shrink:0;}
+  .iconbtn:hover{border-color:var(--amber); color:var(--amber);}
+  .tabs{display:flex; gap:2px; margin-left:4px;}
+  .tab{background:none; border:none; color:var(--ink-dim); font-family:inherit; font-size:12.5px; padding:4px 10px; border-radius:6px; cursor:pointer;}
+  .tab.active{background:var(--panel2); color:var(--ink); font-weight:600;}
+  .subtabs{display:flex; gap:6px; margin-bottom:10px; flex-wrap:wrap; align-items:center;}
+  .subtab{background:var(--panel); border:1px solid var(--line); color:var(--ink-dim); font-family:inherit; font-size:12px; padding:6px 13px; border-radius:var(--radius); cursor:pointer;}
+  .subtab.active{border-color:var(--amber); color:var(--amber); background:var(--amber-dim); font-weight:600;}
+  .mgrid{display:grid; grid-template-columns:220px 1fr; gap:10px; align-items:start;}
+  @media (max-width:720px){ .mgrid{grid-template-columns:1fr;} }
+  .mpanel{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden;}
+  .mhead{padding:8px 12px; border-bottom:1px solid var(--line); background:var(--panel2); font-weight:700; font-size:12.5px; display:flex; justify-content:space-between; align-items:center; gap:8px;}
+  .mhead em{font-style:normal; color:var(--teal); font-weight:500; font-size:11px; margin-left:6px;}
+  .titem{padding:8px 12px; border-top:1px solid var(--line); cursor:pointer; display:flex; flex-direction:column; font-size:12px;}
+  .titem span{color:var(--ink-faint); font-size:10.5px;}
+  .titem:hover{background:var(--panel2);}
+  .titem.sel{border-left:3px solid var(--amber); background:var(--amber-dim);}
+  .mbody{padding:12px; display:grid; gap:10px;}
+  .empty-inline{padding:14px; color:var(--ink-faint); font-size:12px;}
+  .fl{display:grid; gap:3px; font-size:11px; color:var(--ink-dim);}
+  .fl input,.fl select,.fl textarea{font-family:inherit; font-size:12.5px; padding:6px 8px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--ink); width:100%;}
+  .fgrid{display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:8px;}
+  .prev{border:1px dashed var(--line); border-radius:8px; padding:10px; background:var(--panel2);}
+  .psub{font-weight:700; font-size:12.5px; margin-bottom:6px;}
+  .pbody{white-space:pre-wrap; font-size:12.5px; line-height:1.5;}
+  .acts{display:flex; gap:8px; flex-wrap:wrap;}
+  .btn.pri{background:var(--amber); color:#fff; border-color:var(--amber);}
+  .hint{color:var(--ink-faint); font-size:11px; display:flex; gap:6px; flex-wrap:wrap; align-items:center;}
+  #toast{position:fixed; bottom:calc(20px + env(safe-area-inset-bottom,0px)); left:50%; transform:translateX(-50%); background:var(--ink); color:var(--bg); padding:6px 14px; border-radius:999px; font-size:12px; opacity:0; transition:opacity .2s; pointer-events:none; z-index:20;}
+  #updateBar{display:none; position:fixed; bottom:calc(20px + env(safe-area-inset-bottom,0px)); right:20px; background:var(--panel); border:1px solid var(--amber); border-radius:var(--radius); padding:8px 12px; font-size:12px; gap:10px; align-items:center; z-index:21; box-shadow:0 4px 16px rgba(0,0,0,.15);}
+</style>
+</head>
+<body>
+
+<header>
+  <span style="font-size:13px; font-weight:600; letter-spacing:.2px;">Despacho</span>
+  <nav class="tabs"><button class="tab active" id="tabInc" onclick="showTab('inc')">Incidencias</button><button class="tab" id="tabTpl" onclick="showTab('tpl')">Plantillas</button></nav>
+  <span class="sub" id="fileStatus">Sin datos</span>
+  <div class="spacer"></div>
+  <button class="btn ghost" id="installBtn" style="display:none;" title="Instalar como aplicación de Windows">Instalar app</button>
+  <button class="btn ghost" id="clearBtn" style="display:none;" title="Quitar datos importados">✕</button>
+  <button class="btn ghost" id="importBtn">Importar</button>
+  <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
+  <input type="file" id="backupInput" accept=".json,application/json">
+</header>
+
+<main>
+  <div id="viewInc">
+  <div class="empty" id="emptyState">
+    <h2>Todavía no hay incidencias cargadas</h2>
+    <div>Importa tu archivo (o arrástralo aquí). Se toman las columnas B, E, F, G, I, J, K, L, N, P y S, y se agrupa por operario (columna K).</div>
+  </div>
+
+  <div id="dataView" style="display:none;">
+    <div class="toprow"><div class="filters" id="filters"></div><button class="iconbtn" id="toggleAll" onclick="toggleAll()" title="Desplegar / agrupar todo" aria-label="Desplegar o agrupar todo"></button></div>
+    <div class="countbar" id="countLabel"></div>
+    <div id="groupsPanel"></div>
+  </div>
+  </div>
+
+  <div id="viewTpl" style="display:none;"></div>
+</main>
+
+<div id="toast"></div>
+<div id="updateBar"><span>Hay una versión nueva.</span><button class="btn pri" id="updateBtn">Actualizar</button></div>
+
+<script>
+const ANDALUCIA_TECHS = ['AMRG','ACAB','JMOG','DSG','CLH','JCGM','ADJC','LGV','LEOC','IFF','FMNT','JVR','ILG','MMHG','DSJ','EACL','JRHG','AAR'];
+// Índices de columna (0 = A, 1 = B, ...)
+const COLS = { num:1, fVisita:4, desdeHora:5, fCaducidad:6, descSede:8, referencia:9, operario:10, estado:11, descCliente:13, estCaducidad:15, domicilio:18 };
+
+let rows = [];
+let activeFilters = { andalucia: false };
+let totalRuta = false;
+let collapsed = {};
+let groupFilter = {};
+function todayStr(){
+  const d = new Date();
+  return String(d.getDate()).padStart(2,'0') + '/' + String(d.getMonth()+1).padStart(2,'0') + '/' + d.getFullYear();
+}
+function isEnRuta(r){ return norm(r.estado).includes('presencial') && r.fVisita === todayStr(); }
+const PALETTE = ['#2f8f87','#c9862b','#5b8dd9','#a97fd1','#c9527a','#5ea86f','#d9614f','#8b98a3'];
+function colorFor(s){
+  const str = String(s||'—');
+  let h = 0; for (let i=0;i<str.length;i++) h = (h*31 + str.charCodeAt(i)) >>> 0;
+  return PALETTE[h % PALETTE.length];
+}
+
+function norm(s){ return String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').trim(); }
+function cleanInitials(s){ return String(s||'').toUpperCase().replace(/[.\s]/g,'').trim(); }
+function fmt(v){
+  if (v instanceof Date) return v.toLocaleDateString('es-ES');
+  return String(v ?? '').trim();
+}
+function jsq(s){ return esc(String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'")); }
+
+// ===== Importación de Excel/CSV (botón, arrastrar o "Abrir con" desde Windows) =====
+document.getElementById('importBtn').addEventListener('click', () => document.getElementById('fileInput').click());
+
+document.getElementById('fileInput').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (file) readSpreadsheet(file);
+});
+
+function readSpreadsheet(file){
+  if (typeof XLSX === 'undefined'){ toast('No se pudo cargar el lector de Excel. Abre la app una vez con conexión.'); return; }
+  const reader = new FileReader();
+  reader.onload = (evt) => {
+    try{
+      const wb = XLSX.read(new Uint8Array(evt.target.result), { type:'array', cellDates:true });
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const raw = XLSX.utils.sheet_to_json(sheet, { header:1, defval:'', raw:false, dateNF:'dd/mm/yyyy' });
+      const dataRows = raw.slice(1).filter(r => r.some(c => String(c||'').trim() !== ''));
+      if (!dataRows.length){ toast('El archivo no tiene filas de datos.'); return; }
+      loadData(dataRows, file.name);
+      showTab('inc');
+    }catch(err){
+      toast('No se pudo leer el archivo: ' + err.message);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// Arrastrar y soltar un Excel sobre la ventana
+let dragDepth = 0;
+window.addEventListener('dragenter', e => { e.preventDefault(); dragDepth++; document.body.classList.add('dragging'); });
+window.addEventListener('dragleave', e => { e.preventDefault(); if (--dragDepth <= 0){ dragDepth = 0; document.body.classList.remove('dragging'); } });
+window.addEventListener('dragover', e => e.preventDefault());
+window.addEventListener('drop', e => {
+  e.preventDefault(); dragDepth = 0; document.body.classList.remove('dragging');
+  const f = e.dataTransfer && e.dataTransfer.files[0];
+  if (f && /\.(xlsx|xls|csv)$/i.test(f.name)) readSpreadsheet(f);
+  else if (f && /\.json$/i.test(f.name)) restoreBackup(f);
+});
+
+// "Abrir con → Despacho" desde el Explorador de Windows (app instalada)
+if ('launchQueue' in window){
+  window.launchQueue.setConsumer(async (params) => {
+    if (!params.files || !params.files.length) return;
+    const f = await params.files[0].getFile();
+    readSpreadsheet(f);
+  });
+}
+
+document.getElementById('clearBtn').addEventListener('click', () => {
+  rows = [];
+  document.getElementById('emptyState').style.display = 'block';
+  document.getElementById('dataView').style.display = 'none';
+  document.getElementById('clearBtn').style.display = 'none';
+  document.getElementById('fileStatus').textContent = 'Sin datos';
+  document.getElementById('fileInput').value = '';
+});
+
+function loadData(dataRows, filename){
+  rows = dataRows.map(r => {
+    const o = {};
+    for (const [field, idx] of Object.entries(COLS)) o[field] = fmt(r[idx]);
+    return o;
+  }).filter(r => r.operario);
+
+  activeFilters = { andalucia: false };
+  collapsed = {};
+  groupFilter = {};
+  totalRuta = false;
+  pickIdxC = '';
+  document.getElementById('fileStatus').textContent = `${filename} · ${rows.length} incidencias`;
+  document.getElementById('emptyState').style.display = 'none';
+  document.getElementById('dataView').style.display = 'block';
+  document.getElementById('clearBtn').style.display = 'inline-block';
+  document.getElementById('fileInput').value = '';
+  renderFilters();
+  render();
+}
+
+function renderFilters(){
+  const el = document.getElementById('filters');
+  el.innerHTML = '';
+  const andChip = document.createElement('button');
+  andChip.className = 'chip' + (activeFilters.andalucia ? ' active' : '');
+  andChip.textContent = 'Andalucía';
+  andChip.title = ANDALUCIA_TECHS.join(', ');
+  andChip.onclick = () => { activeFilters.andalucia = !activeFilters.andalucia; renderFilters(); render(); };
+  el.appendChild(andChip);
+
+  const trChip = document.createElement('button');
+  trChip.className = 'chip' + (totalRuta ? ' active' : '');
+  trChip.textContent = 'En ruta total';
+  trChip.onclick = () => { totalRuta = !totalRuta; if (totalRuta) activeFilters.andalucia = true; renderFilters(); render(); };
+  el.appendChild(trChip);
+}
+
+function filteredRows(){
+  return rows.filter(r =>
+    (!activeFilters.andalucia || ANDALUCIA_TECHS.includes(cleanInitials(r.operario)))
+  );
+}
+
+function render(){
+  const data = filteredRows();
+  document.getElementById('countLabel').textContent = `${data.length} de ${rows.length} incidencias` + (activeFilters.andalucia ? ' · Andalucía' : '');
+
+  const panel = document.getElementById('groupsPanel');
+  updToggle();
+
+  if (totalRuta){
+    const enRuta = data.filter(isEnRuta);
+    if (!enRuta.length){ panel.innerHTML = '<div class="empty">Nadie en ruta hoy con estas condiciones.</div>'; return; }
+    const byOpR = {};
+    enRuta.forEach(r => { (byOpR[r.operario] = byOpR[r.operario] || []).push(r); });
+    const opsR = Object.keys(byOpR).sort();
+    panel.innerHTML = `<div class="cardgrid">` + opsR.map(op => `
+      <div class="rcard" style="border-top-color:${colorFor(op)}">
+        <div class="rop">${esc(op)}</div>
+        ${byOpR[op].map(r => `
+          <div class="rline">
+            <span class="rnum mono">Nº${esc(r.num || '—')}</span>
+            <span class="rhora">${esc(r.desdeHora || '—')}</span>
+            <span class="rsite" title="${esc(r.descSede || r.domicilio || '')}">${esc(r.descSede || r.domicilio || '—')}</span>
+          </div>`).join('')}
+      </div>`).join('') + `</div>`;
+    return;
+  }
+
+  const byOp = {};
+  data.forEach(r => { (byOp[r.operario] = byOp[r.operario] || []).push(r); });
+  const ops = Object.keys(byOp).sort((a,b) => byOp[b].length - byOp[a].length);
+
+  if (!ops.length){ panel.innerHTML = '<div class="empty">Sin incidencias para este filtro.</div>'; return; }
+
+  panel.innerHTML = ops.map(op => {
+    const gf = groupFilter[op];
+    let list = byOp[op];
+    if (gf === 'enruta') list = list.filter(isEnRuta);
+    else if (gf === 'fuera') list = list.filter(r => !isEnRuta(r));
+    return `
+    <div class="group${collapsed[op] ? ' collapsed' : ''}" data-op="${esc(op)}">
+      <div class="ghead" onclick="toggleGroup('${jsq(op)}')">
+        <span class="left"><span class="chev">▾</span><span>${esc(op)}</span></span>
+        <span class="subf">
+          <button class="chip sm${gf==='enruta'?' active':''}" onclick="event.stopPropagation(); setGroupFilter('${jsq(op)}','enruta')">En ruta</button>
+          <button class="chip sm${gf==='fuera'?' active':''}" onclick="event.stopPropagation(); setGroupFilter('${jsq(op)}','fuera')">Fuera de ruta</button>
+        </span>
+        <span class="count">${list.length} de ${byOp[op].length} incidencia${byOp[op].length===1?'':'s'}</span>
+      </div>
+      <div class="body">
+      ${list.map(r => `
+        <div class="line" style="border-left-color:${colorFor(r.estado)}">
+          <span class="num mono">Nº ${esc(r.num || '—')}</span>
+          <span>· <b>${esc(r.fVisita || '—')}</b>${r.desdeHora ? ' '+esc(r.desdeHora) : ''}</span>
+          <span>· Caduca <b>${esc(r.fCaducidad || '—')}</b> (${esc(r.estCaducidad || '—')})</span>
+          <span>· ${esc(r.descSede || '—')}</span>
+          <span>· Ref ${esc(r.referencia || '—')}</span>
+          <span>· <span class="dot" style="background:${colorFor(r.estado)}"></span> <b>${esc(r.estado || '—')}</b></span>
+          <span>· ${esc(r.descCliente || '—')}</span>
+          <span>· ${esc(r.domicilio || '—')}</span>
+        </div>`).join('')}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggleGroup(op){
+  collapsed[op] = !collapsed[op];
+  const el = document.querySelector(`.group[data-op="${CSS.escape(op)}"]`);
+  if (el) el.classList.toggle('collapsed', collapsed[op]);
+  updToggle();
+}
+
+function setGroupFilter(op, val){
+  groupFilter[op] = groupFilter[op] === val ? null : val;
+  render();
+}
+const ICON_EXPAND = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg>';
+const ICON_COLLAPSE = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 20 5-5 5 5"/><path d="m7 4 5 5 5-5"/></svg>';
+function visibleOps(){ return [...new Set(filteredRows().map(r => r.operario))]; }
+function updToggle(){
+  const b = document.getElementById('toggleAll'); if (!b) return;
+  b.style.display = totalRuta ? 'none' : '';
+  const ops = visibleOps();
+  b.innerHTML = (ops.length && ops.every(o => collapsed[o])) ? ICON_EXPAND : ICON_COLLAPSE;
+}
+function toggleAll(){
+  const ops = visibleOps();
+  const allC = ops.length && ops.every(o => collapsed[o]);
+  ops.forEach(o => collapsed[o] = !allC);
+  render();
+}
+// ===== Plantillas: correos por cliente + recordatorios a técnicos =====
+const CLI_KEY='dispatcher_clientes_v1', REC_KEY='dispatcher_recordatorios_v1';
+const MLAB={cliente:'Cliente',tecnico:'Técnico',tiempo:'Tiempo estimado',num:'Nº incidencia',sede:'Sede',fecha:'Fecha visita',hora:'Hora',direccion:'Dirección'};
+function loadJSON(k,def){ try{ const v=JSON.parse(localStorage.getItem(k)); return Array.isArray(v)&&v.length?v:def; }catch(e){ return def; } }
+function saveJSON(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){ toast('No se pudo guardar en este equipo'); } }
+let clientes = loadJSON(CLI_KEY, []);
+let recordatorios = loadJSON(REC_KEY, []);
+let tplSub='cli', selCli=clientes[0]&&clientes[0].id, selTplC=null, selRec=recordatorios[0]&&recordatorios[0].id;
+let editDraft=null, editKind=null, mvalsC={}, mvalsR={}, pickIdxC='', lastF='';
+
+// Pide al navegador que no borre los datos guardados (plantillas) aunque falte espacio.
+if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(()=>{});
+
+function esc(s){ return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+let toastTimer=null;
+function toast(m){ const e=document.getElementById('toast'); if(!e)return; e.textContent=m; e.style.opacity=1; clearTimeout(toastTimer); toastTimer=setTimeout(()=>e.style.opacity=0, Math.max(1400, m.length*45)); }
+function fillTxt(s,vals){ return (s||'').replace(/\{(\w+)\}/g,(m,k)=>vals[k]?vals[k]:(MLAB[k]?'['+MLAB[k]+']':m)); }
+function phs(asunto,cuerpo){ const set=new Set(); (asunto+' '+cuerpo).replace(/\{(\w+)\}/g,(m,k)=>set.add(k)); return [...set]; }
+function copyText(s){
+  const fb=()=>{ const a=document.createElement('textarea'); a.value=s; document.body.appendChild(a); a.select(); try{document.execCommand('copy'); toast('Copiado');}catch(e){toast('No se pudo copiar');} a.remove(); };
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(s).then(()=>toast('Copiado'), fb); else fb();
+}
+function openMail(subject, body){ const a=document.createElement('a'); a.href='mailto:?subject='+encodeURIComponent(subject)+'&body='+encodeURIComponent(body); a.click(); }
+
+function showTab(t){
+  document.getElementById('viewInc').style.display = t==='inc' ? '' : 'none';
+  document.getElementById('viewTpl').style.display = t==='tpl' ? '' : 'none';
+  document.getElementById('tabInc').classList.toggle('active', t==='inc');
+  document.getElementById('tabTpl').classList.toggle('active', t==='tpl');
+  if (location.hash !== '#'+t) history.replaceState(null, '', '#'+t);
+  if (t==='tpl') renderTpl();
+}
+function renderTpl(){
+  const root=document.getElementById('viewTpl');
+  root.innerHTML = `<div class="subtabs">
+    <button class="subtab${tplSub==='cli'?' active':''}" onclick="tplSub='cli';editKind=null;renderTpl()">Correos por cliente</button>
+    <button class="subtab${tplSub==='rec'?' active':''}" onclick="tplSub='rec';editKind=null;renderTpl()">Recordatorios a técnicos</button>
+    <span class="spacer"></span>
+    <button class="btn" onclick="exportBackup()" title="Descarga un .json con todos tus clientes, plantillas y recordatorios">Exportar copia</button>
+    <button class="btn" onclick="document.getElementById('backupInput').click()" title="Restaura un .json exportado antes">Restaurar copia</button>
+  </div><div id="tplBody"></div>`;
+  if (tplSub==='cli') renderClientes(); else renderRecordatorios();
+}
+
+// ---- Copia de seguridad de plantillas ----
+function exportBackup(){
+  const data = { app:'panel-despacho', version:1, fecha:new Date().toISOString(), clientes, recordatorios };
+  const blob = new Blob([JSON.stringify(data,null,2)], {type:'application/json'});
+  const a = document.createElement('a');
+  const d = new Date();
+  a.href = URL.createObjectURL(blob);
+  a.download = `despacho-plantillas-${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
+  toast('Copia exportada');
+}
+document.getElementById('backupInput').addEventListener('change', e => {
+  const f = e.target.files[0]; if (f) restoreBackup(f); e.target.value = '';
+});
+function restoreBackup(file){
+  const reader = new FileReader();
+  reader.onload = () => {
+    try{
+      const d = JSON.parse(reader.result);
+      if (!d || !Array.isArray(d.clientes) || !Array.isArray(d.recordatorios)) throw new Error('formato no reconocido');
+      // Se fusiona: lo que ya existe con el mismo id se sustituye, lo nuevo se añade.
+      const merge = (cur, inc) => { const m = new Map(cur.map(x=>[x.id,x])); inc.forEach(x=>m.set(x.id,x)); return [...m.values()]; };
+      clientes = merge(clientes, d.clientes);
+      recordatorios = merge(recordatorios, d.recordatorios);
+      saveJSON(CLI_KEY, clientes); saveJSON(REC_KEY, recordatorios);
+      selCli = selCli || (clientes[0]&&clientes[0].id); selRec = selRec || (recordatorios[0]&&recordatorios[0].id);
+      showTab('tpl');
+      toast(`Restaurado: ${d.clientes.length} clientes, ${d.recordatorios.length} recordatorios`);
+    }catch(err){ toast('No se pudo restaurar: ' + err.message); }
+  };
+  reader.readAsText(file);
+}
+
+// ---- Correos por cliente ----
+function curCli(){ return clientes.find(c=>c.id===selCli); }
+function curTplC(){ const c=curCli(); return c && c.tpls.find(t=>t.id===selTplC); }
+function renderClientes(){
+  const m=document.getElementById('tplBody');
+  m.innerHTML = `<div class="mgrid">
+    <div class="mpanel">
+      <div class="mhead"><span>Clientes</span><button class="btn" onclick="newCliente()">+ Cliente</button></div>
+      ${addingCli?`<div style="padding:8px 12px;border-top:1px solid var(--line);display:flex;gap:6px;"><input id="newCliName" placeholder="Nombre del cliente" style="flex:1;min-width:0;font-family:inherit;font-size:12.5px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);" onkeydown="if(event.key==='Enter')confirmNewCliente();if(event.key==='Escape'){addingCli=false;renderTpl();}"><button class="btn pri" onclick="confirmNewCliente()">Añadir</button></div>`:''}
+      <div>${clientes.map(c=>`<div class="titem${c.id===selCli?' sel':''}" onclick="selCli='${c.id}';selTplC=null;editKind=null;delArmC=false;renderTpl()"><b>${esc(c.nombre)}</b><span>${c.tpls.length} plantilla${c.tpls.length===1?'':'s'}</span></div>`).join('')||'<div class="empty-inline">Añade tu primer cliente.</div>'}</div>
+    </div>
+    <div class="mpanel" id="mMain"></div>
+  </div>`;
+  if (addingCli){ const i=document.getElementById('newCliName'); if(i) i.focus(); }
+  renderClienteMain();
+}
+function renderClienteMain(){
+  const m=document.getElementById('mMain'); const c=curCli();
+  if (!c){ m.innerHTML='<div class="empty-inline">Selecciona o crea un cliente.</div>'; return; }
+  if (editKind==='cli'){ renderClienteEditor(); return; }
+  const t=curTplC();
+  m.innerHTML = `<div class="mhead"><span>${esc(c.nombre)}</span><button class="btn" onclick="newTplC()">+ Plantilla</button></div>
+  <div style="display:flex;">
+    <div style="width:160px; border-right:1px solid var(--line);">${c.tpls.map(tt=>`<div class="titem${tt.id===selTplC?' sel':''}" onclick="selTplC='${tt.id}';delArmC=false;renderClienteMain()"><b>${esc(tt.nombre)}</b></div>`).join('')||'<div class="empty-inline">Sin plantillas</div>'}</div>
+    <div style="flex:1; min-width:0; padding:12px;" id="mGen"></div>
+  </div>`;
+  if (!t){ document.getElementById('mGen').innerHTML='<div class="empty-inline">Elige o crea una plantilla de este cliente.</div>'; return; }
+  mvalsC.cliente = c.nombre;
+  const opts = rows.map((r,i)=>`<option value="${i}"${String(i)===pickIdxC?' selected':''}>${esc(r.num)} · ${esc(r.operario)} · ${esc(r.descCliente)}</option>`).join('');
+  document.getElementById('mGen').innerHTML = `<div class="mbody">
+    <div class="hint"><b>${esc(t.nombre)}</b> <button class="btn" onclick="editCliTpl()">Editar</button> <button class="btn" onclick="delCliTpl()">${delArmC?'¿Seguro?':'Eliminar'}</button></div>
+    ${rows.length?`<label class="fl">Rellenar desde incidencia<select onchange="pickIncC(this.value)"><option value="">— manual —</option>${opts}</select></label>`:'<div class="hint">Importa el Excel para autorrellenar.</div>'}
+    <div class="fgrid">${phs(t.asunto,t.cuerpo).filter(k=>k!=='cliente').map(k=>`<label class="fl">${esc(MLAB[k]||k)}<input value="${esc(mvalsC[k]||'')}" oninput="mvalsC['${k}']=this.value;updPrevC()"></label>`).join('')}</div>
+    <div class="prev" id="prevC"></div>
+    <div class="acts"><button class="btn pri" onclick="copyCliMail()">Copiar</button><button class="btn" onclick="openCliMail()">Abrir en correo</button></div>
+  </div>`;
+  updPrevC();
+}
+function updPrevC(){ const t=curTplC(); const el=document.getElementById('prevC'); if(!t||!el)return; el.innerHTML=`<div class="psub">${esc(fillTxt(t.asunto,mvalsC))}</div><div class="pbody">${esc(fillTxt(t.cuerpo,mvalsC))}</div>`; }
+function pickIncC(i){ pickIdxC=i; if(i===''){return;} const r=rows[+i]; Object.assign(mvalsC,{tecnico:r.operario,num:r.num,sede:r.descSede,fecha:r.fVisita,hora:r.desdeHora,direccion:r.domicilio}); renderClienteMain(); }
+function copyCliMail(){ const t=curTplC(); if(t) copyText(fillTxt(t.asunto,mvalsC)+'\n\n'+fillTxt(t.cuerpo,mvalsC)); }
+function openCliMail(){ const t=curTplC(); if(t) openMail(fillTxt(t.asunto,mvalsC), fillTxt(t.cuerpo,mvalsC)); }
+let addingCli=false;
+function newCliente(){ addingCli=true; renderTpl(); }
+function confirmNewCliente(){
+  const el=document.getElementById('newCliName'); const nombre=(el&&el.value||'').trim();
+  if(!nombre){ toast('Escribe un nombre'); return; }
+  const c={id:'c'+Date.now(),nombre,tpls:[]}; clientes.push(c); selCli=c.id; selTplC=null; addingCli=false; saveJSON(CLI_KEY,clientes); renderTpl();
+}
+function renderClienteEditor(){
+  const m=document.getElementById('mMain');
+  m.innerHTML = `<div class="mhead"><span>${editDraft.isNew?'Nueva plantilla':'Editar plantilla'} — ${esc(curCli().nombre)}</span></div>
+  <div class="mbody">
+    <label class="fl">Nombre de la plantilla<input value="${esc(editDraft.nombre)}" oninput="editDraft.nombre=this.value"></label>
+    <label class="fl">Asunto<input id="dAsunto" value="${esc(editDraft.asunto)}" onfocus="lastF=this.id" oninput="editDraft.asunto=this.value"></label>
+    <label class="fl">Cuerpo<textarea id="dCuerpo" rows="9" onfocus="lastF=this.id" oninput="editDraft.cuerpo=this.value">${esc(editDraft.cuerpo)}</textarea></label>
+    <div class="hint">Insertar campo: ${Object.keys(MLAB).map(k=>`<span class="chip sm" onclick="insPh('${k}')">{${k}}</span>`).join('')}</div>
+    <div class="acts"><button class="btn pri" onclick="saveCliTpl()">Guardar</button><button class="btn" onclick="editKind=null;renderTpl()">Cancelar</button></div>
+  </div>`;
+}
+function newTplC(){ editDraft={id:'t'+Date.now(),nombre:'',asunto:'',cuerpo:'',isNew:true}; editKind='cli'; renderClienteMain(); }
+function editCliTpl(){ editDraft={...curTplC()}; editKind='cli'; renderClienteMain(); }
+function saveCliTpl(){
+  if(!editDraft.nombre.trim()){ toast('Falta el nombre'); return; }
+  const c=curCli(); const isNew=editDraft.isNew; delete editDraft.isNew;
+  if (isNew) c.tpls.push(editDraft); else c.tpls=c.tpls.map(t=>t.id===editDraft.id?editDraft:t);
+  selTplC=editDraft.id; editKind=null; saveJSON(CLI_KEY,clientes); renderTpl();
+}
+let delArmC=false;
+function delCliTpl(){ if(!delArmC){delArmC=true;renderClienteMain();return;} delArmC=false; const c=curCli(); c.tpls=c.tpls.filter(t=>t.id!==selTplC); selTplC=c.tpls[0]&&c.tpls[0].id; saveJSON(CLI_KEY,clientes); renderTpl(); }
+function insPh(k){ const el=document.getElementById(lastF); if(!el)return; const s=el.selectionStart??el.value.length, e=el.selectionEnd??s; el.value=el.value.slice(0,s)+'{'+k+'}'+el.value.slice(e); (editDraft)[lastF==='dAsunto'?'asunto':'cuerpo']=el.value; const pos=s+k.length+2; el.focus(); el.setSelectionRange(pos,pos); }
+
+// ---- Recordatorios a técnicos (lista general) ----
+function curRec(){ return recordatorios.find(r=>r.id===selRec); }
+function renderRecordatorios(){
+  const m=document.getElementById('tplBody');
+  m.innerHTML = `<div class="mgrid">
+    <div class="mpanel">
+      <div class="mhead"><span>Procedimientos</span><button class="btn" onclick="newRec()">+ Nuevo</button></div>
+      <div>${recordatorios.map(r=>`<div class="titem${r.id===selRec?' sel':''}" onclick="selRec='${r.id}';editKind=null;delArmR=false;renderTpl()"><b>${esc(r.nombre)}</b></div>`).join('')||'<div class="empty-inline">Añade tu primer recordatorio.</div>'}</div>
+    </div>
+    <div class="mpanel" id="mMain2"></div>
+  </div>`;
+  renderRecMain();
+}
+function renderRecMain(){
+  const m=document.getElementById('mMain2'); const r=curRec();
+  if (editKind==='rec'){ renderRecEditor(); return; }
+  if (!r){ m.innerHTML='<div class="empty-inline">Selecciona o crea un recordatorio.</div>'; return; }
+  m.innerHTML = `<div class="mhead"><span>${esc(r.nombre)}</span><span><button class="btn" onclick="editRec()">Editar</button> <button class="btn" onclick="delRec()">${delArmR?'¿Seguro?':'Eliminar'}</button></span></div>
+  <div class="mbody">
+    <label class="fl">Técnico (opcional)<input value="${esc(mvalsR.tecnico||'')}" oninput="mvalsR.tecnico=this.value;updPrevR()"></label>
+    <div class="prev" id="prevR"></div>
+    <div class="acts"><button class="btn pri" onclick="copyRec()">Copiar</button><button class="btn" onclick="openRec()">Abrir en correo</button></div>
+  </div>`;
+  updPrevR();
+}
+function updPrevR(){ const r=curRec(); const el=document.getElementById('prevR'); if(!r||!el)return; el.innerHTML=`<div class="psub">${esc(fillTxt(r.asunto,mvalsR))}</div><div class="pbody">${esc(fillTxt(r.cuerpo,mvalsR))}</div>`; }
+function copyRec(){ const r=curRec(); if(r) copyText(fillTxt(r.asunto,mvalsR)+'\n\n'+fillTxt(r.cuerpo,mvalsR)); }
+function openRec(){ const r=curRec(); if(r) openMail(fillTxt(r.asunto,mvalsR), fillTxt(r.cuerpo,mvalsR)); }
+function newRec(){ editDraft={id:'r'+Date.now(),nombre:'',asunto:'',cuerpo:'',isNew:true}; editKind='rec'; renderRecMain(); }
+function editRec(){ editDraft={...curRec()}; editKind='rec'; renderRecMain(); }
+function renderRecEditor(){
+  const m=document.getElementById('mMain2');
+  m.innerHTML = `<div class="mhead"><span>${editDraft.isNew?'Nuevo recordatorio':'Editar recordatorio'}</span></div>
+  <div class="mbody">
+    <label class="fl">Nombre del procedimiento<input value="${esc(editDraft.nombre)}" oninput="editDraft.nombre=this.value"></label>
+    <label class="fl">Asunto<input id="dAsunto2" value="${esc(editDraft.asunto)}" onfocus="lastF=this.id" oninput="editDraft.asunto=this.value"></label>
+    <label class="fl">Texto<textarea id="dCuerpo2" rows="9" onfocus="lastF=this.id" oninput="editDraft.cuerpo=this.value">${esc(editDraft.cuerpo)}</textarea></label>
+    <div class="hint">Insertar: <span class="chip sm" onclick="insPhR('tecnico')">{tecnico}</span></div>
+    <div class="acts"><button class="btn pri" onclick="saveRec()">Guardar</button><button class="btn" onclick="editKind=null;renderTpl()">Cancelar</button></div>
+  </div>`;
+}
+function insPhR(k){ const el=document.getElementById(lastF); if(!el)return; const s=el.selectionStart??el.value.length, e=el.selectionEnd??s; el.value=el.value.slice(0,s)+'{'+k+'}'+el.value.slice(e); editDraft[lastF==='dAsunto2'?'asunto':'cuerpo']=el.value; const pos=s+k.length+2; el.focus(); el.setSelectionRange(pos,pos); }
+function saveRec(){
+  if(!editDraft.nombre.trim()){ toast('Falta el nombre'); return; }
+  const isNew=editDraft.isNew; delete editDraft.isNew;
+  if (isNew) recordatorios.push(editDraft); else recordatorios=recordatorios.map(r=>r.id===editDraft.id?editDraft:r);
+  selRec=editDraft.id; editKind=null; saveJSON(REC_KEY,recordatorios); renderTpl();
+}
+let delArmR=false;
+function delRec(){ if(!delArmR){delArmR=true;renderRecMain();return;} delArmR=false; recordatorios=recordatorios.filter(r=>r.id!==selRec); selRec=recordatorios[0]&&recordatorios[0].id; saveJSON(REC_KEY,recordatorios); renderTpl(); }
+
+// ===== PWA: instalación, funcionamiento sin conexión y actualizaciones =====
+let deferredInstall = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredInstall = e;
+  document.getElementById('installBtn').style.display = 'inline-block';
+});
+document.getElementById('installBtn').addEventListener('click', async () => {
+  if (!deferredInstall) return;
+  deferredInstall.prompt();
+  await deferredInstall.userChoice;
+  deferredInstall = null;
+  document.getElementById('installBtn').style.display = 'none';
+});
+window.addEventListener('appinstalled', () => {
+  document.getElementById('installBtn').style.display = 'none';
+  toast('App instalada. Búscala en el menú Inicio como "Despacho".');
+});
+
+if ('serviceWorker' in navigator && location.protocol !== 'file:'){
+  window.addEventListener('load', async () => {
+    try{
+      const reg = await navigator.serviceWorker.register('sw.js');
+      const offerUpdate = (worker) => {
+        const bar = document.getElementById('updateBar');
+        bar.style.display = 'flex';
+        document.getElementById('updateBtn').onclick = () => worker.postMessage('skipWaiting');
+      };
+      if (reg.waiting && navigator.serviceWorker.controller) offerUpdate(reg.waiting);
+      reg.addEventListener('updatefound', () => {
+        const nw = reg.installing;
+        nw && nw.addEventListener('statechange', () => {
+          if (nw.state === 'installed' && navigator.serviceWorker.controller) offerUpdate(nw);
+        });
+      });
+      let reloading = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => { if (!reloading){ reloading = true; location.reload(); } });
+    }catch(e){ console.warn('Service worker no registrado:', e); }
+  });
+}
+
+showTab(location.hash === '#tpl' ? 'tpl' : 'inc');
+</script>
+</body>
+</html>
