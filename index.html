@@ -258,6 +258,7 @@ document.getElementById('clearBtn').addEventListener('click', () => {
   rows = [];
   source = null;
   try{ localStorage.removeItem(ATGO_KEY); }catch(e){}
+  setAtgoStatus('');
   document.getElementById('emptyState').style.display = 'block';
   document.getElementById('dataView').style.display = 'none';
   document.getElementById('clearBtn').style.display = 'none';
