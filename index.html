@@ -153,6 +153,67 @@
   .phones label{display:flex; gap:6px; align-items:center; font-size:12px;}
   .phones label b{width:44px;}
   .phones input{flex:1; min-width:0; font-family:inherit; font-size:12px; padding:4px 6px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--ink);}
+  /* Plantillas */
+  .tp{display:grid; gap:10px;}
+  .tp-top{display:flex; gap:10px; align-items:center; flex-wrap:wrap; justify-content:space-between;}
+  .seg{display:flex; gap:2px; flex-wrap:wrap; background:var(--panel2); border:1px solid var(--line); border-radius:10px; padding:3px;}
+  .segb{border:none; background:none; color:var(--ink-dim); font:inherit; font-size:12px; font-weight:600; letter-spacing:.2px; padding:6px 11px; border-radius:7px; cursor:pointer; display:flex; gap:6px; align-items:center;}
+  .segb:hover{color:var(--ink);}
+  .segb.on{background:var(--panel); color:var(--ink); box-shadow:0 1px 3px rgba(0,0,0,.12);}
+  .segb i{font-style:normal; font-weight:500; font-size:10.5px; color:var(--ink-faint);}
+  .segb.on i{color:var(--amber);}
+  .tp-tools{display:flex; gap:6px; align-items:center; position:relative;}
+  .tp-search{font:inherit; font-size:12.5px; padding:6px 10px; border:1px solid var(--line); border-radius:var(--radius); background:var(--panel); color:var(--ink); width:190px;}
+  .tp-search:focus{outline:none; border-color:var(--amber);}
+  .tp-tools .iconbtn{font-size:15px;}
+  .tp-menu{position:absolute; right:0; top:36px; z-index:6; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); box-shadow:0 6px 20px rgba(0,0,0,.15); padding:4px; display:grid; min-width:190px;}
+  .tp-menu[hidden]{display:none;}
+  .tp-menu button{border:none; background:none; color:var(--ink); font:inherit; font-size:12.5px; text-align:left; padding:7px 10px; border-radius:6px; cursor:pointer;}
+  .tp-menu button:hover{background:var(--panel2);}
+  .tp-main{display:grid; grid-template-columns:250px 1fr; gap:10px; align-items:start;}
+  @media (max-width:760px){ .tp-main{grid-template-columns:1fr;} .tp-search{width:140px;} }
+  .tp-list{display:grid; gap:2px; max-height:calc(100vh - 150px); overflow:auto; padding-right:2px;}
+  .tp-item{display:grid; gap:1px; text-align:left; border:1px solid transparent; background:none; color:var(--ink); font:inherit; padding:8px 10px; border-radius:8px; cursor:pointer;}
+  .tp-item b{font-size:12.5px; font-weight:600;}
+  .tp-item span{font-size:11px; color:var(--ink-faint); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .tp-item:hover{background:var(--panel2);}
+  .tp-item.on{background:var(--panel); border-color:var(--line); box-shadow:inset 3px 0 0 var(--amber);}
+  .tp-none{color:var(--ink-faint); font-size:12px; padding:10px;}
+  .tp-card{background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px; display:grid; gap:12px;}
+  .tp-head{display:flex; gap:10px; align-items:flex-start; justify-content:space-between;}
+  .tp-subj{font-size:15px; font-weight:600; line-height:1.35;}
+  .tp-rcpt{font-size:11.5px; color:var(--ink-dim); margin-top:-6px;}
+  .tp-muted{color:var(--ink-faint); font-weight:400;}
+  .tp-card mark{background:#ffe9a8; color:#5a4300; border-radius:3px; padding:0 2px;}
+  .tp-fields{display:flex; flex-wrap:wrap; gap:8px; align-items:flex-end; padding:10px; background:var(--panel2); border-radius:9px;}
+  .tp-f{display:grid; gap:3px; font-size:10.5px; color:var(--ink-dim); min-width:120px; flex:1;}
+  .tp-f.grow{flex:2;}
+  .tp-f input,.tp-f select{font:inherit; font-size:12.5px; padding:6px 8px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--ink); width:100%;}
+  .tp-f input:focus,.tp-editor:focus{outline:none; border-color:var(--amber);}
+  .tp-inc{flex:1.4; min-width:170px;}
+  .tp-clear{border:none; background:none; color:var(--ink-faint); font:inherit; font-size:11px; cursor:pointer; padding:6px 4px;}
+  .tp-clear:hover{color:var(--amber);}
+  .tp-body iframe{width:100%; height:200px; border:1px solid var(--line); border-radius:8px; background:#fff; display:block;}
+  .tp-text{white-space:pre-wrap; font-size:13px; line-height:1.55; padding:12px 14px; border:1px solid var(--line); border-radius:8px; background:var(--bg); max-height:520px; overflow:auto;}
+  .tp-actions{display:flex; gap:8px; align-items:center; flex-wrap:wrap;}
+  .btn.big{padding:9px 20px; font-size:13px; font-weight:600;}
+  .btn.ok{background:var(--teal)!important; border-color:var(--teal)!important; color:#fff!important;}
+  .btn.danger{border-color:#d9614f; color:#d9614f;}
+  .btn.ghost.sm{border-color:transparent;}
+  .btn.ghost.sm:hover{border-color:var(--line);}
+  .tp-keys{font-size:10.5px; color:var(--ink-faint); text-align:right; margin-top:-4px;}
+  .tp-empty{display:grid; gap:12px;}
+  .tp-drop{border:2px dashed var(--line); border-radius:12px; padding:36px 20px; text-align:center; display:grid; gap:8px; color:var(--ink-dim); font-size:12.5px; background:var(--panel);}
+  .tp-drop b{color:var(--ink); font-size:14px;}
+  body.dragging .tp-drop{border-color:var(--amber); background:var(--amber-dim);}
+  .tp-help,.tp-det{font-size:12px; color:var(--ink-dim);}
+  .tp-help summary,.tp-det summary{cursor:pointer; color:var(--ink-dim); font-size:11.5px;}
+  .tp-help ul{margin:8px 0 0; padding-left:18px; display:grid; gap:6px;}
+  .tp-edit{gap:10px;}
+  .tp-erow{display:flex; gap:8px; flex-wrap:wrap;}
+  .tp-editor{min-height:220px; max-height:480px; overflow:auto; padding:12px 14px; border:1px solid var(--line); border-radius:8px; background:#fff; color:#222; font:11pt Calibri,Arial,sans-serif; line-height:1.45;}
+  .tp-editor p{margin:0 0 .6em;}
+  .tp-ins{display:flex; gap:4px; flex-wrap:wrap; align-items:center; font-size:11px; color:var(--ink-faint);}
   #updateBar{display:none; position:fixed; bottom:calc(20px + env(safe-area-inset-bottom,0px)); right:20px; background:var(--panel); border:1px solid var(--amber); border-radius:var(--radius); padding:8px 12px; font-size:12px; gap:10px; align-items:center; z-index:21; box-shadow:0 4px 16px rgba(0,0,0,.15);}
 </style>
 </head>
@@ -202,6 +263,7 @@
 <div id="toast"></div>
 <div id="updateBar"><span>Hay una versión nueva.</span><button class="btn pri" id="updateBtn">Actualizar</button></div>
 
+<script src="plantillas.js"></script>
 <script>
 // Zonas: ordenan y agrupan a los técnicos en todas las vistas.
 // La zona "dispatcher" es quien controla (no es un técnico): va la primera en Incidencias
@@ -292,6 +354,7 @@ window.addEventListener('drop', e => {
   const f = e.dataTransfer && e.dataTransfer.files[0];
   if (f && /\.(xlsx|xls|csv)$/i.test(f.name)) readSpreadsheet(f);
   else if (f && /\.json$/i.test(f.name)) restoreBackup(f);
+  else if (f && TPL_EXT.test(f.name)) importTemplateFiles([...e.dataTransfer.files]);
 });
 
 // "Abrir con → Despacho" desde el Explorador de Windows (app instalada)
@@ -321,7 +384,6 @@ function permitido(r){ return OPERARIOS.includes(cleanInitials(r.operario)) && E
 // Muestra un conjunto de incidencias. keepView=true conserva grupos plegados y filtros (refrescos de ATGO).
 function setRows(newRows, label, keepView){
   rows = newRows.filter(permitido);
-  pickIdxC = '';
   if (!keepView){ collapsed = {}; groupFilter = {}; totalRuta = false; }
   document.getElementById('fileStatus').textContent = `${label} · ${rows.length} incidencias`;
   document.getElementById('emptyState').style.display = 'none';
@@ -329,7 +391,7 @@ function setRows(newRows, label, keepView){
   document.getElementById('clearBtn').style.display = 'inline-block';
   renderFilters();
   render();
-  if (document.getElementById('viewTpl').style.display !== 'none' && tplSub==='cli' && !editKind) renderClienteMain();
+  if (document.getElementById('viewTpl').style.display !== 'none') tplOnRows();
   if (document.getElementById('viewMan').style.display !== 'none') renderManana();
 }
 
@@ -722,15 +784,7 @@ function togglePhones(){
   </div>`;
 }
 
-// ===== Plantillas: correos por cliente + recordatorios a técnicos =====
-const CLI_KEY='dispatcher_clientes_v1', REC_KEY='dispatcher_recordatorios_v1';
-const MLAB={cliente:'Cliente',tecnico:'Técnico',tiempo:'Tiempo estimado',num:'Nº incidencia',sede:'Sede',fecha:'Fecha visita',hora:'Hora',direccion:'Dirección'};
-function loadJSON(k,def){ try{ const v=JSON.parse(localStorage.getItem(k)); return Array.isArray(v)&&v.length?v:def; }catch(e){ return def; } }
-function saveJSON(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){ toast('No se pudo guardar en este equipo'); } }
-let clientes = loadJSON(CLI_KEY, []);
-let recordatorios = loadJSON(REC_KEY, []);
-let tplSub='cli', selCli=clientes[0]&&clientes[0].id, selTplC=null, selRec=recordatorios[0]&&recordatorios[0].id;
-let editDraft=null, editKind=null, mvalsC={}, mvalsR={}, pickIdxC='', lastF='';
+// ===== Utilidades comunes (las plantillas están en plantillas.js) =====
 
 // Pide al navegador que no borre los datos guardados (plantillas) aunque falte espacio.
 if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(()=>{});
@@ -738,13 +792,10 @@ if (navigator.storage && navigator.storage.persist) navigator.storage.persist().
 function esc(s){ return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 let toastTimer=null;
 function toast(m){ const e=document.getElementById('toast'); if(!e)return; e.textContent=m; e.style.opacity=1; clearTimeout(toastTimer); toastTimer=setTimeout(()=>e.style.opacity=0, Math.max(1400, m.length*45)); }
-function fillTxt(s,vals){ return (s||'').replace(/\{(\w+)\}/g,(m,k)=>vals[k]?vals[k]:(MLAB[k]?'['+MLAB[k]+']':m)); }
-function phs(asunto,cuerpo){ const set=new Set(); (asunto+' '+cuerpo).replace(/\{(\w+)\}/g,(m,k)=>set.add(k)); return [...set]; }
 function copyText(s){
   const fb=()=>{ const a=document.createElement('textarea'); a.value=s; document.body.appendChild(a); a.select(); try{document.execCommand('copy'); toast('Copiado');}catch(e){toast('No se pudo copiar');} a.remove(); };
   if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(s).then(()=>toast('Copiado'), fb); else fb();
 }
-function openMail(subject, body){ const a=document.createElement('a'); a.href='mailto:?subject='+encodeURIComponent(subject)+'&body='+encodeURIComponent(body); a.click(); }
 
 function showTab(t){
   document.getElementById('viewInc').style.display = t==='inc' ? '' : 'none';
@@ -758,175 +809,6 @@ function showTab(t){
   if (t==='man') renderManana();
   if (t==='inc' && rows.length){ renderFilters(); render(); }
 }
-function renderTpl(){
-  const root=document.getElementById('viewTpl');
-  root.innerHTML = `<div class="subtabs">
-    <button class="subtab${tplSub==='cli'?' active':''}" onclick="tplSub='cli';editKind=null;renderTpl()">Correos por cliente</button>
-    <button class="subtab${tplSub==='rec'?' active':''}" onclick="tplSub='rec';editKind=null;renderTpl()">Recordatorios a técnicos</button>
-    <span class="spacer"></span>
-    <button class="btn" onclick="exportBackup()" title="Descarga un .json con todos tus clientes, plantillas y recordatorios">Exportar copia</button>
-    <button class="btn" onclick="document.getElementById('backupInput').click()" title="Restaura un .json exportado antes">Restaurar copia</button>
-  </div><div id="tplBody"></div>`;
-  if (tplSub==='cli') renderClientes(); else renderRecordatorios();
-}
-
-// ---- Copia de seguridad de plantillas ----
-function exportBackup(){
-  const data = { app:'panel-despacho', version:1, fecha:new Date().toISOString(), clientes, recordatorios, tecnicos: tecCfg };
-  const blob = new Blob([JSON.stringify(data,null,2)], {type:'application/json'});
-  const a = document.createElement('a');
-  const d = new Date();
-  a.href = URL.createObjectURL(blob);
-  a.download = `despacho-plantillas-${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}.json`;
-  document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
-  toast('Copia exportada');
-}
-document.getElementById('backupInput').addEventListener('change', e => {
-  const f = e.target.files[0]; if (f) restoreBackup(f); e.target.value = '';
-});
-function restoreBackup(file){
-  const reader = new FileReader();
-  reader.onload = () => {
-    try{
-      const d = JSON.parse(reader.result);
-      if (!d || !Array.isArray(d.clientes) || !Array.isArray(d.recordatorios)) throw new Error('formato no reconocido');
-      // Se fusiona: lo que ya existe con el mismo id se sustituye, lo nuevo se añade.
-      const merge = (cur, inc) => { const m = new Map(cur.map(x=>[x.id,x])); inc.forEach(x=>m.set(x.id,x)); return [...m.values()]; };
-      clientes = merge(clientes, d.clientes);
-      recordatorios = merge(recordatorios, d.recordatorios);
-      saveJSON(CLI_KEY, clientes); saveJSON(REC_KEY, recordatorios);
-      if (d.tecnicos && typeof d.tecnicos === 'object'){ tecCfg = { ...tecCfg, ...d.tecnicos, tel: { ...tecCfg.tel, ...(d.tecnicos.tel||{}) } }; saveTec(); }
-      selCli = selCli || (clientes[0]&&clientes[0].id); selRec = selRec || (recordatorios[0]&&recordatorios[0].id);
-      showTab('tpl');
-      toast(`Restaurado: ${d.clientes.length} clientes, ${d.recordatorios.length} recordatorios`);
-    }catch(err){ toast('No se pudo restaurar: ' + err.message); }
-  };
-  reader.readAsText(file);
-}
-
-// ---- Correos por cliente ----
-function curCli(){ return clientes.find(c=>c.id===selCli); }
-function curTplC(){ const c=curCli(); return c && c.tpls.find(t=>t.id===selTplC); }
-function renderClientes(){
-  const m=document.getElementById('tplBody');
-  m.innerHTML = `<div class="mgrid">
-    <div class="mpanel">
-      <div class="mhead"><span>Clientes</span><button class="btn" onclick="newCliente()">+ Cliente</button></div>
-      ${addingCli?`<div style="padding:8px 12px;border-top:1px solid var(--line);display:flex;gap:6px;"><input id="newCliName" placeholder="Nombre del cliente" style="flex:1;min-width:0;font-family:inherit;font-size:12.5px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);" onkeydown="if(event.key==='Enter')confirmNewCliente();if(event.key==='Escape'){addingCli=false;renderTpl();}"><button class="btn pri" onclick="confirmNewCliente()">Añadir</button></div>`:''}
-      <div>${clientes.map(c=>`<div class="titem${c.id===selCli?' sel':''}" onclick="selCli='${c.id}';selTplC=null;editKind=null;delArmC=false;renderTpl()"><b>${esc(c.nombre)}</b><span>${c.tpls.length} plantilla${c.tpls.length===1?'':'s'}</span></div>`).join('')||'<div class="empty-inline">Añade tu primer cliente.</div>'}</div>
-    </div>
-    <div class="mpanel" id="mMain"></div>
-  </div>`;
-  if (addingCli){ const i=document.getElementById('newCliName'); if(i) i.focus(); }
-  renderClienteMain();
-}
-function renderClienteMain(){
-  const m=document.getElementById('mMain'); const c=curCli();
-  if (!c){ m.innerHTML='<div class="empty-inline">Selecciona o crea un cliente.</div>'; return; }
-  if (editKind==='cli'){ renderClienteEditor(); return; }
-  const t=curTplC();
-  m.innerHTML = `<div class="mhead"><span>${esc(c.nombre)}</span><button class="btn" onclick="newTplC()">+ Plantilla</button></div>
-  <div style="display:flex;">
-    <div style="width:160px; border-right:1px solid var(--line);">${c.tpls.map(tt=>`<div class="titem${tt.id===selTplC?' sel':''}" onclick="selTplC='${tt.id}';delArmC=false;renderClienteMain()"><b>${esc(tt.nombre)}</b></div>`).join('')||'<div class="empty-inline">Sin plantillas</div>'}</div>
-    <div style="flex:1; min-width:0; padding:12px;" id="mGen"></div>
-  </div>`;
-  if (!t){ document.getElementById('mGen').innerHTML='<div class="empty-inline">Elige o crea una plantilla de este cliente.</div>'; return; }
-  mvalsC.cliente = c.nombre;
-  const opts = rows.map((r,i)=>`<option value="${i}"${String(i)===pickIdxC?' selected':''}>${esc(r.num)} · ${esc(r.operario)} · ${esc(r.descCliente)}</option>`).join('');
-  document.getElementById('mGen').innerHTML = `<div class="mbody">
-    <div class="hint"><b>${esc(t.nombre)}</b> <button class="btn" onclick="editCliTpl()">Editar</button> <button class="btn" onclick="delCliTpl()">${delArmC?'¿Seguro?':'Eliminar'}</button></div>
-    ${rows.length?`<label class="fl">Rellenar desde incidencia<select onchange="pickIncC(this.value)"><option value="">— manual —</option>${opts}</select></label>`:'<div class="hint">Importa el Excel para autorrellenar.</div>'}
-    <div class="fgrid">${phs(t.asunto,t.cuerpo).filter(k=>k!=='cliente').map(k=>`<label class="fl">${esc(MLAB[k]||k)}<input value="${esc(mvalsC[k]||'')}" oninput="mvalsC['${k}']=this.value;updPrevC()"></label>`).join('')}</div>
-    <div class="prev" id="prevC"></div>
-    <div class="acts"><button class="btn pri" onclick="copyCliMail()">Copiar</button><button class="btn" onclick="openCliMail()">Abrir en correo</button></div>
-  </div>`;
-  updPrevC();
-}
-function updPrevC(){ const t=curTplC(); const el=document.getElementById('prevC'); if(!t||!el)return; el.innerHTML=`<div class="psub">${esc(fillTxt(t.asunto,mvalsC))}</div><div class="pbody">${esc(fillTxt(t.cuerpo,mvalsC))}</div>`; }
-function pickIncC(i){ pickIdxC=i; if(i===''){return;} const r=rows[+i]; Object.assign(mvalsC,{tecnico:r.operario,num:r.num,sede:r.descSede,fecha:r.fVisita,hora:r.desdeHora,direccion:r.domicilio}); renderClienteMain(); }
-function copyCliMail(){ const t=curTplC(); if(t) copyText(fillTxt(t.asunto,mvalsC)+'\n\n'+fillTxt(t.cuerpo,mvalsC)); }
-function openCliMail(){ const t=curTplC(); if(t) openMail(fillTxt(t.asunto,mvalsC), fillTxt(t.cuerpo,mvalsC)); }
-let addingCli=false;
-function newCliente(){ addingCli=true; renderTpl(); }
-function confirmNewCliente(){
-  const el=document.getElementById('newCliName'); const nombre=(el&&el.value||'').trim();
-  if(!nombre){ toast('Escribe un nombre'); return; }
-  const c={id:'c'+Date.now(),nombre,tpls:[]}; clientes.push(c); selCli=c.id; selTplC=null; addingCli=false; saveJSON(CLI_KEY,clientes); renderTpl();
-}
-function renderClienteEditor(){
-  const m=document.getElementById('mMain');
-  m.innerHTML = `<div class="mhead"><span>${editDraft.isNew?'Nueva plantilla':'Editar plantilla'} — ${esc(curCli().nombre)}</span></div>
-  <div class="mbody">
-    <label class="fl">Nombre de la plantilla<input value="${esc(editDraft.nombre)}" oninput="editDraft.nombre=this.value"></label>
-    <label class="fl">Asunto<input id="dAsunto" value="${esc(editDraft.asunto)}" onfocus="lastF=this.id" oninput="editDraft.asunto=this.value"></label>
-    <label class="fl">Cuerpo<textarea id="dCuerpo" rows="9" onfocus="lastF=this.id" oninput="editDraft.cuerpo=this.value">${esc(editDraft.cuerpo)}</textarea></label>
-    <div class="hint">Insertar campo: ${Object.keys(MLAB).map(k=>`<span class="chip sm" onclick="insPh('${k}')">{${k}}</span>`).join('')}</div>
-    <div class="acts"><button class="btn pri" onclick="saveCliTpl()">Guardar</button><button class="btn" onclick="editKind=null;renderTpl()">Cancelar</button></div>
-  </div>`;
-}
-function newTplC(){ editDraft={id:'t'+Date.now(),nombre:'',asunto:'',cuerpo:'',isNew:true}; editKind='cli'; renderClienteMain(); }
-function editCliTpl(){ editDraft={...curTplC()}; editKind='cli'; renderClienteMain(); }
-function saveCliTpl(){
-  if(!editDraft.nombre.trim()){ toast('Falta el nombre'); return; }
-  const c=curCli(); const isNew=editDraft.isNew; delete editDraft.isNew;
-  if (isNew) c.tpls.push(editDraft); else c.tpls=c.tpls.map(t=>t.id===editDraft.id?editDraft:t);
-  selTplC=editDraft.id; editKind=null; saveJSON(CLI_KEY,clientes); renderTpl();
-}
-let delArmC=false;
-function delCliTpl(){ if(!delArmC){delArmC=true;renderClienteMain();return;} delArmC=false; const c=curCli(); c.tpls=c.tpls.filter(t=>t.id!==selTplC); selTplC=c.tpls[0]&&c.tpls[0].id; saveJSON(CLI_KEY,clientes); renderTpl(); }
-function insPh(k){ const el=document.getElementById(lastF); if(!el)return; const s=el.selectionStart??el.value.length, e=el.selectionEnd??s; el.value=el.value.slice(0,s)+'{'+k+'}'+el.value.slice(e); (editDraft)[lastF==='dAsunto'?'asunto':'cuerpo']=el.value; const pos=s+k.length+2; el.focus(); el.setSelectionRange(pos,pos); }
-
-// ---- Recordatorios a técnicos (lista general) ----
-function curRec(){ return recordatorios.find(r=>r.id===selRec); }
-function renderRecordatorios(){
-  const m=document.getElementById('tplBody');
-  m.innerHTML = `<div class="mgrid">
-    <div class="mpanel">
-      <div class="mhead"><span>Procedimientos</span><button class="btn" onclick="newRec()">+ Nuevo</button></div>
-      <div>${recordatorios.map(r=>`<div class="titem${r.id===selRec?' sel':''}" onclick="selRec='${r.id}';editKind=null;delArmR=false;renderTpl()"><b>${esc(r.nombre)}</b></div>`).join('')||'<div class="empty-inline">Añade tu primer recordatorio.</div>'}</div>
-    </div>
-    <div class="mpanel" id="mMain2"></div>
-  </div>`;
-  renderRecMain();
-}
-function renderRecMain(){
-  const m=document.getElementById('mMain2'); const r=curRec();
-  if (editKind==='rec'){ renderRecEditor(); return; }
-  if (!r){ m.innerHTML='<div class="empty-inline">Selecciona o crea un recordatorio.</div>'; return; }
-  m.innerHTML = `<div class="mhead"><span>${esc(r.nombre)}</span><span><button class="btn" onclick="editRec()">Editar</button> <button class="btn" onclick="delRec()">${delArmR?'¿Seguro?':'Eliminar'}</button></span></div>
-  <div class="mbody">
-    <label class="fl">Técnico (opcional)<input value="${esc(mvalsR.tecnico||'')}" oninput="mvalsR.tecnico=this.value;updPrevR()"></label>
-    <div class="prev" id="prevR"></div>
-    <div class="acts"><button class="btn pri" onclick="copyRec()">Copiar</button><button class="btn" onclick="openRec()">Abrir en correo</button></div>
-  </div>`;
-  updPrevR();
-}
-function updPrevR(){ const r=curRec(); const el=document.getElementById('prevR'); if(!r||!el)return; el.innerHTML=`<div class="psub">${esc(fillTxt(r.asunto,mvalsR))}</div><div class="pbody">${esc(fillTxt(r.cuerpo,mvalsR))}</div>`; }
-function copyRec(){ const r=curRec(); if(r) copyText(fillTxt(r.asunto,mvalsR)+'\n\n'+fillTxt(r.cuerpo,mvalsR)); }
-function openRec(){ const r=curRec(); if(r) openMail(fillTxt(r.asunto,mvalsR), fillTxt(r.cuerpo,mvalsR)); }
-function newRec(){ editDraft={id:'r'+Date.now(),nombre:'',asunto:'',cuerpo:'',isNew:true}; editKind='rec'; renderRecMain(); }
-function editRec(){ editDraft={...curRec()}; editKind='rec'; renderRecMain(); }
-function renderRecEditor(){
-  const m=document.getElementById('mMain2');
-  m.innerHTML = `<div class="mhead"><span>${editDraft.isNew?'Nuevo recordatorio':'Editar recordatorio'}</span></div>
-  <div class="mbody">
-    <label class="fl">Nombre del procedimiento<input value="${esc(editDraft.nombre)}" oninput="editDraft.nombre=this.value"></label>
-    <label class="fl">Asunto<input id="dAsunto2" value="${esc(editDraft.asunto)}" onfocus="lastF=this.id" oninput="editDraft.asunto=this.value"></label>
-    <label class="fl">Texto<textarea id="dCuerpo2" rows="9" onfocus="lastF=this.id" oninput="editDraft.cuerpo=this.value">${esc(editDraft.cuerpo)}</textarea></label>
-    <div class="hint">Insertar: <span class="chip sm" onclick="insPhR('tecnico')">{tecnico}</span></div>
-    <div class="acts"><button class="btn pri" onclick="saveRec()">Guardar</button><button class="btn" onclick="editKind=null;renderTpl()">Cancelar</button></div>
-  </div>`;
-}
-function insPhR(k){ const el=document.getElementById(lastF); if(!el)return; const s=el.selectionStart??el.value.length, e=el.selectionEnd??s; el.value=el.value.slice(0,s)+'{'+k+'}'+el.value.slice(e); editDraft[lastF==='dAsunto2'?'asunto':'cuerpo']=el.value; const pos=s+k.length+2; el.focus(); el.setSelectionRange(pos,pos); }
-function saveRec(){
-  if(!editDraft.nombre.trim()){ toast('Falta el nombre'); return; }
-  const isNew=editDraft.isNew; delete editDraft.isNew;
-  if (isNew) recordatorios.push(editDraft); else recordatorios=recordatorios.map(r=>r.id===editDraft.id?editDraft:r);
-  selRec=editDraft.id; editKind=null; saveJSON(REC_KEY,recordatorios); renderTpl();
-}
-let delArmR=false;
-function delRec(){ if(!delArmR){delArmR=true;renderRecMain();return;} delArmR=false; recordatorios=recordatorios.filter(r=>r.id!==selRec); selRec=recordatorios[0]&&recordatorios[0].id; saveJSON(REC_KEY,recordatorios); renderTpl(); }
 
 // ===== PWA: instalación, funcionamiento sin conexión y actualizaciones =====
 let deferredInstall = null;

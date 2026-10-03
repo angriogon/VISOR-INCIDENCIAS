@@ -5,7 +5,7 @@ PWA para Windows para el trabajo diario de Dispatcher:
 - **Incidencias:** se cargan **en tiempo real desde ATGO** (o importando un Excel/CSV) y se agrupan por operario. Hay vista **En ruta total** (visitas presenciales de hoy, una tarjeta por técnico) y filtros *En ruta / Fuera de ruta* en cada técnico. Solo se cargan los operarios y estados configurados.
 - **Zonas:** los técnicos se agrupan y ordenan por zona (Sevilla/Huelva, Córdoba/Jaén, Granada, Almería, Málaga, Cádiz, Ceuta, Melilla, Extremadura), con chips para filtrar por zona.
 - **Mañana:** visitas presenciales del próximo día laborable (se puede cambiar de día) por técnico y zona, con barra de carga, técnicos libres y botón **WhatsApp** que envía a cada técnico su planificación.
-- **Plantillas:** correos por cliente con campos variables (`{tecnico}`, `{num}`, `{sede}`, `{fecha}`, `{hora}`, `{direccion}`, `{tiempo}`, `{cliente}`) que se pueden rellenar desde una incidencia, y recordatorios para técnicos.
+- **Plantillas:** correos por cliente (CRF COMMS, EMO, TRANSGOURMET, JPC, PUNTOS VUELA, VEIASA y avisos a TÉCNICOS) para elegir, copiar y enviar. Se importan directamente desde Outlook conservando el formato.
 
 No hace falta compilar nada: son archivos estáticos (HTML + JS) y GitHub Pages los publica tal cual.
 
@@ -16,6 +16,7 @@ No hace falta compilar nada: son archivos estáticos (HTML + JS) y GitHub Pages 
 | `index.html` | La aplicación completa |
 | `manifest.webmanifest` | Nombre, iconos y ajustes para instalarla como app de Windows |
 | `sw.js` | Service worker: funcionamiento sin conexión y actualizaciones |
+| `plantillas.js` | Pestaña Plantillas e importación de Outlook |
 | `atgo-sync.js` | Sincronización con ATGO (se ejecuta dentro de la pestaña de ATGO mediante el marcador) |
 | `icon-192.png`, `icon-512.png`, `icon-maskable-512.png`, `favicon.svg` | Iconos |
 | `.nojekyll` | Hace que GitHub Pages publique los archivos sin procesarlos |
@@ -67,6 +68,18 @@ Detalles:
   - Sin teléfono configurado, WhatsApp te pide elegir el contacto: búscalo por sus siglas.
   - En **Teléfonos y mensaje** puedes guardar el móvil de cada técnico (así abre directamente su chat), elegir WhatsApp de escritorio o WhatsApp Web, y cambiar el saludo y la despedida.
 - **Copiar resumen** copia la carga de todos los técnicos de la zona visible.
+
+## Plantillas
+
+**Usarlas:** elige el cliente arriba, la plantilla a la izquierda y pulsa **Copiar correo** (o `Enter`). Se copia con su formato: pégalo en Outlook. **Copiar asunto** copia solo el asunto. Con `↑ ↓` cambias de plantilla y con `/` buscas en todas.
+
+**Importarlas desde Outlook:** arrastra los archivos sobre la ventana (o pulsa ⤓). Se guardan en el cliente que tengas seleccionado.
+- *Outlook clásico:* abre la plantilla o el correo → *Archivo → Guardar como* → *Plantilla de Outlook (\*.oft)* o *Formato de mensaje de Outlook (\*.msg)*. También vale arrastrar un correo de Outlook al escritorio.
+- *Outlook nuevo / web ("Mis plantillas"):* no exporta archivos. Pulsa **+**, copia la plantilla en Outlook y pégala en el texto: conserva el formato.
+- También admite `.eml`, `.html` y `.txt`. Si la plantilla tiene destinatarios (Para/CC), se guardan y se usan en **Abrir en Outlook**.
+- Las imágenes incrustadas (logotipos de firma) no se importan; la firma de Outlook se añade sola al redactar.
+
+**Campos:** escribe `{num}`, `{sede}`, `{tecnico}`, `{fecha}`, `{hora}`, `{direccion}`, `{referencia}`, `{tiempo}` o `{cliente}` en el asunto o el texto (botones en *Editar*). Al usar la plantilla aparecen casillas; escribiendo o eligiendo un **Nº de incidencia** se rellenan solas con los datos de ATGO (`{tecnico}` pone el nombre del técnico). Lo que falte se marca en amarillo.
 
 ## Tus datos
 
