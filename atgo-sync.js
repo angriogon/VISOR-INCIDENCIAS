@@ -117,6 +117,7 @@
       desdeHora: t.horaInicioVisita || '',
       hastaHora: t.horaFinVisita || '',
       fRegistro: hhmm(t.fechaRegistro),
+      fRegistroISO: t.fechaRegistro || '',
       descSede: t.sedeDescripcion || '',
       referencia: t.suReferencia || t.referencia || '',
       operario: String(t.codOpe || '').trim().toUpperCase(),

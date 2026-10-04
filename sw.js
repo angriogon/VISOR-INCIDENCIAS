@@ -1,10 +1,10 @@
 // Service worker del Panel de Despacho.
 // Sube VERSION cada vez que publiques cambios para que la app instalada se actualice.
-const VERSION = 'despacho-v1.3.0';
+const VERSION = 'despacho-v1.4.0';
 const SHELL = [
   './',
   './index.html',
-  './plantillas.js',
+  './dia.js',
   './manifest.webmanifest',
   './favicon.svg',
   './icon-192.png',
@@ -67,5 +67,16 @@ self.addEventListener('fetch', (event) => {
     } catch (e) {
       return cached || Response.error();
     }
+  })());
+});
+
+// Clic en un aviso de Windows: trae Despacho al frente (o lo abre) en "Mi día".
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  event.waitUntil((async () => {
+    const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    const win = all.find(c => c.url.startsWith(self.registration.scope));
+    if (win) { await win.focus(); win.postMessage({ type: 'show-dia' }); }
+    else await self.clients.openWindow('./#dia');
   })());
 });

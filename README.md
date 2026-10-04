@@ -1,11 +1,13 @@
 # Visor de Incidencias · Panel de Despacho
 
-PWA para Windows para el trabajo diario de Dispatcher:
+PWA para Windows para el trabajo diario de Dispatcher. Es un **visor**: no modifica ATGO ni el ERP; lee, avisa y ayuda con el seguimiento, los correos y la organización del día.
 
+- **Mi día:** la pantalla de inicio con lo que pide acción: novedades, tickets a tu nombre, visitas sin planificar, seguimientos, rutas de mañana, tickets parados y tu rutina diaria.
 - **Incidencias:** se cargan **en tiempo real desde ATGO** (o importando un Excel/CSV) y se agrupan por operario. Hay vista **En ruta total** (visitas presenciales de hoy, una tarjeta por técnico) y filtros *En ruta / Fuera de ruta* en cada técnico. Solo se cargan los operarios y estados configurados.
 - **Zonas:** los técnicos se agrupan y ordenan por zona (Sevilla/Huelva, Córdoba/Jaén, Granada, Almería, Málaga, Cádiz, Ceuta, Melilla, Extremadura), con chips para filtrar por zona.
 - **Mañana:** visitas presenciales del próximo día laborable (se puede cambiar de día) por técnico y zona, con barra de carga, técnicos libres y botón **WhatsApp** que envía a cada técnico su planificación.
-- **Plantillas:** correos por cliente (CRF COMMS, EMO, TRANSGOURMET, JPC, PUNTOS VUELA, VEIASA y avisos a TÉCNICOS) para elegir, copiar y enviar. Se importan directamente desde Outlook conservando el formato.
+- **Ficha del ticket:** clic en cualquier ticket para ver sus datos, copiarlos para tu correo, dejar una nota con fecha de seguimiento y ver su historial de cambios.
+- **Buscador (`Ctrl+K`):** encuentra cualquier ticket por Nº, sede, técnico, referencia o nota, y lanza acciones.
 
 No hace falta compilar nada: son archivos estáticos (HTML + JS) y GitHub Pages los publica tal cual.
 
@@ -16,7 +18,7 @@ No hace falta compilar nada: son archivos estáticos (HTML + JS) y GitHub Pages 
 | `index.html` | La aplicación completa |
 | `manifest.webmanifest` | Nombre, iconos y ajustes para instalarla como app de Windows |
 | `sw.js` | Service worker: funcionamiento sin conexión y actualizaciones |
-| `plantillas.js` | Pestaña Plantillas e importación de Outlook |
+| `dia.js` | Mi día, novedades, avisos, ficha del ticket, notas, buscador, rutina, resumen y copia de seguridad |
 | `atgo-sync.js` | Sincronización con ATGO (se ejecuta dentro de la pestaña de ATGO mediante el marcador) |
 | `icon-192.png`, `icon-512.png`, `icon-maskable-512.png`, `favicon.svg` | Iconos |
 | `.nojekyll` | Hace que GitHub Pages publique los archivos sin procesarlos |
@@ -69,23 +71,42 @@ Detalles:
   - En **Teléfonos y mensaje** puedes guardar el móvil de cada técnico (así abre directamente su chat), elegir WhatsApp de escritorio o WhatsApp Web, y cambiar el saludo y la despedida.
 - **Copiar resumen** copia la carga de todos los técnicos de la zona visible.
 
-## Plantillas
+## Mi día
 
-**Usarlas:** elige el cliente arriba, la plantilla a la izquierda y pulsa **Copiar correo** (o `Enter`). Se copia con su formato: pégalo en Outlook. **Copiar asunto** copia solo el asunto. Con `↑ ↓` cambias de plantilla y con `/` buscas en todas.
+Al abrir la app ves el día de un vistazo. Cada casilla de arriba lleva a su sección:
 
-**Importarlas desde Outlook:** arrastra los archivos sobre la ventana (o pulsa ⤓). Se guardan en el cliente que tengas seleccionado.
-- *Outlook clásico:* abre la plantilla o el correo → *Archivo → Guardar como* → *Plantilla de Outlook (\*.oft)* o *Formato de mensaje de Outlook (\*.msg)*. También vale arrastrar un correo de Outlook al escritorio.
-- *Outlook nuevo / web ("Mis plantillas"):* no exporta archivos. Pulsa **+**, copia la plantilla en Outlook y pégala en el texto: conserva el formato.
-- También admite `.eml`, `.html` y `.txt`. Si la plantilla tiene destinatarios (Para/CC), se guardan y se usan en **Abrir en Outlook**.
-- Las imágenes incrustadas (logotipos de firma) no se importan; la firma de Outlook se añade sola al redactar.
+- **Novedades:** Despacho compara cada actualización de ATGO con la anterior y apunta lo que cambia: tickets nuevos, cambios de estado, reasignaciones, cambios de fecha u hora de visita y tickets que salen de la lista. Lo importante (a tu nombre, escalados, rutas cambiadas) va marcado en naranja. La pestaña *Mi día* muestra cuántas hay sin ver.
+  - Un ticket "sale de la lista" cuando deja de estar en los estados u operarios que se siguen; no siempre significa cerrado. Solo se apunta si falta en dos actualizaciones seguidas, para evitar falsos avisos.
+- **A tu nombre:** tickets asignados a AMRG, pendientes de asignar.
+- **Sin planificar:** visitas presenciales sin fecha o con la fecha ya pasada (y cuántas tienen fecha pero no hora).
+- **Seguimientos:** las notas con fecha de revisión de hoy o vencidas (y las de los próximos 7 días).
+- **Rutas:** cuántas rutas de mañana has enviado por WhatsApp y si alguna **cambió en ATGO después de enviarla**.
+- **Parados:** tickets en espera (EN FABRICANTE, MATERIAL PTE. FABRICANTE, PTE. MOVER MATERIAL, ESCALADO TIER1, FUERA DE MANTENIMIENTO) con más de 15 días abiertos o 3 días sin cambios. Los días "sin cambios" se cuentan desde que Despacho empezó a vigilar, así que este dato se completa con los días.
+- **Rutina:** tus tareas fijas del día. Se vacían solas cada mañana; *Editar* para cambiarlas.
+- **Copiar resumen del día:** texto listo para pegar a tu responsable (abiertas por estado y zona, novedades de hoy, visitas de mañana, sin planificar, parados).
 
-**Campos:** escribe `{num}`, `{sede}`, `{tecnico}`, `{fecha}`, `{hora}`, `{direccion}`, `{referencia}`, `{tiempo}` o `{cliente}` en el asunto o el texto (botones en *Editar*). Al usar la plantilla aparecen casillas; escribiendo o eligiendo un **Nº de incidencia** se rellenan solas con los datos de ATGO (`{tecnico}` pone el nombre del técnico). Lo que falte se marca en amarillo.
+## Ficha del ticket, notas y seguimientos
+
+Haz clic en cualquier ticket (en Mi día, Incidencias o Mañana) para abrir su ficha a la derecha:
+
+- **Abrir en ATGO**, **Copiar ficha** (Nº, cliente, sede, dirección, estado, visita, técnico, tipo y referencia, con formato para pegar en tu plantilla de Outlook) y **Copiar Nº**.
+- **Nota y seguimiento:** una nota privada y una fecha para revisarlo (Hoy, Mañana, Lunes, +1 semana o la que elijas). Aparece en *Seguimientos* ese día; márcalo como hecho al terminar. En las listas, los tickets con nota llevan ✎ y los que tienen cambios sin ver, un punto naranja.
+- **Historial:** los cambios que Despacho ha visto en ese ticket.
+
+## Avisos de Windows
+
+En ⚙ → **Activar avisos**. Despacho te avisa con una notificación de Windows, aunque estés en otra ventana, de:
+tickets nuevos o reasignados a tu nombre, escalados a TIER1, cambios en las rutas de mañana (incluidas las ya enviadas) y, si lo activas, cualquier ticket nuevo. Necesita Despacho abierto y la pestaña de ATGO sincronizando.
+
+## Atajos
+
+- `Ctrl+K` o `/`: buscador de tickets y acciones.
+- `Esc`: cierra la ficha o el buscador.
 
 ## Tus datos
 
 - **El Excel no sale de tu equipo:** se lee en el navegador y no se guarda en ningún sitio. Hay que importarlo cada vez que abres la app.
-- **Las plantillas y los recordatorios** se guardan en el almacenamiento local de la app, en ese equipo y navegador. Para no perderlos o para llevarlos a otro equipo, usa **Plantillas → Exportar copia** (descarga un `.json`) y luego **Restaurar copia** (también puedes arrastrar el `.json` sobre la ventana).
-- Las plantillas que creaste en la versión de prueba (el artefacto de Claude) **no se pasan solas**: esa versión vive en otra dirección web. Tendrás que volver a crearlas aquí una vez.
+- **Notas, seguimientos, rutina, teléfonos e historial** se guardan solo en este equipo y navegador. Para no perderlos o llevarlos a otro equipo: ⚙ → **Copia de seguridad → Exportar** (un `.json`) y luego **Restaurar** (o arrastra el `.json` sobre la ventana). La copia incluye también las plantillas que importaste en su día.
 
 ## Publicar cambios
 
