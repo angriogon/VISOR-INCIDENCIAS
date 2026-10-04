@@ -51,11 +51,11 @@ ATGO (`https://atgo.tier1.es`) no permite que otra web lea sus datos directament
 1. **Solo la primera vez:** en Despacho, con la lista vacía, arrastra el botón **⟳ Despacho ATGO** a la barra de favoritos (si no la ves: `Ctrl+Mayús+B`).
 2. En Despacho pulsa **ATGO** (cabecera). Se abre ATGO: inicia sesión si te lo pide.
 3. En esa pestaña de ATGO pulsa el favorito **⟳ Despacho ATGO**. Abajo a la derecha aparece un recuadro con el progreso.
-4. Deja la pestaña de ATGO abierta (puede estar en segundo plano): se actualiza sola **cada 5 minutos**. El botón ⟳ del recuadro fuerza una actualización y ✕ la detiene.
+4. Deja la pestaña de ATGO abierta (puede estar en segundo plano): se actualiza sola **cada 2 minutos**. El botón ⟳ del recuadro fuerza una actualización y ✕ la detiene.
 
 Detalles:
 - Solo se piden a ATGO los estados **PRESENCIAL, PUESTO OPERATIVO, FUERA DE MANTENIMIENTO, MATERIAL PTE. FABRICANTE, PTE. MOVER MATERIAL, EN FABRICANTE y ESCALADO TIER1**, y solo se quedan los operarios configurados.
-- La API de ATGO es lenta (unos 13 s por página de 20). Una carga completa tarda unos minutos; la primera vez las incidencias van apareciendo según llegan.
+- Una carga completa tarda **unos 20 segundos**: se pide a ATGO una consulta por técnico (6 a la vez), que trae solo nuestros tickets. ATGO tarda ~0,5 s por ticket devuelto, así que pedir todos los tickets de esos estados (~600) y filtrar después tardaba ~3 minutos.
 - El token de ATGO **nunca sale de su pestaña**: a Despacho solo le llegan los datos de las incidencias.
 - El Nº de cada incidencia es un enlace que la abre en ATGO.
 - Despacho guarda la última carga, así que al abrirla ves los últimos datos (marcados con la hora) hasta que llegue la siguiente.
