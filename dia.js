@@ -237,11 +237,85 @@ async function copiarFicha(key) {
   } catch (e) { copyText(text); }
 }
 
+// ===== Hilo del ticket: motivo de apertura y comentarios (lo trae la pestaña de ATGO) =====
+const HILO_KEY = 'dispatcher_hilos_v1';
+let hilos = lsGet(HILO_KEY, {});
+let atgoSource = null, hiloPend = {};
+// Mensajes automáticos de ATGO que no aportan al leer el hilo
+const HILO_SISTEMA = [/^el usuario \S+ ha (iniciado|finalizado|pausado|reanudado|cerrado|reabierto)/i, /^incidencia asignada a/i, /^se ha (cambiado|modificado) el estado/i];
+function hiloFuente() { return atgoSource || (typeof atgoWin !== 'undefined' && atgoWin && !atgoWin.closed ? atgoWin : null); }
+function pedirHilos(keys) {
+  keys = [...new Set(keys)].filter(k => /^\d+\/[^/]+\/\d+$/.test(k));
+  const src = hiloFuente();
+  if (!keys.length || !src) return false;
+  keys.forEach(k => hiloPend[k] = Date.now());
+  try { src.postMessage({ type: 'despacho-hilo', keys }, ATGO_ORIGIN); return true; } catch (e) { return false; }
+}
+function recibirHilos(h) {
+  if (!h || typeof h !== 'object') return;
+  Object.entries(h).forEach(([k, v]) => {
+    delete hiloPend[k];
+    if (v && Array.isArray(v.items)) hilos[k] = { at: v.at || Date.now(), items: v.items.slice(0, 80).map(i => ({ ts: +i.ts || 0, u: String(i.u || ''), n: String(i.n || ''), e: String(i.e || ''), t: String(i.t || '').slice(0, 4000) })) };
+  });
+  // Se olvidan los hilos de tickets que ya no están (salvo que tengan nota) tras 14 días
+  const vivos = new Set(rows.map(tkey));
+  Object.keys(hilos).forEach(k => { if (!vivos.has(k) && !notas[k] && Date.now() - hilos[k].at > 14 * 86400000) delete hilos[k]; });
+  lsSet(HILO_KEY, hilos);
+  if (fichaKey && h[fichaKey] && !document.getElementById('drawer').hidden) renderFicha();
+}
+// Tras cada carga: hilo de los tickets que aún no lo tienen o que han cambiado
+function hilosTrasCarga(nuevos) {
+  const changed = new Set((nuevos || []).map(e => e.key));
+  pedirHilos(rows.map(tkey).filter(k => !hilos[k] || changed.has(k)));
+}
+function hiloUtil(key) {
+  const h = hilos[key]; if (!h) return null;
+  const utiles = [];
+  h.items.slice().sort((a, b) => a.ts - b.ts).forEach(i => {
+    const tn = i.t.replace(/\s+/g, ' ').trim();
+    if (!tn || HILO_SISTEMA.some(r => r.test(tn))) return;
+    const prev = utiles[utiles.length - 1];
+    if (prev && prev.tn === tn) return;   // ATGO a veces guarda el mismo comentario dos veces
+    utiles.push({ ...i, tn });
+  });
+  return { at: h.at, utiles };
+}
+function motivoTexto(key) { const u = hiloUtil(key); return u && u.utiles[0] ? u.utiles[0].tn : ''; }
+function nombreCorto(n, u) {
+  const [ap, nom] = String(n || '').split(',').map(s => s.trim());
+  const tc = s => s.toLowerCase().replace(/(^|[\s-])\S/g, c => c.toUpperCase());
+  return nom ? tc(nom.split(' ')[0] + ' ' + ap.split(' ')[0]) : (n || u || '');
+}
+function hiloHtml(key) {
+  if (!/^\d+\/[^/]+\/\d+$/.test(key)) return '';
+  const u = hiloUtil(key), pend = hiloPend[key], src = hiloFuente();
+  const esperaLarga = pend && Date.now() - pend > 6000;
+  const estado = !src ? (u ? `Guardado ${cuando(u.at)}. Para actualizarlo, sincroniza ATGO con el favorito ⟳ Despacho ATGO.` : 'Abre ATGO y pulsa el favorito ⟳ Despacho ATGO para ver el hilo.')
+    : esperaLarga ? 'ATGO no responde: recarga su pestaña y vuelve a pulsar el favorito ⟳ Despacho ATGO.'
+    : pend ? 'Actualizando desde ATGO…' : '';
+  if (!u || !u.utiles.length) {
+    return `<div class="dw-sec"><div class="dw-h">Motivo de apertura</div><div class="dw-empty">${u ? 'El hilo no tiene comentarios.' : esc(estado || 'Sin datos del hilo.')}</div></div>`;
+  }
+  const m = u.utiles[0], ult = u.utiles.length > 1 ? u.utiles[u.utiles.length - 1] : null;
+  const quien = i => `${esc(nombreCorto(i.n, i.u))} · ${esc(i.ts ? cuando(i.ts) : '')}`;
+  const largo = t => t.length > 260;
+  return `<div class="dw-sec">
+      <div class="dw-h">Motivo de apertura <small>${quien(m)}</small></div>
+      <div class="dw-txt${largo(m.tn) ? ' clamp' : ''}">${esc(m.t)}</div>${largo(m.tn) ? '<button class="dw-more" onclick="this.previousElementSibling.classList.toggle(\'clamp\');this.textContent=this.textContent===\'Ver más\'?\'Ver menos\':\'Ver más\'">Ver más</button>' : ''}
+      ${ult ? `<div class="dw-h" style="margin-top:4px">Último comentario <small>${quien(ult)}</small></div>
+      <div class="dw-txt last${largo(ult.tn) ? ' clamp' : ''}">${esc(ult.t)}</div>${largo(ult.tn) ? '<button class="dw-more" onclick="this.previousElementSibling.classList.toggle(\'clamp\');this.textContent=this.textContent===\'Ver más\'?\'Ver menos\':\'Ver más\'">Ver más</button>' : ''}` : ''}
+      ${u.utiles.length > 2 ? `<details class="dw-thread"><summary>Hilo completo · ${u.utiles.length} mensajes</summary><ul>${u.utiles.slice().reverse().map(i => `<li><span>${quien(i)}</span>${esc(i.t)}</li>`).join('')}</ul></details>` : ''}
+      ${estado ? `<div class="dw-empty">${esc(estado)}</div>` : ''}
+    </div>`;
+}
+
 // ===== Ficha del ticket (panel lateral) =====
 let fichaKey = null;
 function openTicket(key) {
   fichaKey = String(key);
   marcarVistos(fichaKey);
+  pedirHilos([fichaKey]);   // se muestra lo guardado y se refresca al momento
+  setTimeout(() => { if (fichaKey === key && hiloPend[key]) renderFicha(); }, 6500);
   renderFicha();
   document.getElementById('drawer').hidden = false;
   document.body.classList.add('dw-open');
@@ -276,6 +350,7 @@ function renderFicha() {
       ${r ? `<button class="btn" onclick="copiarFicha('${jsq(key)}')" title="Copia los datos con formato para pegarlos en tu plantilla de Outlook">Copiar ficha</button>` : ''}
       <button class="btn" onclick="copyText('${jsq(base.num)}')">Copiar Nº</button>
     </div>
+    ${hiloHtml(key)}
     <dl class="dw-data">${campos.map(([k, v]) => `${k ? `<dt>${esc(k)}</dt>` : ''}<dd${k ? '' : ' class="full"'}>${esc(v)}</dd>`).join('')}</dl>
     <div class="dw-sec">
       <div class="dw-h">Nota y seguimiento</div>
@@ -316,12 +391,12 @@ function closePalette() { document.getElementById('palette').hidden = true; }
 function palRender() {
   const q = norm(document.getElementById('palInput').value), toks = q.split(/\s+/).filter(Boolean);
   const acc = PAL_ACCIONES.filter(a => !toks.length || toks.every(t => norm(a.t + ' ' + a.k).includes(t))).map(a => ({ type: 'a', a }));
-  const tks = toks.length ? rows.filter(r => { const hay = norm([r.num, r.operario, r.desOperario, r.estado, r.descSede, r.descCliente, r.domicilio, r.referencia, r.tipo, (notas[tkey(r)] || {}).texto].join(' ')); return toks.every(t => hay.includes(t)); }).slice(0, 30).map(r => ({ type: 't', r })) : [];
+  const tks = toks.length ? rows.filter(r => { const hay = norm([r.num, r.operario, r.desOperario, r.estado, r.descSede, r.descCliente, r.domicilio, r.referencia, r.tipo, (notas[tkey(r)] || {}).texto, motivoTexto(tkey(r))].join(' ')); return toks.every(t => hay.includes(t)); }).slice(0, 30).map(r => ({ type: 't', r })) : [];
   palItems = toks.length ? [...tks, ...acc] : acc;
   palSel = Math.min(palSel, Math.max(0, palItems.length - 1));
   document.getElementById('palList').innerHTML = palItems.length ? palItems.map((it, i) => it.type === 'a'
     ? `<li class="${i === palSel ? 'on' : ''}" data-i="${i}"><span class="pa">→</span>${esc(it.a.t)}</li>`
-    : `<li class="${i === palSel ? 'on' : ''}" data-i="${i}"><b class="mono">${esc(it.r.num)}</b> <span>${esc(it.r.operario)} · ${esc(it.r.estado)}</span><small>${esc([it.r.descSede, it.r.descCliente].filter(Boolean).join(' · '))}</small></li>`).join('')
+    : `<li class="${i === palSel ? 'on' : ''}" data-i="${i}"><b class="mono">${esc(it.r.num)}</b> <span>${esc(it.r.operario)} · ${esc(it.r.estado)}</span><small>${esc([it.r.descSede, motivoTexto(tkey(it.r)).slice(0, 90)].filter(Boolean).join(' · '))}</small></li>`).join('')
     : '<li class="none">Sin resultados</li>';
   const on = document.querySelector('#palList li.on'); if (on) on.scrollIntoView({ block: 'nearest' });
 }

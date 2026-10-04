@@ -256,6 +256,15 @@
   .dw-hist{list-style:none; margin:0; padding:0; display:grid; gap:5px; font-size:12px;}
   .dw-hist span{color:var(--ink-faint); font-size:11px; margin-right:8px;}
   .dw-empty{color:var(--ink-faint); font-size:12px;}
+  .dw-h small{font-weight:500; text-transform:none; letter-spacing:0; margin-left:6px; color:var(--ink-faint);}
+  .dw-txt{font-size:13px; line-height:1.5; white-space:pre-wrap; overflow-wrap:anywhere; background:var(--panel2); border-radius:8px; padding:9px 11px; border-left:3px solid var(--amber);}
+  .dw-txt.last{border-left-color:var(--teal);}
+  .dw-txt.clamp{display:-webkit-box; -webkit-line-clamp:5; -webkit-box-orient:vertical; overflow:hidden;}
+  .dw-more{justify-self:start; border:none; background:none; color:var(--amber); font:inherit; font-size:11.5px; cursor:pointer; padding:0; margin-top:-4px;}
+  .dw-thread summary{cursor:pointer; font-size:11.5px; color:var(--ink-dim);}
+  .dw-thread ul{list-style:none; margin:8px 0 0; padding:0; display:grid; gap:8px;}
+  .dw-thread li{font-size:12px; white-space:pre-wrap; overflow-wrap:anywhere; border-top:1px dashed var(--line); padding-top:6px;}
+  .dw-thread li span{display:block; color:var(--ink-faint); font-size:11px; margin-bottom:2px;}
   /* Buscador */
   .palette{position:fixed; inset:0; z-index:50; background:rgba(0,0,0,.3); display:flex; justify-content:center; align-items:flex-start; padding:12vh 16px 16px;}
   .palette[hidden]{display:none;}
@@ -531,14 +540,16 @@ function applyAtgo(msg, fromCache){
   else setAtgoStatus(`En vivo · ${horaCorta(msg.at)}`, '');
   if (!msg.partial && !fromCache){
     try{ localStorage.setItem(ATGO_KEY, JSON.stringify(msg)); }catch(e){}
-    trackChanges(rows);   // novedades, avisos y rutas cambiadas (dia.js)
+    hilosTrasCarga(trackChanges(rows));   // novedades, avisos, rutas cambiadas e hilos nuevos (dia.js)
     refreshVisible();
   } else updateDiaBadge();
 }
 window.addEventListener('message', (e) => {
   if (e.origin !== ATGO_ORIGIN || !e.data || typeof e.data !== 'object') return;
   const m = e.data;
+  atgoSource = e.source;   // pestaña de ATGO que sincroniza: a ella se le piden los hilos
   if (m.type === 'atgo-data') applyAtgo(m, false);
+  else if (m.type === 'atgo-hilo') recibirHilos(m.hilos);
   else if (m.type === 'atgo-status') setAtgoStatus(String(m.text||''), m.error ? 'err' : '');
   else if (m.type === 'atgo-hello') e.source.postMessage({type:'despacho-ready'}, ATGO_ORIGIN);
 });

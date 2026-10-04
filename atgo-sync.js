@@ -78,8 +78,38 @@
       else if (running) e.source.postMessage({ type: 'atgo-status', text: statusEl.textContent }, PWA_ORIGIN);
     } else if (e.data.type === 'despacho-refresh') {
       refreshNow();
+    } else if (e.data.type === 'despacho-hilo' && Array.isArray(e.data.keys)) {
+      enviarHilos(e.data.keys, e.source);
     }
   });
+
+  // ===== Hilo de cada ticket (motivo de apertura y comentarios) =====
+  // Responde en ~50 ms por ticket; Despacho lo pide solo para tickets nuevos, cambiados o al abrir su ficha.
+  const isoTs = (s) => { const d = new Date(String(s || '').replace(/([+-]\d{2})(\d{2})$/, '$1:$2')); return isNaN(d) ? 0 : d.getTime(); };
+  async function getHilo(key) {
+    const [p, s, c] = key.split('/');
+    const url = '/api/v1/atgo/hilo/' + encodeURIComponent(p) + '/' + encodeURIComponent(s) + '/' + encodeURIComponent(c);
+    const r = await fetch(url, { headers: { Authorization: 'Bearer ' + token(), Accept: 'application/json' } });
+    if (!r.ok) throw new Error('ATGO respondió ' + r.status);
+    const d = await r.json();
+    return (Array.isArray(d) ? d : []).map(x => ({
+      ts: isoTs(x.hiloIncidenciaId && x.hiloIncidenciaId.fechaRegistro),
+      u: x.usuario || '', n: x.nombre || '', e: x.estado || '',
+      t: String(x.descripcion || '').trim()
+    }));
+  }
+  async function enviarHilos(keys, dest) {
+    const cola = [...new Set(keys)].filter(k => /^\d+\/[^/]+\/\d+$/.test(k)).slice(0, 300);
+    const out = {};
+    const worker = async () => {
+      while (cola.length) {
+        const k = cola.shift();
+        try { out[k] = { at: Date.now(), items: await getHilo(k) }; } catch (e) { out[k] = { error: e.message }; }
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(PARALELO, cola.length) }, worker));
+    try { dest.postMessage({ type: 'atgo-hilo', hilos: out }, PWA_ORIGIN); } catch (e) {}
+  }
 
   // ===== Lectura de la API de ATGO =====
   function token() {

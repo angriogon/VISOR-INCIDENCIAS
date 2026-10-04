@@ -89,6 +89,7 @@ Al abrir la app ves el día de un vistazo. Cada casilla de arriba lleva a su sec
 
 Haz clic en cualquier ticket (en Mi día, Incidencias o Mañana) para abrir su ficha a la derecha:
 
+- **Motivo de apertura y último comentario:** el texto con el que se abrió la incidencia y lo último que escribió alguien (normalmente el técnico tras la visita), sacados del hilo del ticket en ATGO. Debajo, el **hilo completo** plegado, sin los mensajes automáticos ("ha iniciado el ticket", "incidencia asignada a…"). Se guarda en el equipo y se refresca al abrir la ficha. Pedir el hilo de los ~90 tickets tarda menos de 1 segundo; después solo se piden los de tickets nuevos o que cambian. El buscador `Ctrl+K` también busca en el motivo.
 - **Abrir en ATGO**, **Copiar ficha** (Nº, cliente, sede, dirección, estado, visita, técnico, tipo y referencia, con formato para pegar en tu plantilla de Outlook) y **Copiar Nº**.
 - **Nota y seguimiento:** una nota privada y una fecha para revisarlo (Hoy, Mañana, Lunes, +1 semana o la que elijas). Aparece en *Seguimientos* ese día; márcalo como hecho al terminar. En las listas, los tickets con nota llevan ✎ y los que tienen cambios sin ver, un punto naranja.
 - **Historial:** los cambios que Despacho ha visto en ese ticket.
