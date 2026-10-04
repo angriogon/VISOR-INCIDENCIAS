@@ -10,9 +10,12 @@
   // PRESENCIAL, PUESTO OPERATIVO, FUERA DE MANTENIMIENTO, MATERIAL PTE. FABRICANTE,
   // PTE. MOVER MATERIAL, EN FABRICANTE, ESCALADO TIER1
   const ESTADOS = [10, 20, 30, 40, 80, 100, 110];
-  const PAGE_SIZE = 20;            // páginas más grandes provocan 504 en el servidor de ATGO
-  const PARALELO = 2;              // peticiones simultáneas (no sobrecargar ATGO)
-  const REFRESCO_MIN = 5;          // minutos entre el final de una carga y el inicio de la siguiente
+  // ATGO tarda ~0,5 s por ticket devuelto. Pedir por operario (codOpe.equals) trae solo nuestros
+  // tickets (~100 de ~600) y las consultas en paralelo no se estorban: la carga baja de ~3 min a ~20 s.
+  // (codOpe.in no funciona en ATGO: ignora el filtro; y sin "sort" la consulta es mucho más lenta.)
+  const PAGE_SIZE = 100;           // por operario; si alguno tuviera más, se piden más páginas
+  const PARALELO = 6;              // consultas simultáneas
+  const REFRESCO_MIN = 2;          // minutos entre el final de una carga y el inicio de la siguiente
   const TIMEOUT_MS = 120000;
 
   if (location.hostname !== 'atgo.tier1.es') { alert('Abre primero https://atgo.tier1.es e inicia sesión.'); return; }
@@ -88,8 +91,8 @@
     const exp = Number(localStorage.getItem('expires'));
     return !token() || (exp && exp * 1000 < Date.now());
   }
-  async function getPage(page) {
-    const q = 'estado.in=' + ESTADOS.join('-');
+  async function getPage(op, page) {
+    const q = 'estado.in=' + ESTADOS.join('-') + ',codOpe.equals=' + encodeURIComponent(op);
     const url = '/api/v1/atgo/incidencias/listado?page=' + page + '&size=' + PAGE_SIZE + '&sort=fechaRegistro,asc&q=' + q;
     for (let intento = 1; intento <= 2; intento++) {
       const ctrl = new AbortController();
@@ -135,30 +138,31 @@
     running = true;
     const t0 = Date.now();
     const found = new Map();
-    let total = 0, pages = 1, done = 0, firstLoad = !lastPayload;
+    let done = 0, firstLoad = !lastPayload;
     try {
-      setStatus('Cargando página 1…');
-      const first = await getPage(0);
-      total = first.totalElements || 0;
-      pages = first.totalPages || 1;
+      setStatus('Cargando 0/' + OPERARIOS.length + ' técnicos…');
       const add = (d) => (d.content || []).forEach(t => { if (OPERARIOS.includes(String(t.codOpe || '').trim().toUpperCase())) { const m = mapTicket(t); found.set(m.key, m); } });
-      add(first); done = 1;
-      let next = 1;
+      const cola = OPERARIOS.slice();
       const worker = async () => {
-        while (next < pages && !stopped) {
-          const p = next++;
-          add(await getPage(p));
+        while (cola.length && !stopped) {
+          const op = cola.shift();
+          for (let page = 0; ; page++) {
+            const d = await getPage(op, page);
+            add(d);
+            if (d.last !== false || !(d.content || []).length) break;
+          }
           done++;
-          setStatus('Cargando ' + done + '/' + pages + ' páginas · ' + found.size + ' incidencias');
-          if (firstLoad) send({ type: 'atgo-data', partial: true, rows: [...found.values()], at: Date.now(), progress: done + '/' + pages });
+          setStatus('Cargando ' + done + '/' + OPERARIOS.length + ' técnicos · ' + found.size + ' incidencias');
+          if (firstLoad) send({ type: 'atgo-data', partial: true, rows: [...found.values()], at: Date.now(), progress: done + '/' + OPERARIOS.length });
         }
       };
-      await Promise.all(Array.from({ length: Math.min(PARALELO, pages - 1) }, worker));
+      // Si falla algún operario se descarta la carga entera: así nunca parece que sus tickets "salieron".
+      await Promise.all(Array.from({ length: Math.min(PARALELO, cola.length) }, worker));
       if (stopped) return;
-      lastPayload = { type: 'atgo-data', partial: false, rows: [...found.values()], at: Date.now(), totalAtgo: total, seconds: Math.round((Date.now() - t0) / 1000) };
+      lastPayload = { type: 'atgo-data', partial: false, rows: [...found.values()], at: Date.now(), seconds: Math.round((Date.now() - t0) / 1000) };
       send(lastPayload);
       const hora = new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-      setStatus(found.size + ' incidencias · ' + hora + ' · próxima en ' + REFRESCO_MIN + ' min');
+      setStatus(found.size + ' incidencias · ' + hora + ' (' + lastPayload.seconds + ' s) · próxima en ' + REFRESCO_MIN + ' min');
     } catch (e) {
       setStatus('Error: ' + e.message, true);
     } finally {
