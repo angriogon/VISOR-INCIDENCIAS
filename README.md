@@ -3,7 +3,7 @@
 PWA para Windows para el trabajo diario de Dispatcher. Es un **visor**: no modifica ATGO ni el ERP; lee, avisa y ayuda con el seguimiento, los correos y la organización del día.
 
 - **Mi día:** la pantalla de inicio con lo que pide acción: novedades, tickets a tu nombre, visitas sin planificar, seguimientos, rutas de mañana, tickets parados y tu rutina diaria.
-- **Incidencias:** se cargan **en tiempo real desde ATGO** (o importando un Excel/CSV) y se agrupan por operario. Hay vista **En ruta total** (visitas presenciales de hoy, una tarjeta por técnico) y filtros *En ruta / Fuera de ruta* en cada técnico. Solo se cargan los operarios y estados configurados.
+- **Incidencias:** un técnico por fila, agrupados por zona, con una **barra del progreso de su ruta de hoy** (terminadas, en curso, pendientes) y el resumen del equipo arriba. Clic en un técnico para desplegar sus visitas de hoy y el resto de sus incidencias; botón para plegar o desplegar todos. Se cargan **en tiempo real desde ATGO** (o importando un Excel/CSV). Solo se cargan los operarios y estados configurados.
 - **Zonas:** los técnicos se agrupan y ordenan por zona (Sevilla/Huelva, Córdoba/Jaén, Granada, Almería, Málaga, Cádiz, Ceuta, Melilla, Extremadura), con chips para filtrar por zona.
 - **Mañana:** visitas presenciales del próximo día laborable (se puede cambiar de día) por técnico y zona, con barra de carga, técnicos libres y botón **WhatsApp** que envía a cada técnico su planificación.
 - **Ficha del ticket:** clic en cualquier ticket para ver sus datos, copiarlos para tu correo, dejar una nota con fecha de seguimiento y ver su historial de cambios.
@@ -70,6 +70,12 @@ Detalles:
   - Sin teléfono configurado, WhatsApp te pide elegir el contacto: búscalo por sus siglas.
   - En **Teléfonos y mensaje** puedes guardar el móvil de cada técnico (así abre directamente su chat), elegir WhatsApp de escritorio o WhatsApp Web, y cambiar el saludo y la despedida.
 - **Copiar resumen** copia la carga de todos los técnicos de la zona visible.
+
+## Progreso del día (pestaña Incidencias)
+
+- Cuenta las visitas **enrutadas para hoy**: tickets PRESENCIAL con fecha de visita de hoy, más los que hoy pasaron de PRESENCIAL a otro estado o salieron de la lista. Se recalcula en cada actualización de ATGO: si se asigna un ticket nuevo para hoy, entra en la barra de su técnico.
+- **Terminada:** el técnico la finalizó en ATGO ("ha finalizado el ticket" en el hilo de hoy) o el ticket dejó PRESENCIAL hoy. **En curso:** la inició hoy y aún no la ha finalizado. **Pendiente:** el resto; se marca **con retraso** si ya pasó su hora.
+- La barra solo es tan fiable como el uso de iniciar/finalizar en ATGO: si un técnico no lo usa, sus visitas siguen pendientes hasta que el ticket cambia de estado.
 
 ## Mi día
 

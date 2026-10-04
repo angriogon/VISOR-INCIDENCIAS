@@ -263,10 +263,48 @@ function recibirHilos(h) {
   lsSet(HILO_KEY, hilos);
   if (fichaKey && h[fichaKey] && !document.getElementById('drawer').hidden) renderFicha();
 }
-// Tras cada carga: hilo de los tickets que aún no lo tienen o que han cambiado
+// Tras cada carga: hilo de los tickets que aún no lo tienen, de los que han cambiado
+// y de las visitas de hoy (para saber si el técnico las ha iniciado o finalizado; ~30 tickets, <1 s).
 function hilosTrasCarga(nuevos) {
   const changed = new Set((nuevos || []).map(e => e.key));
-  pedirHilos(rows.map(tkey).filter(k => !hilos[k] || changed.has(k)));
+  const hoy = todayStr();
+  pedirHilos(rows.filter(r => !hilos[tkey(r)] || changed.has(tkey(r)) || (r.fVisita === hoy && esPresencial(r))).map(tkey));
+}
+
+// ===== Ruta de hoy: visitas enrutadas para hoy y su estado =====
+// En curso / terminada salen del hilo de ATGO ("ha iniciado el ticket" / "ha finalizado el ticket" de hoy).
+function progresoHilo(key) {
+  const h = hilos[key]; if (!h) return null;
+  const hoy = isoHoy(); let last = null;
+  h.items.forEach(i => {
+    if (!i.ts || isoHoy(new Date(i.ts)) !== hoy) return;
+    const k = /ha finalizado el ticket/i.test(i.t) ? 'd' : /ha iniciado el ticket/i.test(i.t) ? 'c' : null;
+    if (k && (!last || i.ts > last.ts)) last = { k, ts: i.ts };
+  });
+  return last;
+}
+function rutaHoy() {
+  const f = todayStr(), hoy = isoHoy(), now = new Date(), nowMin = now.getHours() * 60 + now.getMinutes();
+  const pres = norm('PRESENCIAL');
+  // Tickets que hoy dejaron de estar en PRESENCIAL (se cuentan como terminados)
+  const dejaronPres = new Set(eventos.filter(e => e.tipo === 'estado' && norm(e.de) === pres && isoHoy(new Date(e.ts)) === hoy).map(e => e.key));
+  const out = [];
+  rows.forEach(r => {
+    if (r.fVisita !== f) return;
+    const k = tkey(r);
+    if (!esPresencial(r)) { if (dejaronPres.has(k)) out.push({ r, op: r.operario, st: 'd' }); return; }
+    const p = progresoHilo(k);
+    const st = p ? p.k : 'p';
+    const limite = horaMin(r.hastaHora || r.desdeHora);
+    out.push({ r, op: r.operario, st, ts: p && p.ts, late: st === 'p' && limite < 9999 && nowMin > limite });
+  });
+  // Visitas de hoy que salieron de la lista hoy (cerradas o pasadas a otro estado)
+  eventos.filter(e => e.tipo === 'salio' && e.f === f && norm(e.de) === pres && isoHoy(new Date(e.ts)) === hoy).forEach(e => {
+    if (out.some(x => tkey(x.r) === e.key)) return;
+    const s = { key: e.key, num: e.num, operario: e.op, descSede: e.sede, descCliente: e.cli, estado: e.de, fVisita: e.f };
+    out.push({ r: s, op: e.op, st: 'd', ts: e.ts, salio: true });
+  });
+  return out;
 }
 function hiloUtil(key) {
   const h = hilos[key]; if (!h) return null;

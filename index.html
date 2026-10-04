@@ -280,6 +280,52 @@
   #palList li .pa{color:var(--ink-faint);}
   #palList li.none{color:var(--ink-faint); cursor:default;}
   .pal-keys{font-size:10.5px; color:var(--ink-faint); padding:6px 14px 10px; text-align:right;}
+  /* Incidencias: técnicos con progreso del día */
+  :root{--done:#1D9E75; --done-tx:#0F6E56; --cur:#378ADD; --cur-tx:#185FA5;}
+  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){--done-tx:#5DCAA5; --cur-tx:#85B7EB;} }
+  .countbar{display:grid; gap:8px;}
+  .inc-kpis{display:grid; grid-template-columns:repeat(4,minmax(0,1fr));}
+  @media (max-width:640px){ .inc-kpis{grid-template-columns:repeat(2,minmax(0,1fr));} }
+  .dayprog{display:flex; align-items:center; gap:10px; font-size:12px; color:var(--ink-dim);}
+  .pbar{display:flex; height:9px; border-radius:5px; overflow:hidden; background:var(--panel2); border:1px solid var(--line);}
+  .pbar.big{flex:1; height:12px;}
+  .pbar i{display:block; height:100%;}
+  .pbar i.d{background:var(--done);} .pbar i.c{background:var(--cur);}
+  #groupsPanel .zhead:first-child{margin-top:8px;}
+  .leg{display:flex; gap:12px; align-items:center; font-size:11.5px; color:var(--ink-dim);}
+  .leg i{display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:4px; vertical-align:-1px;}
+  .tg{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden;}
+  .tg-h{display:grid; grid-template-columns:34px minmax(0,170px) minmax(0,1fr) 64px 14px; gap:12px; align-items:center; padding:9px 12px; cursor:pointer; user-select:none;}
+  .tg-h:hover{background:var(--panel2);}
+  .av{width:34px; height:34px; border-radius:50%; background:var(--panel2); display:flex; align-items:center; justify-content:center; font-size:10.5px; font-weight:700; color:var(--ink-dim);}
+  .tg-n{min-width:0; display:grid;}
+  .tg-n b{font-size:13px;}
+  .tg-n span{font-size:11.5px; color:var(--ink-dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .tg-m{min-width:0; display:grid; gap:5px;}
+  .tg-none{font-size:11.5px; color:var(--ink-faint);}
+  .tg-ch{display:flex; gap:4px; flex-wrap:wrap;}
+  .ch2{font-size:10.5px; padding:0 7px; border-radius:999px; background:var(--panel2); color:var(--ink-dim);}
+  .ch2.w{background:var(--amber-dim); color:var(--amber);}
+  .ch2.late{background:#fbe3df; color:#b5432f;}
+  .tg-c{text-align:right; display:grid;}
+  .tg-c b{font-size:16px;} .tg-c small{font-size:10.5px; color:var(--ink-faint);}
+  .tg .chev{color:var(--ink-faint); font-size:10px; transition:transform .15s;}
+  .tg.collapsed .chev{transform:rotate(-90deg);}
+  .tg-b{border-top:1px dashed var(--line); padding:4px 0 8px;}
+  .tg.collapsed .tg-b{display:none;}
+  .tg-l{font-size:10.5px; color:var(--ink-faint); padding:8px 12px 3px 58px; letter-spacing:.3px;}
+  .tg-b .line{padding-left:58px;}
+  .vh{display:grid; grid-template-columns:16px 82px auto minmax(0,1fr) auto; gap:8px; align-items:baseline; padding:5px 12px 5px 58px; font-size:12px; cursor:pointer;}
+  .vh:hover{background:var(--panel2);}
+  .vh-i{font-weight:700; text-align:center;}
+  .vh-i.st-d,.vh-st.st-d{color:var(--done-tx);} .vh-i.st-c,.vh-st.st-c{color:var(--cur-tx);} .vh-i.st-p,.vh-st.st-p{color:var(--ink-faint);}
+  .vh-h{font-family:'IBM Plex Mono',monospace; color:var(--ink);}
+  .vh-h.late{color:#d9614f; font-weight:600;}
+  .vh-n .num{color:var(--amber); font-weight:600; text-decoration:none; font-family:'IBM Plex Mono',monospace;}
+  .vh-s{min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--ink-dim);}
+  .vh-m{color:var(--ink-faint);}
+  .vh-st{font-size:11px; white-space:nowrap;}
+  @media (max-width:640px){ .tg-h{grid-template-columns:34px minmax(0,1fr) 56px 12px;} .tg-m{grid-column:2/4; grid-row:2;} .vh{grid-template-columns:16px 70px minmax(0,1fr); padding-left:14px;} .vh-s,.vh-st{grid-column:2/-1;} .tg-l,.tg-b .line{padding-left:14px;} }
   #updateBar{display:none; position:fixed; bottom:calc(20px + env(safe-area-inset-bottom,0px)); right:20px; background:var(--panel); border:1px solid var(--amber); border-radius:var(--radius); padding:8px 12px; font-size:12px; gap:10px; align-items:center; z-index:21; box-shadow:0 4px 16px rgba(0,0,0,.15);}
 </style>
 </head>
@@ -319,9 +365,11 @@
   </div>
 
   <div id="dataView" style="display:none;">
-    <div class="toprow"><div class="filters" id="filters"></div><button class="iconbtn" id="toggleAll" onclick="toggleAll()" title="Desplegar / agrupar todo" aria-label="Desplegar o agrupar todo"></button></div>
     <div class="countbar" id="countLabel"></div>
-    <div id="groupsPanel"></div>
+    <div class="toprow" style="margin:12px 0 2px"><div class="filters" id="filters"></div>
+      <div class="leg"><span><i style="background:var(--done)"></i>Terminada</span><span><i style="background:var(--cur)"></i>En curso</span><span><i style="background:var(--panel2);border:1px solid var(--line)"></i>Pendiente</span>
+      <button class="iconbtn" id="toggleAll" onclick="toggleAll()" title="Desplegar / plegar todos" aria-label="Desplegar o plegar todos"></button></div></div>
+    <div id="groupsPanel" style="display:grid;gap:6px"></div>
   </div>
   </div>
 
@@ -366,14 +414,11 @@ const COLS = { num:1, fVisita:4, desdeHora:5, fCaducidad:6, descSede:8, referenc
 
 let rows = [];
 let source = null;   // 'excel' | 'atgo'
-let totalRuta = false;
-let collapsed = {};
-let groupFilter = {};
+let collapsed = {};   // por técnico: false = desplegado (por defecto, plegado)
 function todayStr(){
   const d = new Date();
   return String(d.getDate()).padStart(2,'0') + '/' + String(d.getMonth()+1).padStart(2,'0') + '/' + d.getFullYear();
 }
-function isEnRuta(r){ return norm(r.estado).includes('presencial') && r.fVisita === todayStr(); }
 const PALETTE = ['#2f8f87','#c9862b','#5b8dd9','#a97fd1','#c9527a','#5ea86f','#d9614f','#8b98a3'];
 function colorFor(s){
   const str = String(s||'—');
@@ -455,7 +500,7 @@ function permitido(r){ return OPERARIOS.includes(cleanInitials(r.operario)) && E
 // Muestra un conjunto de incidencias. keepView=true conserva grupos plegados y filtros (refrescos de ATGO).
 function setRows(newRows, label, keepView){
   rows = newRows.filter(permitido);
-  if (!keepView){ collapsed = {}; groupFilter = {}; totalRuta = false; }
+  if (!keepView){ collapsed = {}; }
   document.getElementById('fileStatus').textContent = `${label} · ${rows.length} incidencias`;
   document.getElementById('emptyState').style.display = 'none';
   document.getElementById('dataView').style.display = 'block';
@@ -513,13 +558,6 @@ function zoneCounts(list){ const c = {}; list.forEach(r => { const z = zonaDe(r.
 function renderFilters(){
   const el = document.getElementById('filters');
   el.innerHTML = '';
-  const trChip = document.createElement('button');
-  trChip.className = 'chip' + (totalRuta ? ' active' : '');
-  trChip.textContent = 'En ruta total';
-  trChip.title = 'Visitas presenciales de hoy, una tarjeta por técnico';
-  trChip.onclick = () => { totalRuta = !totalRuta; renderFilters(); render(); };
-  el.appendChild(trChip);
-  const sep = document.createElement('span'); sep.style.cssText = 'width:1px;height:18px;background:var(--line)'; el.appendChild(sep);
   el.appendChild(zoneChips(() => { renderFilters(); render(); }, zoneCounts(rows)));
 }
 
@@ -577,70 +615,103 @@ document.getElementById('atgoBtn').addEventListener('click', () => {
   a.addEventListener('click', e => { e.preventDefault(); toast('Arrástralo a la barra de favoritos (Ctrl+Mayús+B para mostrarla)'); });
 })();
 
+// ===== Incidencias: un técnico por fila con el progreso de su ruta de hoy =====
+const ST_LAB = { d: 'Terminada', c: 'En curso', p: 'Pendiente' };
+const ST_ICO = { d: '✓', c: '◐', p: '○' };
+let renderedOps = [];
+function isCol(op){ return collapsed[op] !== false; }
+
 function render(){
   const data = filteredRows();
-  const nOps = new Set(data.map(r => r.operario)).size;
-  document.getElementById('countLabel').textContent = `${data.length} incidencias · ${nOps} técnico${nOps===1?'':'s'}` + (totalRuta ? ` · ${data.filter(isEnRuta).length} en ruta hoy` : '');
-
   const panel = document.getElementById('groupsPanel');
+  const rutaAll = rutaHoy();
+  const rutaZona = rutaAll.filter(x => (!zonaSel || zonaDe(x.op) === zonaSel));
+  const rutaTec = rutaZona.filter(x => TECNICOS.includes(cleanInitials(x.op)));
+  const n = { d: 0, c: 0, p: 0 }; rutaTec.forEach(x => n[x.st]++);
+  const tot = rutaTec.length, late = rutaTec.filter(x => x.late).length;
+  const pc = v => tot ? Math.round(v / tot * 100) : 0;
+  document.getElementById('countLabel').innerHTML = tot ? `
+    <div class="kpis inc-kpis">
+      <div class="kpi"><b>${tot}</b>visitas hoy</div>
+      <div class="kpi"><b style="color:var(--done-tx)">${n.d}</b>terminadas</div>
+      <div class="kpi"><b style="color:var(--cur-tx)">${n.c}</b>en curso</div>
+      <div class="kpi"><b>${n.p}</b>pendientes${late ? ` · <span style="color:#d9614f">${late} con retraso</span>` : ''}</div>
+    </div>
+    <div class="dayprog"><div class="pbar big"><i class="d" style="width:${pc(n.d)}%"></i><i class="c" style="width:${pc(n.c)}%"></i></div><span>${pc(n.d)}% del día</span></div>`
+    : `<div class="dempty">Sin visitas enrutadas para hoy${zonaSel ? ' en ' + esc(zonaSel) : ''}.</div>`;
+
+  const byOp = {}; data.forEach(r => { (byOp[r.operario] = byOp[r.operario] || []).push(r); });
+  const rutaOp = {}; rutaZona.forEach(x => { (rutaOp[x.op] = rutaOp[x.op] || []).push(x); });
+  const ops = [...new Set([...Object.keys(byOp), ...Object.keys(rutaOp)])];
+  renderedOps = ops;
   updToggle();
+  if (!ops.length){ panel.innerHTML = '<div class="empty">Sin incidencias para este filtro.</div>'; return; }
 
-  if (totalRuta){
-    const enRuta = data.filter(isEnRuta);
-    if (!enRuta.length){ panel.innerHTML = '<div class="empty">Nadie en ruta hoy con estas condiciones.</div>'; return; }
-    panel.innerHTML = porZona(enRuta).map(g => `
-      <div class="zhead">${esc(g.zona)} <span>${plural(g.ops.reduce((s,o)=>s+o.items.length,0), 'visita')} · ${plural(g.ops.length, 'técnico')}</span></div>
-      <div class="cardgrid">${g.ops.map(({op, items}) => `
-      <div class="rcard" style="border-top-color:${colorFor(op)}">
-        <div class="rop">${esc(op)}</div>
-        ${sortByHora(items).map(r => `
-          <div class="rline" data-key="${esc(tkey(r))}">
-            <span class="rnum mono">Nº${esc(r.num || '—')}</span>
-            <span class="rhora">${esc(r.desdeHora || '—')}</span>
-            <span class="rsite" title="${esc(r.descSede || r.domicilio || '')}">${esc(r.descSede || r.domicilio || '—')}</span>
-          </div>`).join('')}
-      </div>`).join('')}</div>`).join('');
-    return;
-  }
-
-  if (!data.length){ panel.innerHTML = '<div class="empty">Sin incidencias para este filtro.</div>'; return; }
-
-  panel.innerHTML = porZona(data, null).map(g => `
-    <div class="zhead"${g.zona === 'DISPATCHER' ? ' style="color:var(--amber)"' : ''}>${esc(g.zona)} <span>${plural(g.ops.reduce((s,o)=>s+o.items.length,0), 'incidencia')}${g.zona === 'DISPATCHER' ? ' a tu nombre' : ' · ' + plural(g.ops.length, 'técnico')}</span></div>
-    ${g.ops.map(({op, items}) => groupHtml(op, items)).join('')}`).join('');
+  panel.innerHTML = ZONAS.map(z => {
+    const zops = ops.filter(op => zonaDe(op) === z.nombre).sort((a, b) => opIndex(a) - opIndex(b));
+    if (!zops.length) return '';
+    const zr = zops.flatMap(op => rutaOp[op] || []);
+    const head = z.dispatcher
+      ? `<div class="zhead" style="color:var(--amber)">${esc(z.nombre)} <span>${plural(zops.reduce((s2, op) => s2 + (byOp[op] || []).length, 0), 'incidencia')} a tu nombre</span></div>`
+      : `<div class="zhead">${esc(z.nombre)} <span>${zr.length ? zr.filter(x => x.st === 'd').length + '/' + plural(zr.length, 'visita') + ' hechas hoy' : 'sin visitas hoy'}</span></div>`;
+    return head + zops.map(op => tecRow(op, byOp[op] || [], rutaOp[op] || [], z.dispatcher)).join('');
+  }).join('');
 }
 
-function groupHtml(op, all){
-    const gf = groupFilter[op];
-    let list = all;
-    const byOp = { [op]: all };
-    if (gf === 'enruta') list = list.filter(isEnRuta);
-    else if (gf === 'fuera') list = list.filter(r => !isEnRuta(r));
-    return `
-    <div class="group${collapsed[op] ? ' collapsed' : ''}" data-op="${esc(op)}">
-      <div class="ghead" onclick="toggleGroup('${jsq(op)}')">
-        <span class="left"><span class="chev">▾</span><span>${esc(op)}</span></span>
-        <span class="subf">
-          <button class="chip sm${gf==='enruta'?' active':''}" onclick="event.stopPropagation(); setGroupFilter('${jsq(op)}','enruta')">En ruta</button>
-          <button class="chip sm${gf==='fuera'?' active':''}" onclick="event.stopPropagation(); setGroupFilter('${jsq(op)}','fuera')">Fuera de ruta</button>
-        </span>
-        <span class="count">${list.length} de ${byOp[op].length} incidencia${byOp[op].length===1?'':'s'}</span>
+function tecRow(op, items, ruta, esDisp){
+  const tot = ruta.length, d = ruta.filter(x => x.st === 'd').length, c = ruta.filter(x => x.st === 'c').length;
+  const late = ruta.filter(x => x.late).length;
+  const pc = v => tot ? Math.round(v / tot * 100) : 0;
+  const ref = items[0] || (ruta[0] && ruta[0].r) || {};
+  const esc1 = items.filter(r => norm(r.estado) === norm('ESCALADO TIER1')).length;
+  const sinF = items.filter(r => esPresencial(r) && !r.fVisita).length;
+  const enRuta = new Set(ruta.map(x => tkey(x.r)));
+  const resto = items.filter(r => !enRuta.has(tkey(r))).sort((a, b) => (parseEs(a.fVisita) || 9e15) - (parseEs(b.fVisita) || 9e15));
+  return `<div class="tg${isCol(op) ? ' collapsed' : ''}" data-op="${esc(op)}">
+    <div class="tg-h" onclick="toggleGroup('${jsq(op)}')">
+      <div class="av">${esc(op)}</div>
+      <div class="tg-n"><b>${esc(op)}</b><span>${esc(nombreTecnico(ref) || zonaDe(op))}</span></div>
+      <div class="tg-m">
+        ${esDisp ? '<span class="tg-none">Pendientes de asignar</span>'
+          : tot ? `<div class="pbar"><i class="d" style="width:${pc(d)}%"></i><i class="c" style="width:${pc(c)}%"></i></div>`
+          : '<span class="tg-none">Sin visitas hoy</span>'}
+        <div class="tg-ch"><span class="ch2">${plural(items.length, 'abierta')}</span>${esc1 ? `<span class="ch2 w">${esc1} escalado${esc1 === 1 ? '' : 's'}</span>` : ''}${sinF ? `<span class="ch2">${sinF} sin fecha</span>` : ''}${late ? `<span class="ch2 late">${late} con retraso</span>` : ''}</div>
       </div>
-      <div class="body">
-      ${list.map(r => `
-        <div class="line" data-key="${esc(tkey(r))}" style="border-left-color:${colorFor(r.estado)}">
-          ${numHtml(r)}${segBadges(r)}
-          <span>· <b>${esc(r.fVisita || '—')}</b>${r.desdeHora ? ' '+esc(r.desdeHora) : ''}${r.hastaHora ? '–'+esc(r.hastaHora) : ''}</span>
-          ${r.fCaducidad || r.estCaducidad ? `<span>· Caduca <b>${esc(r.fCaducidad || '—')}</b> (${esc(r.estCaducidad || '—')})</span>` : ''}
-          ${r.tipo ? `<span>· ${esc(r.tipo)}</span>` : ''}
-          <span>· ${esc(r.descSede || '—')}</span>
-          <span>· Ref ${esc(r.referencia || '—')}</span>
-          <span>· <span class="dot" style="background:${colorFor(r.estado)}"></span> <b>${esc(r.estado || '—')}</b></span>
-          <span>· ${esc(r.descCliente || '—')}</span>
-          <span>· ${esc(r.domicilio || '—')}</span>
-        </div>`).join('')}
-      </div>
-    </div>`;
+      <div class="tg-c">${esDisp ? `<b>${items.length}</b><small>a tu nombre</small>` : tot ? `<b>${d}/${tot}</b><small>hoy</small>` : '<b style="color:var(--ink-faint)">—</b><small>hoy</small>'}</div>
+      <span class="chev">▾</span>
+    </div>
+    <div class="tg-b">
+      ${tot ? '<div class="tg-l">Hoy</div>' + sortByHora(ruta.map(x => Object.assign({}, x.r, { _x: x }))).map(r => visitaHoyHtml(r._x)).join('') : ''}
+      ${resto.length ? `<div class="tg-l">${tot ? 'Resto de incidencias' : 'Incidencias'}</div>` + resto.map(lineHtml).join('') : ''}
+    </div>
+  </div>`;
+}
+
+function visitaHoyHtml(x){
+  const r = x.r, mot = typeof motivoTexto === 'function' ? motivoTexto(tkey(r)) : '';
+  const hora = (r.desdeHora || '--:--') + (r.hastaHora ? '–' + r.hastaHora : '');
+  const lab = x.salio ? 'Terminada · salió de la lista' : x.st === 'd' && !esPresencial(r) ? 'Terminada · ' + (r.estado || '') : ST_LAB[x.st];
+  return `<div class="vh" data-key="${esc(tkey(r))}">
+    <span class="vh-i st-${x.st}" title="${esc(ST_LAB[x.st])}">${ST_ICO[x.st]}</span>
+    <span class="vh-h${x.late ? ' late' : ''}" title="${x.late ? 'Ya debería haber empezado' : ''}">${esc(hora)}</span>
+    <span class="vh-n">${numHtml(r)}${segBadges(r)}</span>
+    <span class="vh-s">${esc(r.descSede || r.domicilio || '—')}${mot ? ` · <span class="vh-m">${esc(mot.slice(0, 90))}</span>` : ''}</span>
+    <span class="vh-st st-${x.st}">${esc(lab)}${x.ts ? ' ' + hhmm(x.ts) : ''}</span>
+  </div>`;
+}
+
+function lineHtml(r){
+  return `<div class="line" data-key="${esc(tkey(r))}" style="border-left-color:${colorFor(r.estado)}">
+    ${numHtml(r)}${segBadges(r)}
+    <span>· <b>${esc(r.fVisita || '—')}</b>${r.desdeHora ? ' '+esc(r.desdeHora) : ''}${r.hastaHora ? '–'+esc(r.hastaHora) : ''}</span>
+    ${r.fCaducidad || r.estCaducidad ? `<span>· Caduca <b>${esc(r.fCaducidad || '—')}</b> (${esc(r.estCaducidad || '—')})</span>` : ''}
+    ${r.tipo ? `<span>· ${esc(r.tipo)}</span>` : ''}
+    <span>· ${esc(r.descSede || '—')}</span>
+    <span>· Ref ${esc(r.referencia || '—')}</span>
+    <span>· <span class="dot" style="background:${colorFor(r.estado)}"></span> <b>${esc(r.estado || '—')}</b></span>
+    <span>· ${esc(r.descCliente || '—')}</span>
+    <span>· ${esc(r.domicilio || '—')}</span>
+  </div>`;
 }
 
 function plural(n, w){ return n + ' ' + w + (n === 1 ? '' : 's'); }
@@ -657,29 +728,22 @@ function numHtml(r){
 }
 
 function toggleGroup(op){
-  collapsed[op] = !collapsed[op];
-  const el = document.querySelector(`.group[data-op="${CSS.escape(op)}"]`);
-  if (el) el.classList.toggle('collapsed', collapsed[op]);
+  collapsed[op] = !isCol(op);
+  const el = document.querySelector(`.tg[data-op="${CSS.escape(op)}"]`);
+  if (el) el.classList.toggle('collapsed', isCol(op));
   updToggle();
-}
-
-function setGroupFilter(op, val){
-  groupFilter[op] = groupFilter[op] === val ? null : val;
-  render();
 }
 const ICON_EXPAND = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg>';
 const ICON_COLLAPSE = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 20 5-5 5 5"/><path d="m7 4 5 5 5-5"/></svg>';
-function visibleOps(){ return [...new Set(filteredRows().map(r => r.operario))]; }
 function updToggle(){
   const b = document.getElementById('toggleAll'); if (!b) return;
-  b.style.display = totalRuta ? 'none' : '';
-  const ops = visibleOps();
-  b.innerHTML = (ops.length && ops.every(o => collapsed[o])) ? ICON_EXPAND : ICON_COLLAPSE;
+  const all = renderedOps.length && renderedOps.every(isCol);
+  b.innerHTML = all ? ICON_EXPAND : ICON_COLLAPSE;
+  b.title = all ? 'Desplegar todos' : 'Plegar todos';
 }
 function toggleAll(){
-  const ops = visibleOps();
-  const allC = ops.length && ops.every(o => collapsed[o]);
-  ops.forEach(o => collapsed[o] = !allC);
+  const all = renderedOps.length && renderedOps.every(isCol);
+  renderedOps.forEach(o => collapsed[o] = !all ? true : false);
   render();
 }
 // ===== Mañana: visitas presenciales por técnico para preparar el día siguiente =====
