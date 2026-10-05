@@ -74,7 +74,9 @@ Detalles:
 ## Progreso del día (pestaña Incidencias)
 
 - Cuenta las visitas **enrutadas para hoy**: tickets PRESENCIAL con fecha de visita de hoy, más los que hoy pasaron de PRESENCIAL a otro estado o salieron de la lista. Se recalcula en cada actualización de ATGO: si se asigna un ticket nuevo para hoy, entra en la barra de su técnico.
-- **Terminada:** el técnico la finalizó en ATGO ("ha finalizado el ticket" en el hilo de hoy) o el ticket dejó PRESENCIAL hoy. **En curso:** la inició hoy y aún no la ha finalizado. **Pendiente:** el resto; se marca **con retraso** si ya pasó su hora.
+- **Terminada:** solo si el ticket está en **CERRADO, CERRADO PTE. PRESUPUESTO, PUESTO OPERATIVO, PTO. OPERATIVO PTE. ENVÍO PRESUPUESTO o PTO. OPERATIVO PTE. ACEPTACIÓN PRESUPUESTO**. Como varios de esos estados no se siguen, cuando un ticket sale de la lista Despacho consulta su estado final en ATGO.
+- **En trámite:** salió de PRESENCIAL hacia cualquier otro estado (EN FABRICANTE, MATERIAL PTE., PENDIENTE CITAR…), o el técnico la finalizó en ATGO pero sigue en PRESENCIAL. Se indica el motivo.
+- **En curso:** el técnico la inició hoy ("ha iniciado el ticket") y no la ha finalizado. **Pendiente:** el resto; se marca **con retraso** si ya pasó su hora.
 - La barra solo es tan fiable como el uso de iniciar/finalizar en ATGO: si un técnico no lo usa, sus visitas siguen pendientes hasta que el ticket cambia de estado.
 
 ## Mi día

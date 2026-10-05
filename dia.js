@@ -69,6 +69,7 @@ function trackChanges(list) {
     if (o.miss >= 2) { ev('salio', { key: k, num: o.num, operario: o.op, descSede: o.sede, descCliente: o.cli, fVisita: o.f }, o.e, ''); delete segSnap.items[k]; }
   });
   revisarRutasEnviadas(nuevos, now);
+  // El estado final de los que salen de la lista se consulta en hilosTrasCarga (estadosPendientes)
   lsSet(SNAP_KEY, segSnap);
   if (nuevos.length) {
     eventos = [...nuevos, ...eventos].filter(e => now - e.ts < 10 * 86400000).slice(0, 600);
@@ -83,7 +84,7 @@ function evTexto(e) {
     case 'estado': return e.de + ' → ' + e.a;
     case 'tecnico': return 'Reasignado ' + e.de + ' → ' + e.a;
     case 'visita': return 'Visita ' + e.de + ' → ' + e.a;
-    case 'salio': return 'Salió de la lista (estaba en ' + e.de + ')';
+    case 'salio': return e.final ? e.de + ' → ' + e.final + (e.finalOp && e.finalOp !== cleanInitials(e.op) ? ' (ahora de ' + e.finalOp + ')' : '') : 'Salió de la lista (estaba en ' + e.de + ')';
     case 'ruta': return 'Su ruta del ' + e.a + ' cambió después de enviarla';
   }
   return e.tipo;
@@ -269,6 +270,7 @@ function hilosTrasCarga(nuevos) {
   const changed = new Set((nuevos || []).map(e => e.key));
   const hoy = todayStr();
   pedirHilos(rows.filter(r => !hilos[tkey(r)] || changed.has(tkey(r)) || (r.fVisita === hoy && esPresencial(r))).map(tkey));
+  pedirEstados(estadosPendientes());   // reintenta los que no se pudieron consultar
 }
 
 // ===== Ruta de hoy: visitas enrutadas para hoy y su estado =====
@@ -283,26 +285,60 @@ function progresoHilo(key) {
   });
   return last;
 }
+// Solo estos estados cuentan como visita terminada. Cualquier otro tras PRESENCIAL es "en trámite".
+const ESTADOS_CIERRE = ['CERRADO', 'CERRADO PTE. PRESUPUESTO', 'PUESTO OPERATIVO', 'PTO. OPERATIVO PTE. ENVÍO PRESUPUESTO', 'PTO. OPERATIVO PTE. ACEPTACIÓN PRESUPUESTO'];
+// norm() está en index.html, que se carga después de este archivo: se usa solo en tiempo de llamada
+function esCierre(estado) { const n = norm(estado); return ESTADOS_CIERRE.some(c => norm(c) === n); }
+
+function pedirEstados(keys) {
+  keys = [...new Set(keys)].filter(k => /^\d+\/[^/]+\/\d+$/.test(k));
+  const src = hiloFuente();
+  if (!keys.length || !src) return false;
+  try { src.postMessage({ type: 'despacho-estado', keys }, ATGO_ORIGIN); return true; } catch (e) { return false; }
+}
+function recibirEstados(m) {
+  if (!m || typeof m !== 'object') return;
+  let n = 0;
+  eventos.forEach(e => {
+    const v = m[e.key];
+    if (e.tipo === 'salio' && v && v.estado) { e.final = String(v.estado); e.finalOp = String(v.op || ''); n++; }
+  });
+  if (n) { lsSet(EVT_KEY, eventos); refreshVisible(); }
+}
+// Tickets que salieron hoy y aún no sabemos en qué estado acabaron (p. ej. si ATGO no respondía)
+function estadosPendientes() {
+  const hoy = isoHoy();
+  return eventos.filter(e => e.tipo === 'salio' && !e.final && isoHoy(new Date(e.ts)) === hoy).map(e => e.key);
+}
+
 function rutaHoy() {
   const f = todayStr(), hoy = isoHoy(), now = new Date(), nowMin = now.getHours() * 60 + now.getMinutes();
   const pres = norm('PRESENCIAL');
-  // Tickets que hoy dejaron de estar en PRESENCIAL (se cuentan como terminados)
+  // Tickets que hoy dejaron de estar en PRESENCIAL
   const dejaronPres = new Set(eventos.filter(e => e.tipo === 'estado' && norm(e.de) === pres && isoHoy(new Date(e.ts)) === hoy).map(e => e.key));
   const out = [];
   rows.forEach(r => {
     if (r.fVisita !== f) return;
     const k = tkey(r);
-    if (!esPresencial(r)) { if (dejaronPres.has(k)) out.push({ r, op: r.operario, st: 'd' }); return; }
+    if (!esPresencial(r)) {
+      if (!dejaronPres.has(k)) return;
+      out.push(esCierre(r.estado) ? { r, op: r.operario, st: 'd', label: 'Terminada · ' + r.estado } : { r, op: r.operario, st: 't', label: 'En trámite · ' + r.estado });
+      return;
+    }
     const p = progresoHilo(k);
-    const st = p ? p.k : 'p';
     const limite = horaMin(r.hastaHora || r.desdeHora);
-    out.push({ r, op: r.operario, st, ts: p && p.ts, late: st === 'p' && limite < 9999 && nowMin > limite });
+    if (p && p.k === 'd') out.push({ r, op: r.operario, st: 't', ts: p.ts, label: 'En trámite · visita finalizada, sigue en PRESENCIAL' });
+    else if (p && p.k === 'c') out.push({ r, op: r.operario, st: 'c', ts: p.ts });
+    else out.push({ r, op: r.operario, st: 'p', late: limite < 9999 && nowMin > limite });
   });
-  // Visitas de hoy que salieron de la lista hoy (cerradas o pasadas a otro estado)
+  // Visitas de hoy que salieron de la lista hoy: terminada solo si acabaron en un estado de cierre
   eventos.filter(e => e.tipo === 'salio' && e.f === f && norm(e.de) === pres && isoHoy(new Date(e.ts)) === hoy).forEach(e => {
     if (out.some(x => tkey(x.r) === e.key)) return;
-    const s = { key: e.key, num: e.num, operario: e.op, descSede: e.sede, descCliente: e.cli, estado: e.de, fVisita: e.f };
-    out.push({ r: s, op: e.op, st: 'd', ts: e.ts, salio: true });
+    const s = { key: e.key, num: e.num, operario: e.op, descSede: e.sede, descCliente: e.cli, estado: e.final || e.de, fVisita: e.f };
+    const x = { r: s, op: e.op, ts: e.ts, salio: true };
+    if (e.final && esCierre(e.final)) Object.assign(x, { st: 'd', label: 'Terminada · ' + e.final });
+    else Object.assign(x, { st: 't', label: e.final ? 'En trámite · ' + e.final : 'En trámite · consultando su estado en ATGO' });
+    out.push(x);
   });
   return out;
 }

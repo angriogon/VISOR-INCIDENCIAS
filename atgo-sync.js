@@ -80,8 +80,36 @@
       refreshNow();
     } else if (e.data.type === 'despacho-hilo' && Array.isArray(e.data.keys)) {
       enviarHilos(e.data.keys, e.source);
+    } else if (e.data.type === 'despacho-estado' && Array.isArray(e.data.keys)) {
+      enviarEstados(e.data.keys, e.source);
     }
   });
+
+  // ===== Estado actual de tickets que salieron de la lista (¿cerrados o en otro estado?) =====
+  async function getEstado(key) {
+    const [p, s, c] = key.split('/');
+    const base = encodeURIComponent(p) + '/' + encodeURIComponent(s) + '/' + encodeURIComponent(c);
+    try {
+      const r = await fetch('/api/v1/atgo/incidencias/' + base, { headers: { Authorization: 'Bearer ' + token(), Accept: 'application/json' } });
+      if (r.ok) { const d = await r.json(); if (d && d.desEstado) return { estado: d.desEstado, op: String(d.codOpe || '').trim().toUpperCase() }; }
+    } catch (e) {}
+    // Si la ficha no trae el estado, se usa el del último mensaje del hilo
+    const h = await getHilo(key);
+    const last = h.slice().sort((a, b) => b.ts - a.ts)[0];
+    return { estado: last ? last.e : '', op: '' };
+  }
+  async function enviarEstados(keys, dest) {
+    const cola = [...new Set(keys)].filter(k => /^\d+\/[^/]+\/\d+$/.test(k)).slice(0, 100);
+    const out = {};
+    const worker = async () => {
+      while (cola.length) {
+        const k = cola.shift();
+        try { out[k] = { at: Date.now(), ...(await getEstado(k)) }; } catch (e) { out[k] = { error: e.message }; }
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(PARALELO, cola.length) }, worker));
+    try { dest.postMessage({ type: 'atgo-estado', estados: out }, PWA_ORIGIN); } catch (e) {}
+  }
 
   // ===== Hilo de cada ticket (motivo de apertura y comentarios) =====
   // Responde en ~50 ms por ticket; Despacho lo pide solo para tickets nuevos, cambiados o al abrir su ficha.

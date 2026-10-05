@@ -284,16 +284,16 @@
   #palList li.none{color:var(--ink-faint); cursor:default;}
   .pal-keys{font-size:10.5px; color:var(--ink-faint); padding:6px 14px 10px; text-align:right;}
   /* Incidencias: técnicos con progreso del día */
-  :root{--done:#1D9E75; --done-tx:#0F6E56; --cur:#378ADD; --cur-tx:#185FA5;}
-  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){--done-tx:#5DCAA5; --cur-tx:#85B7EB;} }
+  :root{--done:#1D9E75; --done-tx:#0F6E56; --cur:#378ADD; --cur-tx:#185FA5; --tra:#EF9F27; --tra-tx:#854F0B;}
+  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){--done-tx:#5DCAA5; --cur-tx:#85B7EB; --tra-tx:#FAC775;} }
   .countbar{display:grid; gap:8px;}
-  .inc-kpis{display:grid; grid-template-columns:repeat(4,minmax(0,1fr));}
+  .inc-kpis{display:grid; grid-template-columns:repeat(5,minmax(0,1fr));}
   @media (max-width:640px){ .inc-kpis{grid-template-columns:repeat(2,minmax(0,1fr));} }
   .dayprog{display:flex; align-items:center; gap:10px; font-size:12px; color:var(--ink-dim);}
   .pbar{display:flex; height:9px; border-radius:5px; overflow:hidden; background:var(--panel2); border:1px solid var(--line);}
   .pbar.big{flex:1; height:12px;}
   .pbar i{display:block; height:100%;}
-  .pbar i.d{background:var(--done);} .pbar i.c{background:var(--cur);}
+  .pbar i.d{background:var(--done);} .pbar i.t{background:var(--tra);} .pbar i.c{background:var(--cur);}
   #groupsPanel .zhead:first-child{margin-top:8px;}
   .leg{display:flex; gap:12px; align-items:center; font-size:11.5px; color:var(--ink-dim); white-space:nowrap; flex-shrink:0;}
   .leg i{display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:4px; vertical-align:-1px;}
@@ -322,7 +322,7 @@
   .vh{display:grid; grid-template-columns:16px 82px auto minmax(0,1fr) auto; gap:8px; align-items:baseline; padding:5px 12px 5px 58px; font-size:12px; cursor:pointer;}
   .vh:hover{background:var(--panel2);}
   .vh-i{font-weight:700; text-align:center;}
-  .vh-i.st-d,.vh-st.st-d{color:var(--done-tx);} .vh-i.st-c,.vh-st.st-c{color:var(--cur-tx);} .vh-i.st-p,.vh-st.st-p{color:var(--ink-faint);}
+  .vh-i.st-d,.vh-st.st-d{color:var(--done-tx);} .vh-i.st-c,.vh-st.st-c{color:var(--cur-tx);} .vh-i.st-t,.vh-st.st-t{color:var(--tra-tx);} .vh-i.st-p,.vh-st.st-p{color:var(--ink-faint);}
   .vh-h{font-family:'IBM Plex Mono',monospace; color:var(--ink);}
   .vh-h.late{color:#d9614f; font-weight:600;}
   .vh-n .num{color:var(--amber); font-weight:600; text-decoration:none; font-family:'IBM Plex Mono',monospace;}
@@ -371,7 +371,7 @@
   <div id="dataView" style="display:none;">
     <div class="countbar" id="countLabel"></div>
     <div class="toprow" style="margin:12px 0 2px"><div class="filters" id="filters"></div>
-      <div class="leg"><span><i style="background:var(--done)"></i>Terminada</span><span><i style="background:var(--cur)"></i>En curso</span><span><i style="background:var(--panel2);border:1px solid var(--line)"></i>Pendiente</span>
+      <div class="leg"><span><i style="background:var(--done)"></i>Terminada</span><span><i style="background:var(--tra)"></i>En trámite</span><span><i style="background:var(--cur)"></i>En curso</span><span><i style="background:var(--panel2);border:1px solid var(--line)"></i>Pendiente</span>
       <button class="iconbtn" id="toggleAll" onclick="toggleAll()" title="Desplegar / plegar todos" aria-label="Desplegar o plegar todos"></button></div></div>
     <div id="groupsPanel"></div>
   </div>
@@ -592,6 +592,7 @@ window.addEventListener('message', (e) => {
   atgoSource = e.source;   // pestaña de ATGO que sincroniza: a ella se le piden los hilos
   if (m.type === 'atgo-data') applyAtgo(m, false);
   else if (m.type === 'atgo-hilo') recibirHilos(m.hilos);
+  else if (m.type === 'atgo-estado') recibirEstados(m.estados);
   else if (m.type === 'atgo-status') setAtgoStatus(String(m.text||''), m.error ? 'err' : '');
   else if (m.type === 'atgo-hello') e.source.postMessage({type:'despacho-ready'}, ATGO_ORIGIN);
 });
@@ -620,8 +621,8 @@ document.getElementById('atgoBtn').addEventListener('click', () => {
 })();
 
 // ===== Incidencias: un técnico por fila con el progreso de su ruta de hoy =====
-const ST_LAB = { d: 'Terminada', c: 'En curso', p: 'Pendiente' };
-const ST_ICO = { d: '✓', c: '◐', p: '○' };
+const ST_LAB = { d: 'Terminada', t: 'En trámite', c: 'En curso', p: 'Pendiente' };
+const ST_ICO = { d: '✓', t: '◑', c: '◐', p: '○' };
 let renderedOps = [];
 function isCol(op){ return collapsed[op] !== false; }
 
@@ -631,17 +632,18 @@ function render(){
   const rutaAll = rutaHoy();
   const rutaZona = rutaAll.filter(x => (!zonaSel || zonaDe(x.op) === zonaSel));
   const rutaTec = rutaZona.filter(x => TECNICOS.includes(cleanInitials(x.op)));
-  const n = { d: 0, c: 0, p: 0 }; rutaTec.forEach(x => n[x.st]++);
+  const n = { d: 0, t: 0, c: 0, p: 0 }; rutaTec.forEach(x => n[x.st]++);
   const tot = rutaTec.length, late = rutaTec.filter(x => x.late).length;
   const pc = v => tot ? Math.round(v / tot * 100) : 0;
   document.getElementById('countLabel').innerHTML = tot ? `
     <div class="kpis inc-kpis">
       <div class="kpi"><b>${tot}</b>visitas hoy</div>
       <div class="kpi"><b style="color:var(--done-tx)">${n.d}</b>terminadas</div>
+      <div class="kpi"><b style="color:var(--tra-tx)">${n.t}</b>en trámite</div>
       <div class="kpi"><b style="color:var(--cur-tx)">${n.c}</b>en curso</div>
       <div class="kpi"><b>${n.p}</b>pendientes${late ? ` · <span style="color:#d9614f">${late} con retraso</span>` : ''}</div>
     </div>
-    <div class="dayprog"><div class="pbar big"><i class="d" style="width:${pc(n.d)}%"></i><i class="c" style="width:${pc(n.c)}%"></i></div><span>${pc(n.d)}% del día</span></div>`
+    <div class="dayprog"><div class="pbar big"><i class="d" style="width:${pc(n.d)}%"></i><i class="t" style="width:${pc(n.t)}%"></i><i class="c" style="width:${pc(n.c)}%"></i></div><span>${pc(n.d)}% del día</span></div>`
     : `<div class="dempty">Sin visitas enrutadas para hoy${zonaSel ? ' en ' + esc(zonaSel) : ''}.</div>`;
 
   const byOp = {}; data.forEach(r => { (byOp[r.operario] = byOp[r.operario] || []).push(r); });
@@ -663,7 +665,7 @@ function render(){
 }
 
 function tecRow(op, items, ruta, esDisp){
-  const tot = ruta.length, d = ruta.filter(x => x.st === 'd').length, c = ruta.filter(x => x.st === 'c').length;
+  const tot = ruta.length, d = ruta.filter(x => x.st === 'd').length, t = ruta.filter(x => x.st === 't').length, c = ruta.filter(x => x.st === 'c').length;
   const late = ruta.filter(x => x.late).length;
   const pc = v => tot ? Math.round(v / tot * 100) : 0;
   const ref = items[0] || (ruta[0] && ruta[0].r) || {};
@@ -677,7 +679,7 @@ function tecRow(op, items, ruta, esDisp){
       <div class="tg-n"><b>${esc(op)}</b><span>${esc(nombreTecnico(ref) || zonaDe(op))}</span></div>
       <div class="tg-m">
         ${esDisp ? '<span class="tg-none">Pendientes de asignar</span>'
-          : tot ? `<div class="pbar"><i class="d" style="width:${pc(d)}%"></i><i class="c" style="width:${pc(c)}%"></i></div>`
+          : tot ? `<div class="pbar"><i class="d" style="width:${pc(d)}%"></i><i class="t" style="width:${pc(t)}%"></i><i class="c" style="width:${pc(c)}%"></i></div>`
           : '<span class="tg-none">Sin visitas hoy</span>'}
         <div class="tg-ch" title="${esc([plural(items.length, 'abierta'), esc1 && plural(esc1, 'escalado'), sinF && sinF + ' sin fecha', late && late + ' con retraso'].filter(Boolean).join(' · '))}">${late ? `<span class="ch2 late">${late} retraso${late === 1 ? '' : 's'}</span>` : ''}${esc1 ? `<span class="ch2 w">${esc1} escal.</span>` : ''}<span class="ch2">${plural(items.length, 'abierta')}</span>${sinF ? `<span class="ch2">${sinF} sin fecha</span>` : ''}</div>
       </div>
@@ -694,7 +696,7 @@ function tecRow(op, items, ruta, esDisp){
 function visitaHoyHtml(x){
   const r = x.r, mot = typeof motivoTexto === 'function' ? motivoTexto(tkey(r)) : '';
   const hora = (r.desdeHora || '--:--') + (r.hastaHora ? '–' + r.hastaHora : '');
-  const lab = x.salio ? 'Terminada · salió de la lista' : x.st === 'd' && !esPresencial(r) ? 'Terminada · ' + (r.estado || '') : ST_LAB[x.st];
+  const lab = x.label || ST_LAB[x.st];
   return `<div class="vh" data-key="${esc(tkey(r))}">
     <span class="vh-i st-${x.st}" title="${esc(ST_LAB[x.st])}">${ST_ICO[x.st]}</span>
     <span class="vh-h${x.late ? ' late' : ''}" title="${x.late ? 'Ya debería haber empezado' : ''}">${esc(hora)}</span>
