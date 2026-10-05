@@ -330,6 +330,40 @@
   .vh-m{color:var(--ink-faint);}
   .vh-st{font-size:11px; white-space:nowrap;}
   @media (max-width:640px){ .tg-h{grid-template-columns:34px minmax(0,1fr) 56px 12px;} .tg-m{grid-column:2/4; grid-row:2;} .vh{grid-template-columns:16px 70px minmax(0,1fr); padding-left:14px;} .vh-s,.vh-st{grid-column:2/-1;} .tg-l,.tg-b .line{padding-left:14px;} }
+  /* Herramientas */
+  .cad{display:inline-block; font-size:10px; padding:0 6px; border-radius:999px; margin-left:4px; vertical-align:1px; white-space:nowrap; background:var(--panel2); color:var(--ink-dim); border:1px solid var(--line);}
+  .cad.pronto{background:var(--amber-dim); color:var(--amber); border-color:var(--amber);}
+  .cad.urg,.cad.venc{background:#fbe3df; color:#b5432f; border-color:#e7a99d; font-weight:600;}
+  .cad.big{font-size:12.5px; padding:3px 10px;}
+  .dw-cad{display:flex; gap:8px; align-items:center; flex-wrap:wrap;}
+  .dw-cad input{font:inherit; font-size:12px; padding:4px 6px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--ink);}
+  .dw-cadtx{font-size:11.5px; color:var(--ink-faint); font-style:italic;}
+  .tg-acts{display:flex; gap:6px; padding:8px 12px 0 58px;}
+  details.cerr{margin:6px 0 0;}
+  details.cerr summary{cursor:pointer; font-size:10.5px; color:var(--ink-faint); padding:6px 12px 3px 58px; letter-spacing:.3px;}
+  .sug{list-style:none; margin:0; padding:0; display:grid; gap:4px;}
+  .sug li{display:flex; gap:8px; align-items:baseline; font-size:12.5px; padding:5px 8px; border-radius:7px; background:var(--panel2);}
+  .sug li.best{background:var(--teal-dim); box-shadow:inset 3px 0 0 var(--teal);}
+  .sug li span{color:var(--ink-dim); font-size:11.5px;}
+  .mails{list-style:none; margin:0; padding:0; display:grid;}
+  .mails li{display:grid; grid-template-columns:18px auto 44px minmax(0,1fr) minmax(0,220px) auto; gap:8px; align-items:center; padding:5px 2px; border-top:1px dashed var(--line); font-size:12px;}
+  .mails li .ck{color:var(--teal); font-weight:700;}
+  .mails li.ok{color:var(--ink-faint);}
+  .mails li b{color:var(--amber);}
+  .mails li .tx,.mails li .ml{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .mails li .ml{color:var(--ink-dim);}
+  .mails li.none{display:block; color:var(--ink-faint);}
+  .phones label{flex-wrap:wrap;}
+  .phones label input + input{flex-basis:100%; margin-left:50px;}
+  .modal{position:fixed; inset:0; z-index:45; background:rgba(0,0,0,.3); display:flex; justify-content:center; align-items:flex-start; padding:6vh 16px; overflow:auto;}
+  .modal[hidden]{display:none;}
+  .md-box{width:min(980px,100%); background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:16px; display:grid; gap:12px; box-shadow:0 20px 50px rgba(0,0,0,.3);}
+  table.inf{width:100%; border-collapse:collapse; font-size:12.5px;}
+  table.inf th{text-align:left; font-size:11px; color:var(--ink-faint); font-weight:600; padding:6px 8px; border-bottom:1px solid var(--line);}
+  table.inf td{padding:6px 8px; border-bottom:1px dashed var(--line);}
+  .pbar.mini{display:inline-flex; width:70px; height:7px; vertical-align:middle; margin-right:4px;}
+  .od-aviso{background:var(--amber-dim); border:1px solid var(--amber); color:var(--amber); border-radius:var(--radius); padding:6px 12px; font-size:12px; display:flex; gap:10px; align-items:center;}
+  .od-aviso[hidden]{display:none;}
   #updateBar{display:none; position:fixed; bottom:calc(20px + env(safe-area-inset-bottom,0px)); right:20px; background:var(--panel); border:1px solid var(--amber); border-radius:var(--radius); padding:8px 12px; font-size:12px; gap:10px; align-items:center; z-index:21; box-shadow:0 4px 16px rgba(0,0,0,.15);}
 </style>
 </head>
@@ -353,6 +387,7 @@
 </header>
 
 <main>
+  <div id="odAviso" class="od-aviso" hidden></div>
   <div id="viewInc">
   <div class="empty" id="emptyState">
     <h2>Todavía no hay incidencias cargadas</h2>
@@ -382,12 +417,14 @@
 </main>
 
 <div id="drawer" class="drawer" hidden><div class="dw-back"></div><aside class="dw-panel" id="dwPanel" aria-label="Ficha del ticket"></aside></div>
+<div id="modal" class="modal" hidden></div>
 <div id="palette" class="palette" hidden><div class="pal-box"><input id="palInput" placeholder="Busca Nº, sede, técnico, referencia… o una acción" autocomplete="off"><ul id="palList"></ul><div class="pal-keys">↑ ↓ elegir · Enter abrir · Esc cerrar</div></div></div>
 
 <div id="toast"></div>
 <div id="updateBar"><span>Hay una versión nueva.</span><button class="btn pri" id="updateBtn">Actualizar</button></div>
 
 <script src="dia.js"></script>
+<script src="herramientas.js"></script>
 <script>
 // Zonas: ordenan y agrupan a los técnicos en todas las vistas.
 // La zona "dispatcher" es quien controla (no es un técnico): va la primera en Incidencias
@@ -583,6 +620,7 @@ function applyAtgo(msg, fromCache){
   if (!msg.partial && !fromCache){
     try{ localStorage.setItem(ATGO_KEY, JSON.stringify(msg)); }catch(e){}
     hilosTrasCarga(trackChanges(rows));   // novedades, avisos, rutas cambiadas e hilos nuevos (dia.js)
+    guardarJornada(); revisarSLA();        // informe semanal y caducidades (herramientas.js)
     refreshVisible();
   } else updateDiaBadge();
 }
@@ -687,8 +725,10 @@ function tecRow(op, items, ruta, esDisp){
       <span class="chev">▾</span>
     </div>
     <div class="tg-b">
+      ${!esDisp && ruta.some(x => esPresencial(x.r) && !x.salio) ? `<div class="tg-acts"><button class="btn sm" onclick="abrirRuta('${jsq(op)}', todayStr())" title="GLS 9:00-10:00, citas con hora en su orden, sin hora a mediodía">Ruta de hoy en Maps</button></div>` : ''}
       ${tot ? '<div class="tg-l">Hoy</div>' + sortByHora(ruta.map(x => Object.assign({}, x.r, { _x: x }))).map(r => visitaHoyHtml(r._x)).join('') : ''}
       ${resto.length ? `<div class="tg-l">${tot ? 'Resto de incidencias' : 'Incidencias'}</div>` + resto.map(lineHtml).join('') : ''}
+      ${esDisp ? '' : cerradasHtml(op)}
     </div>
   </div>`;
 }
@@ -700,7 +740,7 @@ function visitaHoyHtml(x){
   return `<div class="vh" data-key="${esc(tkey(r))}">
     <span class="vh-i st-${x.st}" title="${esc(ST_LAB[x.st])}">${ST_ICO[x.st]}</span>
     <span class="vh-h${x.late ? ' late' : ''}" title="${x.late ? 'Ya debería haber empezado' : ''}">${esc(hora)}</span>
-    <span class="vh-n">${numHtml(r)}${segBadges(r)}</span>
+    <span class="vh-n">${numHtml(r)}${segBadges(r)}${cadBadge(r)}</span>
     <span class="vh-s">${esc(r.descSede || r.domicilio || '—')}${mot ? ` · <span class="vh-m">${esc(mot.slice(0, 90))}</span>` : ''}</span>
     <span class="vh-st st-${x.st}">${esc(lab)}${x.ts ? ' ' + hhmm(x.ts) : ''}</span>
   </div>`;
@@ -708,7 +748,7 @@ function visitaHoyHtml(x){
 
 function lineHtml(r){
   return `<div class="line" data-key="${esc(tkey(r))}" style="border-left-color:${colorFor(r.estado)}">
-    ${numHtml(r)}${segBadges(r)}
+    ${numHtml(r)}${segBadges(r)}${cadBadge(r)}
     <span>· <b>${esc(r.fVisita || '—')}</b>${r.desdeHora ? ' '+esc(r.desdeHora) : ''}${r.hastaHora ? '–'+esc(r.hastaHora) : ''}</span>
     ${r.fCaducidad || r.estCaducidad ? `<span>· Caduca <b>${esc(r.fCaducidad || '—')}</b> (${esc(r.estCaducidad || '—')})</span>` : ''}
     ${r.tipo ? `<span>· ${esc(r.tipo)}</span>` : ''}
@@ -801,10 +841,12 @@ function renderManana(){
         </div>
         <div class="acts">
           <button class="btn sm" onclick="copyResumenDia()" title="Copia la carga de todos los técnicos visibles">Copiar resumen</button>
-          <button class="btn sm" id="phonesBtn" onclick="togglePhones()">Teléfonos y mensaje</button>
+          <button class="btn sm" onclick="toggleCorreos()" title="Correos de confirmación de las visitas del día en Outlook">Correos del día</button>
+          <button class="btn sm" id="phonesBtn" onclick="togglePhones()">Técnicos y mensaje</button>
         </div>
       </div>
       <div id="phonesPanel" class="mpanel" style="display:none"></div>
+      <div id="mailPanel" class="mpanel" style="display:none"></div>
       <div id="manBody" style="display:grid;gap:10px"></div>
     </div>`;
   }
@@ -843,6 +885,7 @@ function renderManana(){
     }).join('')}`;
   const chipsHost = document.getElementById('manChips');
   chipsHost.appendChild(zoneChips(() => renderManana(), Object.fromEntries(ZONAS_TEC.map(z => [z.nombre, todas.filter(r => zonaDe(r.operario) === z.nombre).length || '0'])), ZONAS_TEC));
+  renderCorreos();
 }
 
 function tecCard(op, items, max, sinEnvio){
@@ -859,12 +902,13 @@ function tecCard(op, items, max, sinEnvio){
     <div class="load"><i class="${cls}" style="width:${Math.round(n / max * 100)}%"></i></div>
     ${sortByHora(items).map(r => `<div class="vis" data-key="${esc(tkey(r))}">
       <span class="h">${esc(r.desdeHora || '--:--')}${r.hastaHora ? '–' + esc(r.hastaHora) : ''}</span>
-      <span class="t">${numHtml(r).replace('class="num mono"', 'class="num mono" style="color:var(--amber);font-weight:600;text-decoration:none"')}${segBadges(r)} · ${esc(r.descSede || '—')}</span>
+      <span class="t">${numHtml(r).replace('class="num mono"', 'class="num mono" style="color:var(--amber);font-weight:600;text-decoration:none"')}${segBadges(r)}${cadBadge(r)} · ${esc(r.descSede || '—')}</span>
       <span class="d">${esc(r.domicilio || '—')}</span>
       <span class="d">${esc([r.tipo, r.referencia && 'Ref ' + r.referencia, r.descCliente].filter(Boolean).join(' · '))}</span>
     </div>`).join('')}
     ${n && !sinEnvio ? `<div class="acts" style="padding:8px 10px;border-top:1px solid var(--line)">
       <button class="btn wa" onclick="sendWhatsApp('${jsq(op)}')" title="${tel ? 'Enviar a ' + esc(tel) : 'Sin teléfono: WhatsApp te pedirá elegir el contacto ' + esc(op)}">WhatsApp${tel ? '' : ' · elegir contacto'}</button>
+      <button class="btn sm" onclick="abrirRuta('${jsq(op)}')" title="GLS 9:00-10:00, citas con hora en su orden, sin hora a mediodía">Ruta</button>
       <button class="btn sm" onclick="copyText(mensajeTecnico('${jsq(op)}'))">Copiar</button>
       <button class="btn sm ghost" onclick="toggleEnviado('${jsq(op)}')" title="Si la enviaste por otro medio">${estadoEnvio(op, ddmmyyyy(manDate)) ? 'Desmarcar' : 'Marcar enviada'}</button>
     </div>` : ''}
@@ -884,7 +928,8 @@ function mensajeTecnico(op){
       [r.tipo, r.referencia && 'Ref: ' + r.referencia].filter(Boolean).join(' · ')
     ].filter(Boolean).join('\n');
   });
-  return [fillV(tecCfg.saludo), '', lines.join('\n\n'), '', fillV(tecCfg.despedida)].join('\n').trim();
+  const ruta = tecCfg.rutaEnWa !== false ? urlRuta(op, ddmmyyyy(manDate)) : '';
+  return [fillV(tecCfg.saludo), '', lines.join('\n\n'), ruta ? '\nRuta en Google Maps (recogida en GLS de 9:00 a 10:00):\n' + ruta : '', '', fillV(tecCfg.despedida)].join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
 function telWa(t){
@@ -923,10 +968,14 @@ function togglePhones(){
   const p = document.getElementById('phonesPanel');
   p.style.display = manPhones ? '' : 'none';
   if (!manPhones) return;
-  p.innerHTML = `<div class="mhead"><span>Teléfonos de los técnicos <em>opcional</em></span><button class="btn sm" onclick="togglePhones()">Cerrar</button></div>
+  p.innerHTML = `<div class="mhead"><span>Técnicos: teléfono y recogida en GLS <em>opcional</em></span><button class="btn sm" onclick="togglePhones()">Cerrar</button></div>
   <div class="mbody">
     <div class="hint">Con teléfono, WhatsApp abre directamente el chat del técnico. Sin teléfono, abre el selector y eliges el contacto (búscalo por sus siglas). Se guarda solo en este equipo y se incluye en "Exportar copia".</div>
-    <div class="phones">${TECNICOS.map(op => `<label><b>${esc(op)}</b><input inputmode="tel" placeholder="600 000 000" value="${esc(tecCfg.tel[op] || '')}" oninput="tecCfg.tel['${jsq(op)}']=this.value.trim();saveTec()" onchange="renderManana()"></label>`).join('')}</div>
+    <div class="phones">${TECNICOS.map(op => `<label><b>${esc(op)}</b><input inputmode="tel" placeholder="600 000 000" value="${esc(tecCfg.tel[op] || '')}" oninput="tecCfg.tel['${jsq(op)}']=this.value.trim();saveTec()" onchange="renderManana()"><input placeholder="${esc(GLS_ZONA[zonaDe(op)] || 'GLS')}" title="Dónde recoge el material (por defecto, GLS de su zona). Puede ser una dirección." value="${esc((tecCfg.gls || {})[op] || '')}" oninput="tecCfg.gls={...(tecCfg.gls||{}),['${jsq(op)}']:this.value.trim()};saveTec()"></label>`).join('')}</div>
+    <div class="cfg-ck" style="font-size:12px">
+      <label><input type="checkbox" ${tecCfg.rutaGls !== false ? 'checked' : ''} onchange="tecCfg.rutaGls=this.checked;saveTec()"> Incluir la recogida en GLS (9:00-10:00) en la ruta</label>
+      <label><input type="checkbox" ${tecCfg.rutaEnWa !== false ? 'checked' : ''} onchange="tecCfg.rutaEnWa=this.checked;saveTec()"> Añadir el enlace de la ruta en Google Maps al WhatsApp</label>
+    </div>
     <div class="fgrid">
       <label class="fl">Abrir en<select onchange="tecCfg.modo=this.value;saveTec()"><option value="app"${tecCfg.modo==='app'?' selected':''}>WhatsApp de escritorio</option><option value="web"${tecCfg.modo==='web'?' selected':''}>WhatsApp Web</option></select></label>
     </div>
@@ -1009,6 +1058,7 @@ try{
 
 showTab(['#inc','#man'].includes(location.hash) ? location.hash.slice(1) : 'dia');
 updateDiaBadge();
+odIniciar();   // copia automática en OneDrive (herramientas.js)
 </script>
 </body>
 </html>

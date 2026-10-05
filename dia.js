@@ -17,7 +17,7 @@ let eventos = lsGet(EVT_KEY, []);
 let notas = lsGet(NOTAS_KEY, {});
 let rutina = lsGet(RUT_KEY, null) || { items: RUTINA_DEF.map((t, i) => ({ id: 'r' + i, t })), hechos: {} };
 let envios = lsGet(ENV_KEY, {});
-let avisos = { on: false, miNombre: true, escalado: true, ruta: true, nuevos: false, ...lsGet(AVI_KEY, {}) };
+let avisos = { on: false, miNombre: true, escalado: true, ruta: true, nuevos: false, material: true, sla: true, ...lsGet(AVI_KEY, {}) };
 let novFiltro = 'nv', rutEdit = false, diaPending = false;
 
 function tkey(r) { return String(r.key || r.num); }
@@ -69,6 +69,7 @@ function trackChanges(list) {
     if (o.miss >= 2) { ev('salio', { key: k, num: o.num, operario: o.op, descSede: o.sede, descCliente: o.cli, fVisita: o.f }, o.e, ''); delete segSnap.items[k]; }
   });
   revisarRutasEnviadas(nuevos, now);
+  registrarCambiosExtra(nuevos);   // historial de cerradas (herramientas.js)
   // El estado final de los que salen de la lista se consulta en hilosTrasCarga (estadosPendientes)
   lsSet(SNAP_KEY, segSnap);
   if (nuevos.length) {
@@ -106,7 +107,8 @@ async function notificar(list) {
     (avisos.miNombre && ((e.tipo === 'nuevo' && esMio(e.op)) || (e.tipo === 'tecnico' && esMio(e.a)))) ||
     (avisos.escalado && norm(e.a) === norm('ESCALADO TIER1')) ||
     (avisos.ruta && (e.tipo === 'ruta' || ((e.f === M || e.deF === M) && e.tipo !== 'nuevo'))) ||
-    (avisos.nuevos && e.tipo === 'nuevo'));
+    (avisos.nuevos && e.tipo === 'nuevo') ||
+    (avisos.material && esAvisoMaterial(e)));
   if (!rel.length) return;
   const title = rel.length === 1 ? `Nº ${rel[0].num} · ${rel[0].op}` : `${rel.length} novedades en Despacho`;
   const body = rel.slice(0, 4).map(e => (rel.length > 1 ? `Nº ${e.num} · ` : '') + evTexto(e)).join('\n') + (rel.length > 4 ? `\n…y ${rel.length - 4} más` : '');
@@ -201,7 +203,7 @@ function notaDe(key) { return notas[key]; }
 function guardarNota(key, cambios) {
   const r = rows.find(x => tkey(x) === key) || {};
   const n = { ...(notas[key] || {}), ...cambios, num: r.num || (notas[key] && notas[key].num) || key, sede: r.descSede || (notas[key] && notas[key].sede) || '', op: r.operario || (notas[key] && notas[key].op) || '', ts: Date.now() };
-  if (!n.texto && !n.fecha) delete notas[key]; else notas[key] = n;
+  if (!n.texto && !n.fecha && !n.cad) delete notas[key]; else notas[key] = n;
   lsSet(NOTAS_KEY, notas);
   updateDiaBadge();
 }
@@ -216,7 +218,7 @@ function segBadges(r) {
   const k = tkey(r), n = notas[k];
   const nv = eventos.some(e => !e.visto && e.key === k);
   return (nv ? '<span class="nv-dot" title="Cambios sin ver"></span>' : '') +
-    (n ? `<span class="nt-badge${n.fecha && !n.hecho && n.fecha <= isoHoy() ? ' due' : ''}" title="${esc(n.texto || 'Seguimiento')}">✎${n.fecha && !n.hecho ? ' ' + esc(fechaCorta(n.fecha)) : ''}</span>` : '');
+    (n && (n.texto || n.fecha) ? `<span class="nt-badge${n.fecha && !n.hecho && n.fecha <= isoHoy() ? ' due' : ''}" title="${esc(n.texto || 'Seguimiento')}">✎${n.fecha && !n.hecho ? ' ' + esc(fechaCorta(n.fecha)) : ''}</span>` : '');
 }
 
 // ===== 7. Copiar ficha (para pegar en tu plantilla de Outlook) =====
@@ -263,13 +265,15 @@ function recibirHilos(h) {
   Object.keys(hilos).forEach(k => { if (!vivos.has(k) && !notas[k] && Date.now() - hilos[k].at > 14 * 86400000) delete hilos[k]; });
   lsSet(HILO_KEY, hilos);
   if (fichaKey && h[fichaKey] && !document.getElementById('drawer').hidden) renderFicha();
+  revisarSLA(); guardarJornada();   // la caducidad y el progreso salen del hilo (herramientas.js)
 }
 // Tras cada carga: hilo de los tickets que aún no lo tienen, de los que han cambiado
 // y de las visitas de hoy (para saber si el técnico las ha iniciado o finalizado; ~30 tickets, <1 s).
 function hilosTrasCarga(nuevos) {
   const changed = new Set((nuevos || []).map(e => e.key));
   const hoy = todayStr();
-  pedirHilos(rows.filter(r => !hilos[tkey(r)] || changed.has(tkey(r)) || (r.fVisita === hoy && esPresencial(r))).map(tkey));
+  const viejo = Date.now() - 10 * 60000;
+  pedirHilos(rows.filter(r => !hilos[tkey(r)] || hilos[tkey(r)].at < viejo || changed.has(tkey(r)) || (r.fVisita === hoy && esPresencial(r))).map(tkey));
   pedirEstados(estadosPendientes());   // reintenta los que no se pudieron consultar
 }
 
@@ -303,7 +307,7 @@ function recibirEstados(m) {
     const v = m[e.key];
     if (e.tipo === 'salio' && v && v.estado) { e.final = String(v.estado); e.finalOp = String(v.op || ''); n++; }
   });
-  if (n) { lsSet(EVT_KEY, eventos); refreshVisible(); }
+  if (n) { registrarCambiosExtra(eventos.filter(e => e.tipo === 'salio' && e.final && m[e.key])); lsSet(EVT_KEY, eventos); guardarJornada(); refreshVisible(); }
 }
 // Tickets que salieron hoy y aún no sabemos en qué estado acabaron (p. ej. si ATGO no respondía)
 function estadosPendientes() {
@@ -401,7 +405,8 @@ function renderFicha() {
   const s = segSnap.items[key], n = notas[key] || {};
   const p = document.getElementById('dwPanel');
   const hist = eventos.filter(e => e.key === key);
-  const base = r || { num: (s && s.num) || n.num || key, estado: s ? s.e : '', operario: s ? s.op : n.op, descSede: s ? s.sede : n.sede };
+  const cz = !r && cerradas[key];
+  const base = r || (cz ? { num: cz.num, estado: cz.estado, operario: cz.op, descSede: cz.sede } : { num: (s && s.num) || n.num || key, estado: s ? s.e : '', operario: s ? s.op : n.op, descSede: s ? s.sede : n.sede });
   const reg = r && registro(r);
   const campos = r ? [
     ['Cliente', r.descCliente], ['Sede', r.descSede], ['Dirección', r.domicilio], ['Tipo', r.tipo], ['Referencia', r.referencia],
@@ -409,7 +414,8 @@ function renderFicha() {
     ['Visita', visTxt(r.fVisita, r.desdeHora, r.hastaHora) || 'Sin fecha'],
     ['Registro', reg ? reg.toLocaleDateString('es-ES') + ` · hace ${plural(dias(reg), 'día')}` : ''],
     ['Sin cambios', s ? (s.last <= segSnap.start ? `desde que se vigila (${plural(dias(s.last), 'día')})` : plural(dias(s.last), 'día')) : '']
-  ].filter(x => x[1]) : [['', 'Este ticket ya no está en la lista de ATGO (cambió a otro estado u operario).']];
+  ].filter(x => x[1]) : cz ? [['Cerrada', cuando(cz.ts) + ' · ' + cz.estado], ['Cliente', cz.cli], ['Sede', cz.sede], ['Dirección', cz.dir]].filter(x => x[1])
+    : [['', 'Este ticket ya no está en la lista de ATGO (cambió a otro estado u operario).']];
   const q = d => isoHoy(d);
   const lunes = (() => { const d = new Date(); d.setDate(d.getDate() + ((8 - d.getDay()) % 7 || 7)); return d; })();
   const quick = [['Hoy', q(new Date())], ['Mañana', q(new Date(Date.now() + 86400000))], ['Lunes', q(lunes)], ['+1 semana', q(new Date(Date.now() + 7 * 86400000))]];
@@ -420,12 +426,14 @@ function renderFicha() {
       <button class="iconbtn" onclick="closeTicket()" title="Cerrar (Esc)" aria-label="Cerrar">✕</button>
     </div>
     <div class="dw-acts">
-      ${r && r.url && String(r.url).startsWith(ATGO_ORIGIN + '/') ? `<a class="btn pri" href="${esc(r.url)}" target="atgo-ticket" rel="noopener">Abrir en ATGO</a>` : ''}
+      ${(r || cz) && (r || cz).url && String((r || cz).url).startsWith(ATGO_ORIGIN + '/') ? `<a class="btn pri" href="${esc((r || cz).url)}" target="atgo-ticket" rel="noopener">Abrir en ATGO</a>` : ''}
       ${r ? `<button class="btn" onclick="copiarFicha('${jsq(key)}')" title="Copia los datos con formato para pegarlos en tu plantilla de Outlook">Copiar ficha</button>` : ''}
       <button class="btn" onclick="copyText('${jsq(base.num)}')">Copiar Nº</button>
     </div>
     ${hiloHtml(key)}
+    ${caducidadFichaHtml(key, r)}
     <dl class="dw-data">${campos.map(([k, v]) => `${k ? `<dt>${esc(k)}</dt>` : ''}<dd${k ? '' : ' class="full"'}>${esc(v)}</dd>`).join('')}</dl>
+    ${sugerenciaHtml(r)}
     <div class="dw-sec">
       <div class="dw-h">Nota y seguimiento</div>
       <textarea id="dwNota" rows="3" placeholder="Nota privada: qué falta, con quién hablaste…">${esc(n.texto || '')}</textarea>
@@ -453,6 +461,7 @@ const PAL_ACCIONES = [
   { t: 'Ir a Incidencias', k: 'lista', run: () => showTab('inc') },
   { t: 'Ir a Mañana', k: 'rutas planificacion whatsapp', run: () => showTab('man') },
   { t: 'Copiar resumen del día', k: 'informe responsable', run: () => copiarResumenJornada() },
+  { t: 'Informe semanal', k: 'semana responsable cumplimiento', run: () => abrirInforme() },
   { t: 'Marcar novedades como vistas', k: 'leido', run: () => { marcarVistos(); refreshVisible(); toast('Novedades marcadas como vistas'); } },
   { t: 'Ver tickets a mi nombre', k: 'dispatcher amrg', run: () => { zonaSel = 'DISPATCHER'; showTab('inc'); } },
   { t: 'Abrir ATGO', k: 'sincronizar', run: () => document.getElementById('atgoBtn').click() }
@@ -466,7 +475,9 @@ function palRender() {
   const q = norm(document.getElementById('palInput').value), toks = q.split(/\s+/).filter(Boolean);
   const acc = PAL_ACCIONES.filter(a => !toks.length || toks.every(t => norm(a.t + ' ' + a.k).includes(t))).map(a => ({ type: 'a', a }));
   const tks = toks.length ? rows.filter(r => { const hay = norm([r.num, r.operario, r.desOperario, r.estado, r.descSede, r.descCliente, r.domicilio, r.referencia, r.tipo, (notas[tkey(r)] || {}).texto, motivoTexto(tkey(r))].join(' ')); return toks.every(t => hay.includes(t)); }).slice(0, 30).map(r => ({ type: 't', r })) : [];
-  palItems = toks.length ? [...tks, ...acc] : acc;
+  const cer = toks.length ? Object.values(cerradas).filter(c => !rows.some(r => tkey(r) === c.key) && toks.every(t => norm([c.num, c.op, c.sede, c.cli, c.estado, c.motivo].join(' ')).includes(t))).slice(0, 10)
+    .map(c => ({ type: 't', r: { key: c.key, num: c.num, operario: c.op, estado: 'Cerrada · ' + c.estado, descSede: c.sede } })) : [];
+  palItems = toks.length ? [...tks, ...cer, ...acc] : acc;
   palSel = Math.min(palSel, Math.max(0, palItems.length - 1));
   document.getElementById('palList').innerHTML = palItems.length ? palItems.map((it, i) => it.type === 'a'
     ? `<li class="${i === palSel ? 'on' : ''}" data-i="${i}"><span class="pa">→</span>${esc(it.a.t)}</li>`
@@ -554,12 +565,16 @@ function renderDia(force) {
   const sp = sinPlanificar(), sg = seguimientos(), par = parados(), rt = rutasResumen();
   const M = nextWorkday();
   const evHoy = eventos.filter(e => isoHoy(new Date(e.ts)) === isoHoy()).length;
+  const mat = material(), cads = caducidadesProximas();
+  const cadV = cads.filter(x => cadNivel(x.c) === 'venc').length, cadU = cads.filter(x => cadNivel(x.c) === 'urg').length;
   const tiles = [
     { go: 'secNov', n: nv.length, l: 'Novedades', s: `${evHoy} hoy`, hot: nv.some(evImportante) },
     { go: 'mio', n: mio.length, l: 'A tu nombre', s: 'por asignar', hot: mio.length > 0 },
     { go: 'secPlan', n: sp.sinFecha.length + sp.vencidas.length, l: 'Sin planificar', s: `${sp.vencidas.length} vencidas · ${sp.sinHora.length} sin hora` },
     { go: 'secSeg', n: sg.pendientes.length, l: 'Seguimientos', s: sg.proximos.length ? `${sg.proximos.length} próximos` : 'para hoy', hot: sg.pendientes.length > 0 },
     { go: 'man', n: `${rt.enviadas}/${rt.total}`, l: `Rutas ${DIAS[M.getDay()]}`, s: rt.cambiadas ? `${rt.cambiadas} cambiadas tras enviar` : 'enviadas', hot: rt.cambiadas > 0 || (rt.total > 0 && rt.enviadas < rt.total && ahora.getHours() >= 15) },
+    { go: 'secCad', n: cads.length, l: 'Caducidades', s: `${cadV} vencidas · ${cadU} en 24 h`, hot: cadV + cadU > 0 },
+    { go: 'secMat', n: mat.enMaterial.length + mat.listos.length, l: 'Material', s: `${mat.listos.length} listos para visita`, hot: mat.listos.length > 0 },
     { go: 'secPar', n: par.length, l: 'Parados', s: `+${PARADO_SIN_CAMBIOS} días sin cambios` }
   ];
   const feed = eventos.filter(e => novFiltro === 'nv' ? !e.visto : novFiltro === 'hoy' ? isoHoy(new Date(e.ts)) === isoHoy() : true).slice(0, 80);
@@ -567,7 +582,7 @@ function renderDia(force) {
   root.innerHTML = `
     <div class="dia-top">
       <h1>${esc(fecha)}</h1>
-      <div class="acts"><button class="btn sm" onclick="openPalette()" title="Buscar ticket o acción">Buscar <kbd>Ctrl K</kbd></button><button class="btn sm" onclick="copiarResumenJornada()" title="Texto listo para pegar a tu responsable">Copiar resumen del día</button></div>
+      <div class="acts"><button class="btn sm" onclick="openPalette()" title="Buscar ticket o acción">Buscar <kbd>Ctrl K</kbd></button><button class="btn sm" onclick="copiarResumenJornada()" title="Texto listo para pegar a tu responsable">Copiar resumen del día</button><button class="btn sm" onclick="abrirInforme()">Informe semanal</button></div>
     </div>
     <div class="tiles">${tiles.map(t => `<button class="tile${t.hot ? ' hot' : ''}${!t.n || t.n === '0/0' ? ' zero' : ''}" data-go="${t.go}"><b>${esc(String(t.n))}</b><span>${esc(t.l)}</span><small>${esc(t.s)}</small></button>`).join('')}</div>
     <div class="dia-grid">
@@ -582,6 +597,17 @@ function renderDia(force) {
           : `<div class="dempty">${segSnap.start ? (novFiltro === 'nv' ? 'Todo visto. Despacho compara cada actualización de ATGO y te muestra aquí lo que cambie.' : 'Sin cambios en este periodo.') : 'Empezará a detectar cambios en la próxima actualización de ATGO.'}</div>`}
       </section>
       <div class="dcol">
+        <section class="dsec" id="secCad">
+          <div class="dsh"><h2>Caducidades</h2><small>Vencidas y próximas ${SLA_PRONTO_HORAS} h · según el hilo</small></div>
+          ${cads.length ? `<ul class="tlist">${cads.slice(0, 25).map(x => ticketLi(x.r, cadBadge(x.r), cadNivel(x.c) === 'venc' || cadNivel(x.c) === 'urg' ? 'due' : '')).join('')}${cads.length > 25 ? `<li class="more">y ${cads.length - 25} más…</li>` : ''}</ul>`
+            : '<div class="dempty">Ningún ticket caduca en las próximas 48 horas.</div>'}
+        </section>
+        <section class="dsec" id="secMat">
+          <div class="dsh"><h2>Material</h2><small>PTE. MOVER MATERIAL y vueltos a PRESENCIAL</small></div>
+          ${mat.listos.length ? `<div class="dnote" style="margin:0 0 4px">Listos para visita (material movido)</div><ul class="tlist">${mat.listos.map(x => ticketLi(x.r, 'a PRESENCIAL ' + esc(cuando(x.ts)), 'due')).join('')}</ul>` : ''}
+          ${mat.enMaterial.length ? `<div class="dnote" style="margin:6px 0 4px">En PTE. MOVER MATERIAL</div><ul class="tlist">${mat.enMaterial.map(x => ticketLi(x.r, x.ts ? 'desde ' + esc(cuando(x.ts)) : '')).join('')}</ul>` : ''}
+          ${!mat.listos.length && !mat.enMaterial.length ? '<div class="dempty">Ningún ticket pendiente de mover material.</div>' : ''}
+        </section>
         ${rutinaHtml(rh)}
         <section class="dsec" id="secSeg">
           <div class="dsh"><h2>Seguimientos</h2><small>Ábrelos desde la ficha de cualquier ticket</small></div>
@@ -630,18 +656,20 @@ function renderCfg() {
   m.innerHTML = `
     <div class="cfg-h">Avisos de Windows</div>
     ${avisos.on && perm === 'granted'
-      ? `<div class="cfg-ck">${ck('miNombre', 'Tickets nuevos o reasignados a mi nombre')}${ck('escalado', 'Escalados a TIER1')}${ck('ruta', 'Cambios en las rutas de mañana')}${ck('nuevos', 'Cualquier ticket nuevo')}</div>
+      ? `<div class="cfg-ck">${ck('miNombre', 'Tickets nuevos o reasignados a mi nombre')}${ck('escalado', 'Escalados a TIER1')}${ck('ruta', 'Cambios en las rutas de mañana')}${ck('material', 'PTE. MOVER MATERIAL y su vuelta a PRESENCIAL')}${ck('sla', 'Caducidad en menos de ' + SLA_AVISO_HORAS + ' h')}${ck('nuevos', 'Cualquier ticket nuevo')}</div>
          <div class="acts"><button class="btn sm" onclick="notificarPrueba()">Probar</button><button class="btn sm ghost" onclick="avisos.on=false;lsSet(AVI_KEY,avisos);renderCfg()">Desactivar</button></div>`
       : perm === 'denied' ? '<div class="cfg-t">Windows tiene bloqueados los avisos de esta app. Actívalos en el candado de la barra de direcciones → Notificaciones.</div>'
       : `<div class="cfg-t">Te avisa aunque estés en otra ventana. Necesita la pestaña de ATGO abierta.</div><button class="btn sm pri" onclick="activarAvisos()">Activar avisos</button>`}
-    <div class="cfg-h">Copia de seguridad</div>
-    <div class="cfg-t">Notas, rutina, teléfonos, avisos y plantillas guardadas.</div>
+    <div class="cfg-h">Copia automática en OneDrive</div>
+    ${odCfgHtml()}
+    <div class="cfg-h">Copia de seguridad manual</div>
+    <div class="cfg-t">Notas, rutina, teléfonos, cerradas, informes y plantillas guardadas.</div>
     <div class="acts"><button class="btn sm" onclick="exportBackup()">Exportar</button><button class="btn sm" onclick="document.getElementById('backupInput').click()">Restaurar</button></div>`;
 }
 document.addEventListener('click', e => { const m = document.getElementById('cfgMenu'); if (m && !m.hidden && !m.contains(e.target) && e.target.id !== 'cfgBtn') m.hidden = true; });
 
 function exportBackup() {
-  const data = { app: 'panel-despacho', version: 3, fecha: new Date().toISOString(), tecnicos: tecCfg, notas, rutina: { items: rutina.items }, avisos: { ...avisos, on: false }, plantillas: lsGet('dispatcher_plantillas_v2', undefined) };
+  const data = datosCopia();
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const a = document.createElement('a'), d = new Date();
   a.href = URL.createObjectURL(blob);
@@ -662,6 +690,8 @@ function restoreBackup(file) {
       if (d.rutina && Array.isArray(d.rutina.items)) { rutina.items = d.rutina.items; lsSet(RUT_KEY, rutina); hechos.push('rutina'); }
       if (d.avisos && typeof d.avisos === 'object') { avisos = { ...avisos, ...d.avisos, on: avisos.on }; lsSet(AVI_KEY, avisos); }
       if (d.tecnicos && typeof d.tecnicos === 'object') { tecCfg = { ...tecCfg, ...d.tecnicos, tel: { ...tecCfg.tel, ...(d.tecnicos.tel || {}) } }; saveTec(); hechos.push('teléfonos'); }
+      if (d.cerradas && typeof d.cerradas === 'object') { cerradas = { ...d.cerradas, ...cerradas }; podarCerradas(); hechos.push('cerradas'); }
+      if (d.jornadas && typeof d.jornadas === 'object') { jornadas = { ...d.jornadas, ...jornadas }; lsSet(JORN_KEY, jornadas); }
       if (Array.isArray(d.plantillas)) {
         const m = new Map((lsGet('dispatcher_plantillas_v2', []) || []).map(x => [x.id, x])); d.plantillas.forEach(x => x && m.set(x.id, x));
         lsSet('dispatcher_plantillas_v2', [...m.values()]); hechos.push(d.plantillas.length + ' plantillas guardadas');
@@ -685,6 +715,7 @@ document.addEventListener('keydown', e => {
     else if (e.key === 'Enter') { e.preventDefault(); palRun(palSel); }
     return;
   }
+  if (e.key === 'Escape' && !document.getElementById('modal').hidden) { cerrarModal(); return; }
   if (e.key === 'Escape' && !document.getElementById('drawer').hidden) { closeTicket(); return; }
   if (!typing && e.key === '/') { e.preventDefault(); openPalette(); }
 });

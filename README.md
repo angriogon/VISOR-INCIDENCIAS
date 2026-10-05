@@ -18,6 +18,7 @@ No hace falta compilar nada: son archivos estáticos (HTML + JS) y GitHub Pages 
 | `index.html` | La aplicación completa |
 | `manifest.webmanifest` | Nombre, iconos y ajustes para instalarla como app de Windows |
 | `sw.js` | Service worker: funcionamiento sin conexión y actualizaciones |
+| `herramientas.js` | Cerradas (15 días), material, caducidad (SLA), copia en OneDrive, ruta en Google Maps, técnico sugerido, correos del día e informe semanal |
 | `dia.js` | Mi día, novedades, avisos, ficha del ticket, notas, buscador, rutina, resumen y copia de seguridad |
 | `atgo-sync.js` | Sincronización con ATGO (se ejecuta dentro de la pestaña de ATGO mediante el marcador) |
 | `icon-192.png`, `icon-512.png`, `icon-maskable-512.png`, `favicon.svg` | Iconos |
@@ -78,6 +79,17 @@ Detalles:
 - **En trámite:** salió de PRESENCIAL hacia cualquier otro estado (EN FABRICANTE, MATERIAL PTE., PENDIENTE CITAR…), o el técnico la finalizó en ATGO pero sigue en PRESENCIAL. Se indica el motivo.
 - **En curso:** el técnico la inició hoy ("ha iniciado el ticket") y no la ha finalizado. **Pendiente:** el resto; se marca **con retraso** si ya pasó su hora.
 - La barra solo es tan fiable como el uso de iniciar/finalizar en ATGO: si un técnico no lo usa, sus visitas siguen pendientes hasta que el ticket cambia de estado.
+
+## Herramientas
+
+- **Cerradas (15 días):** las incidencias que pasan a CERRADO, CERRADO PTE. PRESUPUESTO, PUESTO OPERATIVO, PTO. OPERATIVO PTE. ENVÍO PRESUPUESTO o PTO. OPERATIVO PTE. ACEPTACIÓN PRESUPUESTO se guardan 15 días. Se ven al desplegar cada técnico (*Cerradas · últimos 15 días*), se abren en la ficha y se encuentran con el buscador.
+- **Material:** aviso cuando un ticket pasa a **PTE. MOVER MATERIAL** y cuando vuelve de ahí a **PRESENCIAL**. Panel *Material* en Mi día con los que están pendientes y los listos para visita (7 días).
+- **Caducidad (SLA):** se lee de los comentarios del hilo que hablan de caducidad, vencimiento, fecha límite o SLA. Manda el comentario **más reciente**; si dice "de X a Y", vale la **última** fecha. Acepta 15/10/2026, 15/10, 15-10-26 y "15 de octubre", con o sin hora. Se ve en cada ticket (⏱, rojo si quedan menos de 24 h o está vencida, ámbar si menos de 72 h), en *Caducidades* de Mi día y con aviso de Windows a menos de 4 h. En la ficha se puede **corregir a mano**. Los hilos se refrescan cada 10 minutos para ver los cambios.
+- **Copia en OneDrive:** ⚙ → *Elegir carpeta de OneDrive*. Guarda `Despacho-copia.json` cada 10 minutos y una copia por día de los últimos 7. Si Windows vuelve a pedir permiso (al reiniciar), aparece *Reanudar*.
+- **Ruta en Google Maps:** botón *Ruta* en Mañana y *Ruta de hoy en Maps* en Incidencias. Orden: citas con hora en su hora, **recogida en GLS de 9:00 a 10:00**, visitas sin hora a mediodía. El GLS de cada técnico se puede cambiar en *Técnicos y mensaje* (por defecto, "GLS + ciudad de su zona"). El enlace se añade al WhatsApp de la ruta.
+- **Técnico sugerido:** en la ficha de cualquier visita presencial, los 3 técnicos de la zona del ticket (por su provincia) con menos visitas ese día; ir ya a esa población cuenta a favor. Solo sugiere: la asignación se hace en el ERP.
+- **Correos del día:** en Mañana → *Correos del día*. Un correo por visita al contacto del ticket en ATGO, abierto en Outlook uno tras otro (*Abrir siguiente*), y un *Correo resumen* con todas las visitas. La plantilla es editable.
+- **Informe semanal:** en Mi día. Por técnico: visitas enrutadas, terminadas, en trámite, % de cumplimiento y cerradas; además tickets nuevos, escalados, material y caducidades vencidas. *Copiar para el correo* (tabla con formato) o *Abrir en Outlook*. Se construye con la foto de cada día que Despacho guarda mientras sincroniza.
 
 ## Mi día
 
