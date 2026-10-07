@@ -219,8 +219,8 @@ function sugerenciaHtml(r) {
   return `<div class="dw-sec">
     <div class="dw-h">Técnico sugerido <small>${esc(s.zona)} · ${esc(diaLargo(fecha))}</small>
       <span class="seg mini" style="float:right">${[['hoy', 'Hoy'], ['man', 'Próximo laborable']].map(([v, l]) => `<button class="segb${sugDia === v ? ' on' : ''}" onclick="sugDia='${v}';renderFicha()">${l}</button>`).join('')}</span></div>
-    <ul class="sug">${s.lista.slice(0, 3).map((x, i) => `<li${i === 0 ? ' class="best"' : ''}><b>${esc(x.op)}</b><span>${x.carga ? plural(x.carga, 'visita') : 'libre'}${x.juntos ? ` · ya va a ${esc(pob)}` : ''}${x.op === cleanInitials(r.operario) ? ' · asignado ahora' : ''}</span></li>`).join('')}</ul>
-    <div class="dw-empty">Solo es una sugerencia: la asignación se hace en el ERP.</div>
+    <ul class="sug">${s.lista.slice(0, 3).map((x, i) => `<li${i === 0 ? ' class="best"' : ''}><b>${esc(x.op)}</b><span>${x.carga ? plural(x.carga, 'visita') : 'libre'}${x.juntos ? ` · ya va a ${esc(pob)}` : ''}${x.op === cleanInitials(r.operario) ? ' · asignado ahora' : ''}</span>${typeof fase2Activa === 'function' && fase2Activa(tkey(r)) && x.op !== cleanInitials(r.operario) ? `<button class="btn sm" style="margin-left:auto" onclick="preAsignar('${jsq(x.op)}')">Asignar</button>` : ''}</li>`).join('')}</ul>
+    <div class="dw-empty">${typeof fase2Activa === 'function' && fase2Activa(tkey(r)) ? '«Asignar» rellena «Planificar en ATGO»; nada se guarda hasta que lo confirmes.' : 'Solo es una sugerencia: la asignación se hace en el ERP.'}</div>
   </div>`;
 }
 

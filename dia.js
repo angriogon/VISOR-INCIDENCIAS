@@ -403,6 +403,8 @@ function closeTicket() { document.getElementById('drawer').hidden = true; docume
 function renderFicha() {
   const edCom = document.getElementById('edCom'), edEst = document.getElementById('edEst');
   const prev = { com: edCom ? edCom.value : '', est: edEst ? edEst.value : '', foco: document.activeElement && document.activeElement.id };
+  const asPrev = fichaKey === (renderFicha.ultimaKey || '') ? ['asOp', 'asFecha', 'asH1', 'asH2'].map(id => { const el = document.getElementById(id); return el ? [id, el.value] : null; }).filter(Boolean) : [];
+  renderFicha.ultimaKey = fichaKey;
   const key = fichaKey, r = rows.find(x => tkey(x) === key);
   const s = segSnap.items[key], n = notas[key] || {};
   const p = document.getElementById('dwPanel');
@@ -455,6 +457,8 @@ function renderFicha() {
   if (c2 && prev.com && !c2.value) c2.value = prev.com;
   if (e2 && prev.est) e2.value = prev.est;
   if (prev.foco === 'edCom' && c2) c2.focus();
+  if (!(editPend && editPend.key === key)) asPrev.forEach(([id, v]) => { const el = document.getElementById(id); if (el) el.value = v; });
+  if (prev.foco && /^as/.test(prev.foco) && document.getElementById(prev.foco)) document.getElementById(prev.foco).focus();
   const ta = document.getElementById('dwNota');
   ta.addEventListener('input', () => { guardarNota(key, { texto: ta.value.trim() }); });
   ta.addEventListener('blur', refreshVisible);
@@ -550,7 +554,7 @@ function refreshVisible() {
   if (vis('viewDia')) renderDia();
   if (vis('viewInc') && rows.length) render();
   if (vis('viewMan')) renderManana();
-  if (fichaKey && !document.getElementById('drawer').hidden && document.activeElement && !['dwNota', 'edCom', 'edEst'].includes(document.activeElement.id)) renderFicha();
+  if (fichaKey && !document.getElementById('drawer').hidden && document.activeElement && !['dwNota', 'edCom', 'edEst', 'asOp', 'asFecha', 'asH1', 'asH2'].includes(document.activeElement.id)) renderFicha();
 }
 function ticketLi(r, extra, cls) {
   return `<li class="${cls || ''}" data-key="${esc(tkey(r))}"><b class="mono">${esc(r.num)}</b><span class="op">${esc(r.operario || '')}</span><span class="tx">${esc(r.descSede || r.domicilio || '—')}</span>${extra ? `<span class="ex">${extra}</span>` : ''}</li>`;
@@ -667,6 +671,9 @@ function renderCfg() {
          <div class="acts"><button class="btn sm" onclick="notificarPrueba()">Probar</button><button class="btn sm ghost" onclick="avisos.on=false;lsSet(AVI_KEY,avisos);renderCfg()">Desactivar</button></div>`
       : perm === 'denied' ? '<div class="cfg-t">Windows tiene bloqueados los avisos de esta app. Actívalos en el candado de la barra de direcciones → Notificaciones.</div>'
       : `<div class="cfg-t">Te avisa aunque estés en otra ventana. Necesita la pestaña de ATGO abierta.</div><button class="btn sm pri" onclick="activarAvisos()">Activar avisos</button>`}
+    <div class="cfg-h">Planificar en ATGO (técnico y visita)</div>
+    <div class="cfg-t">${tecCfg.fase2 === 'todos' ? 'Activo en todos los tickets.' : 'En prueba: solo en el ticket 2026/00/97784. Actívalo para todos cuando lo hayas comprobado.'}</div>
+    <div class="acts"><button class="btn sm${tecCfg.fase2 === 'todos' ? ' ghost' : ' pri'}" onclick="tecCfg.fase2=tecCfg.fase2==='todos'?'prueba':'todos';saveTec();renderCfg();if(fichaKey)renderFicha()">${tecCfg.fase2 === 'todos' ? 'Volver a solo el ticket de prueba' : 'Activar para todos los tickets'}</button></div>
     <div class="cfg-h">Copia automática en OneDrive</div>
     ${odCfgHtml()}
     <div class="cfg-h">Copia de seguridad manual</div>

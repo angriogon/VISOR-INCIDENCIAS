@@ -101,6 +101,15 @@ En la ficha de cada ticket, sección **Actuar en ATGO**:
 
 Lo hace la pestaña de ATGO con tu sesión, igual que desde la web de ATGO, y después **vuelve a leer el ticket para comprobar** que se aplicó. Si ATGO no responde en 25 s, Despacho no lo reintenta (para no duplicar): avisa para que lo compruebes en ATGO. Cada cambio queda en la ficha (✓ aplicado / ✕ fallido). Necesita la pestaña de ATGO abierta con la versión actual del favorito.
 
+## Planificar en ATGO (fase 2: técnico y visita)
+
+En la ficha, dentro de *Actuar en ATGO*, **Planificar en ATGO**: técnico, fecha de visita y horas. Desde *Técnico sugerido*, el botón **Asignar** lo rellena. Nada se guarda hasta confirmarlo.
+
+- ATGO guarda siempre la **ficha completa**. Despacho la lee justo antes, reenvía todos los campos tal cual (como el formulario de ATGO, pero codificando bien caracteres como #, & o +) cambiando solo técnico, fecha y horas, y **después la vuelve a leer y compara campo a campo**.
+- Si cambiara cualquier otro campo, **restaura automáticamente** la ficha original y lo indica. El resultado de la comprobación queda en la ficha.
+- **En prueba:** solo funciona en el ticket 2026/00/97784. Cuando lo hayas comprobado, actívalo para todos en ⚙ → *Planificar en ATGO*.
+- No permite borrar la fecha de visita (ATGO no lo admite en ese guardado). Reasignar puede enviar un aviso al técnico desde ATGO.
+
 ## Mi día
 
 Al abrir la app ves el día de un vistazo. Cada casilla de arriba lleva a su sección:

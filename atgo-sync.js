@@ -223,7 +223,7 @@
       // Si falla algún operario se descarta la carga entera: así nunca parece que sus tickets "salieron".
       await Promise.all(Array.from({ length: Math.min(PARALELO, cola.length) }, worker));
       if (stopped) return;
-      lastPayload = { type: 'atgo-data', partial: false, rows: [...found.values()], at: Date.now(), seconds: Math.round((Date.now() - t0) / 1000), caps: ['hilo', 'estado', 'editar'], estados: estadosAtgo || [] };
+      lastPayload = { type: 'atgo-data', partial: false, rows: [...found.values()], at: Date.now(), seconds: Math.round((Date.now() - t0) / 1000), caps: ['hilo', 'estado', 'editar', 'asignar'], estados: estadosAtgo || [] };
       send(lastPayload);
       const hora = new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
       setStatus(found.size + ' incidencias · ' + hora + ' (' + lastPayload.seconds + ' s) · próxima en ' + REFRESCO_MIN + ' min');
@@ -254,6 +254,36 @@
   let estadosAtgo = null;
   const pad = n => String(n).padStart(2, '0');
   function ahoraAtgo() { const d = new Date(); return pad(d.getDate()) + '/' + pad(d.getMonth() + 1) + '/' + d.getFullYear() + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds()); }
+  // Réplica del guardado de la ficha de ATGO ("editar" de su web): mismos parámetros, orden y valores
+  // por defecto que su formulario, pero con los valores bien codificados (un # o & no corta la petición).
+  function urlGuardado(d, cambios) {
+    const f = { ...d, ...(cambios || {}) };
+    const v = x => (x === null || x === undefined) ? 'null' : encodeURIComponent(String(x));
+    const id = d.incidenciaId;
+    const fv = f.fechaVisita ? String(f.fechaVisita).slice(0, 10) : null;
+    const q = ['estado=' + v(f.estado), 'codArt=' + (f.codArt ? v(f.codArt) : ''), 'tieneGarantia=' + v(f.tieneGarantia)];
+    if (f.fechaGarantia != null) q.push('fechaGarantia=' + v(String(f.fechaGarantia).replace(/\//g, '-')));
+    q.push('codElemento=' + v(f.codElemento), 'codOpe=' + v(f.codOpe));
+    if (fv) q.push('fechaVisita=' + v(fv));
+    q.push('inicioVisita=' + v(f.horaInicioVisita), 'finVisita=' + v(f.horaFinVisita), 'codSeveridad=' + v(f.codSeveridad), 'codTipoEle=' + v(f.codTipoEle),
+      'codDivision=' + v(f.codDivision), 'suReferencia=' + v(f.suReferencia), 'codCli=' + v(f.codCli), 'desCli=' + v(f.desCli), 'domicilio=' + v(f.domicilio),
+      'poblacion=' + v(f.poblacion), 'provincia=' + v(f.provincia), 'cp=' + v(f.cp), 'telefono=' + v(f.telefono), 'email=' + v(f.email), 'cif=' + v(f.cif));
+    if (f.idSede != null) q.push('idSede=' + v(f.idSede));
+    q.push('datosRecepcion=' + v(f.datosRecepcion), 'docCompra=null', 'actualiza=true', 'geolocalizacion=null', 'nombre=' + v('El usuario'),
+      'numProy=' + v(f.numProy || null), 'codAct=' + (f.codAct ? v(f.codAct) : ''));
+    return '/api/v1/atgo/incidencias/' + encodeURIComponent(id.periodo) + '/' + encodeURIComponent(id.codSerie) + '/' + encodeURIComponent(id.codInc) + '?' + q.join('&');
+  }
+  // Campos que ATGO actualiza solo y no indican pérdida de datos
+  const CAMPOS_SISTEMA = new Set(['virtualOrderAsc', 'virtualOrderDesc', 'fechaCierrePostVenta', 'usuario']);
+  function compararFichas(a, b) {
+    const out = {};
+    new Set([...Object.keys(a), ...Object.keys(b)]).forEach(k => {
+      if (CAMPOS_SISTEMA.has(k)) return;
+      const x = JSON.stringify(a[k] === undefined ? null : a[k]), y = JSON.stringify(b[k] === undefined ? null : b[k]);
+      if (x !== y) out[k] = { antes: a[k] === undefined ? null : a[k], despues: b[k] === undefined ? null : b[k] };
+    });
+    return out;
+  }
   async function editar(m, dest) {
     const reply = (o) => { try { dest.postMessage({ type: 'atgo-editado', id: m.id, key: m.key, accion: m.accion, ...o }, PWA_ORIGIN); } catch (e) {} };
     try {
@@ -280,6 +310,38 @@
         const esperado = (estadosAtgo || []).find(x => x.estado === est);
         const ok = !esperado || String(st.estado).trim().toUpperCase() === String(esperado.desEstado).trim().toUpperCase();
         reply({ ok, verificado: !!esperado, estadoActual: st.estado, error: ok ? '' : 'ATGO indica ahora el estado ' + (st.estado || 'desconocido') });
+        refreshNow();
+      } else if (m.accion === 'asignar') {
+        // Fase 2: técnico y fecha/hora de visita. ATGO guarda la ficha completa, así que se reenvía tal cual
+        // está (leída justo antes) cambiando solo esos campos, y después se comprueba campo a campo.
+        const camb = {};
+        if (m.codOpe != null) { const op = String(m.codOpe).trim().toUpperCase(); if (!OPERARIOS.includes(op)) throw new Error('técnico no válido'); camb.codOpe = op; }
+        if (m.fechaVisita != null) { if (!/^\d{4}-\d{2}-\d{2}$/.test(m.fechaVisita)) throw new Error('fecha no válida'); camb.fechaVisita = m.fechaVisita; }
+        for (const [k, n] of [['horaInicioVisita', 'horaInicio'], ['horaFinVisita', 'horaFin']]) {
+          if (m[n] != null) { if (m[n] !== '' && !/^\d{2}:\d{2}$/.test(m[n])) throw new Error('hora no válida'); camb[k] = m[n] || null; }
+        }
+        if (!Object.keys(camb).length) throw new Error('nada que cambiar');
+        const base = '/api/v1/atgo/incidencias/' + p + '/' + s + '/' + c;
+        const leer = async () => { const r = await fetch(base, { headers: { ...H, Accept: 'application/json' } }); if (!r.ok) throw new Error('no se pudo leer la ficha (' + r.status + ')'); return r.json(); };
+        const antes = await leer();
+        const put = await fetch(urlGuardado(antes, camb), { method: 'PUT', headers: H });
+        if (!put.ok) throw new Error('ATGO respondió ' + put.status);
+        const despues = await leer();
+        const dif = compararFichas(antes, despues);
+        const esperados = new Set(['codOpe', 'desOpe', 'fechaVisita', 'horaInicioVisita', 'horaFinVisita']);
+        const inesperados = Object.keys(dif).filter(k => !esperados.has(k));
+        const pedidos = Object.keys(camb).filter(k => k === 'fechaVisita' ? String(despues.fechaVisita || '').slice(0, 10) !== camb.fechaVisita : String(despues[k] || '') !== String(camb[k] || ''));
+        if (inesperados.length) {
+          // Algo más cambió: se restaura la ficha tal como estaba
+          const rr = await fetch(urlGuardado(antes, {}), { method: 'PUT', headers: H });
+          const tras = await leer();
+          const quedan = Object.keys(compararFichas(antes, tras));
+          reply({ ok: false, dif, restaurado: rr.ok && !quedan.length, quedan, error: 'ATGO cambió también ' + inesperados.join(', ') + (rr.ok && !quedan.length ? ': se ha restaurado la ficha original' : ': NO se pudo restaurar del todo, revísalo en ATGO') });
+        } else if (pedidos.length) {
+          reply({ ok: false, dif, error: 'ATGO no aplicó: ' + pedidos.join(', ') });
+        } else {
+          reply({ ok: true, verificado: true, dif });
+        }
         refreshNow();
       } else throw new Error('acción no permitida');
     } catch (e) {
