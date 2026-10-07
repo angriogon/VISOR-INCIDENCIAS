@@ -117,7 +117,10 @@ function renderSin() {
     <div class="dnote" style="margin:0">Visitas en PRESENCIAL que siguen en un operario «PENDIENTE ASIGNAR». La más reciente arriba. Al asignarse desaparecen solas, también del buzón.</div>
     ${!poolCargado ? '<div class="empty">Esperando la próxima actualización de ATGO (recarga la pestaña de ATGO y pulsa el favorito si no aparece).</div>'
       : lista.length ? `<div class="sa-list">${lista.map(r => sinFila(r, sinVista === 'buzon')).join('')}</div>`
-      : `<div class="empty">${sinVista === 'buzon' ? 'El buzón está vacío.' : 'No hay visitas pendientes de asignar.'}</div>`}`;
+      : `<div class="empty">${sinVista === 'buzon' ? 'El buzón está vacío.'
+          : sinFiltro === 'mia' && L.pend.length ? `<h2>Ninguna pendiente en tu zona</h2><div>Hay ${plural(L.pend.length, 'visita')} sin asignar en otras zonas.</div><div class="acts" style="justify-content:center;margin-top:10px"><button class="btn" onclick="sinFiltro='todas';renderSin()">Ver todas las zonas</button></div>`
+          : 'No hay visitas pendientes de asignar en ninguna zona.'}</div>`}
+    ${poolCargado ? `<div class="dnote">Actualizado ${esc(syncUltima ? cuando(syncUltima) : '—')} · ${plural(poolRows.length, 'visita')} sin asignar en toda España.</div>` : ''}`;
 }
 async function asignarSin(key) {
   const r = ticketDe(key); if (!r) return;
