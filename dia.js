@@ -401,6 +401,8 @@ function openTicket(key) {
 }
 function closeTicket() { document.getElementById('drawer').hidden = true; document.body.classList.remove('dw-open'); fichaKey = null; }
 function renderFicha() {
+  const edCom = document.getElementById('edCom'), edEst = document.getElementById('edEst');
+  const prev = { com: edCom ? edCom.value : '', est: edEst ? edEst.value : '', foco: document.activeElement && document.activeElement.id };
   const key = fichaKey, r = rows.find(x => tkey(x) === key);
   const s = segSnap.items[key], n = notas[key] || {};
   const p = document.getElementById('dwPanel');
@@ -432,6 +434,7 @@ function renderFicha() {
     </div>
     ${hiloHtml(key)}
     ${caducidadFichaHtml(key, r)}
+    ${edicionHtml(key, r)}
     <dl class="dw-data">${campos.map(([k, v]) => `${k ? `<dt>${esc(k)}</dt>` : ''}<dd${k ? '' : ' class="full"'}>${esc(v)}</dd>`).join('')}</dl>
     ${sugerenciaHtml(r)}
     <div class="dw-sec">
@@ -448,6 +451,10 @@ function renderFicha() {
       <div class="dw-h">Historial en Despacho</div>
       ${hist.length ? `<ul class="dw-hist">${hist.map(e => `<li><span>${esc(cuando(e.ts))}</span>${esc(evTexto(e))}</li>`).join('')}</ul>` : `<div class="dw-empty">Sin cambios registrados${segSnap.start ? ' desde el ' + new Date(segSnap.start).toLocaleDateString('es-ES') : ''}.</div>`}
     </div>`;
+  const c2 = document.getElementById('edCom'), e2 = document.getElementById('edEst');
+  if (c2 && prev.com && !c2.value) c2.value = prev.com;
+  if (e2 && prev.est) e2.value = prev.est;
+  if (prev.foco === 'edCom' && c2) c2.focus();
   const ta = document.getElementById('dwNota');
   ta.addEventListener('input', () => { guardarNota(key, { texto: ta.value.trim() }); });
   ta.addEventListener('blur', refreshVisible);
@@ -543,7 +550,7 @@ function refreshVisible() {
   if (vis('viewDia')) renderDia();
   if (vis('viewInc') && rows.length) render();
   if (vis('viewMan')) renderManana();
-  if (fichaKey && !document.getElementById('drawer').hidden && document.activeElement && document.activeElement.id !== 'dwNota') renderFicha();
+  if (fichaKey && !document.getElementById('drawer').hidden && document.activeElement && !['dwNota', 'edCom', 'edEst'].includes(document.activeElement.id)) renderFicha();
 }
 function ticketLi(r, extra, cls) {
   return `<li class="${cls || ''}" data-key="${esc(tkey(r))}"><b class="mono">${esc(r.num)}</b><span class="op">${esc(r.operario || '')}</span><span class="tx">${esc(r.descSede || r.domicilio || '—')}</span>${extra ? `<span class="ex">${extra}</span>` : ''}</li>`;

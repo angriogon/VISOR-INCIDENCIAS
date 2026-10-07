@@ -364,6 +364,18 @@
   .pbar.mini{display:inline-flex; width:70px; height:7px; vertical-align:middle; margin-right:4px;}
   .od-aviso{background:var(--amber-dim); border:1px solid var(--amber); color:var(--amber); border-radius:var(--radius); padding:6px 12px; font-size:12px; display:flex; gap:10px; align-items:center;}
   .od-aviso[hidden]{display:none;}
+  /* Edición en ATGO */
+  .md-confirm{width:min(520px,100%); margin-top:8vh;}
+  .md-txt{display:grid; gap:8px; font-size:13px;}
+  .md-txt p{margin:0;}
+  .md-chg{font-size:15px;} .md-chg span{color:var(--ink-dim); text-decoration:line-through;}
+  .md-warn{background:#fbe3df; color:#b5432f; border-radius:8px; padding:8px 10px;}
+  .btn.pri.warn{background:#d9614f; border-color:#d9614f;}
+  .ed-row{display:flex; gap:6px;}
+  .ed-row select{flex:1; min-width:0; font:inherit; font-size:12.5px; padding:6px 8px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--ink);}
+  .ed-pend{background:var(--amber-dim); color:var(--amber); border-radius:8px; padding:6px 10px; font-size:12px;}
+  .ed-hist li.ko{color:#b5432f;}
+  .btn[disabled]{opacity:.5; cursor:default;}
   #updateBar{display:none; position:fixed; bottom:calc(20px + env(safe-area-inset-bottom,0px)); right:20px; background:var(--panel); border:1px solid var(--amber); border-radius:var(--radius); padding:8px 12px; font-size:12px; gap:10px; align-items:center; z-index:21; box-shadow:0 4px 16px rgba(0,0,0,.15);}
 </style>
 </head>
@@ -425,6 +437,7 @@
 
 <script src="dia.js"></script>
 <script src="herramientas.js"></script>
+<script src="edicion.js"></script>
 <script>
 // Zonas: ordenan y agrupan a los técnicos en todas las vistas.
 // La zona "dispatcher" es quien controla (no es un técnico): va la primera en Incidencias
@@ -628,7 +641,8 @@ window.addEventListener('message', (e) => {
   if (e.origin !== ATGO_ORIGIN || !e.data || typeof e.data !== 'object') return;
   const m = e.data;
   atgoSource = e.source;   // pestaña de ATGO que sincroniza: a ella se le piden los hilos
-  if (m.type === 'atgo-data') applyAtgo(m, false);
+  if (m.type === 'atgo-data'){ recibirCapacidades(m); applyAtgo(m, false); }
+  else if (m.type === 'atgo-editado') recibirEdicion(m);
   else if (m.type === 'atgo-hilo') recibirHilos(m.hilos);
   else if (m.type === 'atgo-estado') recibirEstados(m.estados);
   else if (m.type === 'atgo-status') setAtgoStatus(String(m.text||''), m.error ? 'err' : '');

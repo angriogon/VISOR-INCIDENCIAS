@@ -80,6 +80,8 @@
       refreshNow();
     } else if (e.data.type === 'despacho-hilo' && Array.isArray(e.data.keys)) {
       enviarHilos(e.data.keys, e.source);
+    } else if (e.data.type === 'despacho-editar' && e.data.id) {
+      editar(e.data, e.source);
     } else if (e.data.type === 'despacho-estado' && Array.isArray(e.data.keys)) {
       enviarEstados(e.data.keys, e.source);
     }
@@ -202,6 +204,7 @@
     let done = 0, firstLoad = !lastPayload;
     try {
       setStatus('Cargando 0/' + OPERARIOS.length + ' técnicos…');
+      if (!estadosAtgo) { try { const r = await fetch('/api/v1/atgo/estados', { headers: { Authorization: 'Bearer ' + token(), Accept: 'application/json' } }); if (r.ok) estadosAtgo = (await r.json()).map(x => ({ estado: x.estado, desEstado: x.desEstado, cierra: x.cierra })); } catch (e) {} }
       const add = (d) => (d.content || []).forEach(t => { if (OPERARIOS.includes(String(t.codOpe || '').trim().toUpperCase())) { const m = mapTicket(t); found.set(m.key, m); } });
       const cola = OPERARIOS.slice();
       const worker = async () => {
@@ -220,7 +223,7 @@
       // Si falla algún operario se descarta la carga entera: así nunca parece que sus tickets "salieron".
       await Promise.all(Array.from({ length: Math.min(PARALELO, cola.length) }, worker));
       if (stopped) return;
-      lastPayload = { type: 'atgo-data', partial: false, rows: [...found.values()], at: Date.now(), seconds: Math.round((Date.now() - t0) / 1000) };
+      lastPayload = { type: 'atgo-data', partial: false, rows: [...found.values()], at: Date.now(), seconds: Math.round((Date.now() - t0) / 1000), caps: ['hilo', 'estado', 'editar'], estados: estadosAtgo || [] };
       send(lastPayload);
       const hora = new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
       setStatus(found.size + ' incidencias · ' + hora + ' (' + lastPayload.seconds + ' s) · próxima en ' + REFRESCO_MIN + ' min');
@@ -246,5 +249,43 @@
     }, 2500);
   }
   window.addEventListener('message', (e) => { if (e.origin === PWA_ORIGIN) opened = true; });
+  // ===== Edición en ATGO (fase 1): comentario en el hilo y cambio de estado =====
+  // Se hace con tu sesión, igual que desde la web de ATGO, y después se vuelve a leer para comprobarlo.
+  let estadosAtgo = null;
+  const pad = n => String(n).padStart(2, '0');
+  function ahoraAtgo() { const d = new Date(); return pad(d.getDate()) + '/' + pad(d.getMonth() + 1) + '/' + d.getFullYear() + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds()); }
+  async function editar(m, dest) {
+    const reply = (o) => { try { dest.postMessage({ type: 'atgo-editado', id: m.id, key: m.key, accion: m.accion, ...o }, PWA_ORIGIN); } catch (e) {} };
+    try {
+      if (!/^\d+\/[^/]+\/\d+$/.test(m.key || '')) throw new Error('ticket no válido');
+      if (sessionExpired()) throw new Error('la sesión de ATGO ha caducado: vuelve a iniciar sesión');
+      const [p, s, c] = m.key.split('/').map(encodeURIComponent);
+      const H = { Authorization: 'Bearer ' + token() };
+      if (m.accion === 'comentario') {
+        const texto = String(m.texto || '').trim();
+        if (!texto || texto.length > 4000) throw new Error('comentario vacío o demasiado largo');
+        const url = '/api/v1/atgo/hilo/' + p + '/' + s + '/' + c + '?currentDateTime=' + encodeURIComponent(ahoraAtgo()) + '&geolocalizacion=null';
+        const r = await fetch(url, { method: 'POST', headers: { ...H, 'Content-Type': 'text/plain' }, body: texto });
+        if (!r.ok) throw new Error('ATGO respondió ' + r.status);
+        // Comprobación: el comentario debe aparecer en el hilo
+        const items = await getHilo(m.key);
+        const ok = items.some(i => i.t.replace(/\s+/g, ' ').trim() === texto.replace(/\s+/g, ' ').trim());
+        reply({ ok, verificado: ok, hilo: { at: Date.now(), items }, error: ok ? '' : 'ATGO aceptó el comentario pero no aparece en el hilo: revísalo en ATGO' });
+      } else if (m.accion === 'estado') {
+        const est = Number(m.estado);
+        if (!Number.isInteger(est) || (estadosAtgo && !estadosAtgo.some(x => x.estado === est))) throw new Error('estado no válido');
+        const r = await fetch('/api/v1/atgo/incidencias/cambiar-estado/' + p + '/' + s + '/' + c + '/' + est, { method: 'PUT', headers: H });
+        if (!r.ok) throw new Error('ATGO respondió ' + r.status);
+        const st = await getEstado(m.key);
+        const esperado = (estadosAtgo || []).find(x => x.estado === est);
+        const ok = !esperado || String(st.estado).trim().toUpperCase() === String(esperado.desEstado).trim().toUpperCase();
+        reply({ ok, verificado: !!esperado, estadoActual: st.estado, error: ok ? '' : 'ATGO indica ahora el estado ' + (st.estado || 'desconocido') });
+        refreshNow();
+      } else throw new Error('acción no permitida');
+    } catch (e) {
+      reply({ ok: false, error: e.message || String(e) });
+    }
+  }
+
   syncOnce();
 })();

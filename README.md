@@ -19,6 +19,7 @@ No hace falta compilar nada: son archivos estáticos (HTML + JS) y GitHub Pages 
 | `manifest.webmanifest` | Nombre, iconos y ajustes para instalarla como app de Windows |
 | `sw.js` | Service worker: funcionamiento sin conexión y actualizaciones |
 | `herramientas.js` | Cerradas (15 días), material, caducidad (SLA), copia en OneDrive, ruta en Google Maps, técnico sugerido, correos del día e informe semanal |
+| `edicion.js` | Edición en ATGO desde la ficha: comentario en el hilo y cambio de estado |
 | `dia.js` | Mi día, novedades, avisos, ficha del ticket, notas, buscador, rutina, resumen y copia de seguridad |
 | `atgo-sync.js` | Sincronización con ATGO (se ejecuta dentro de la pestaña de ATGO mediante el marcador) |
 | `icon-192.png`, `icon-512.png`, `icon-maskable-512.png`, `favicon.svg` | Iconos |
@@ -90,6 +91,15 @@ Detalles:
 - **Técnico sugerido:** en la ficha de cualquier visita presencial, los 3 técnicos de la zona del ticket (por su provincia) con menos visitas ese día; ir ya a esa población cuenta a favor. Solo sugiere: la asignación se hace en el ERP.
 - **Correos del día:** en Mañana → *Correos del día*. Un correo por visita al contacto del ticket en ATGO, abierto en Outlook uno tras otro (*Abrir siguiente*), y un *Correo resumen* con todas las visitas. La plantilla es editable.
 - **Informe semanal:** en Mi día. Por técnico: visitas enrutadas, terminadas, en trámite, % de cumplimiento y cerradas; además tickets nuevos, escalados, material y caducidades vencidas. *Copiar para el correo* (tabla con formato) o *Abrir en Outlook*. Se construye con la foto de cada día que Despacho guarda mientras sincroniza.
+
+## Actuar en ATGO (fase 1)
+
+En la ficha de cada ticket, sección **Actuar en ATGO**:
+
+- **Publicar en el hilo:** escribe un comentario (por ejemplo, instrucciones para el técnico) y confírmalo. Se publica con tu usuario.
+- **Cambiar estado:** elige el nuevo estado y confírmalo. Los estados que **cierran** el ticket piden una confirmación en rojo.
+
+Lo hace la pestaña de ATGO con tu sesión, igual que desde la web de ATGO, y después **vuelve a leer el ticket para comprobar** que se aplicó. Si ATGO no responde en 25 s, Despacho no lo reintenta (para no duplicar): avisa para que lo compruebes en ATGO. Cada cambio queda en la ficha (✓ aplicado / ✕ fallido). Necesita la pestaña de ATGO abierta con la versión actual del favorito.
 
 ## Mi día
 
