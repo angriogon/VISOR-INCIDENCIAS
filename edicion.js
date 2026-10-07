@@ -37,28 +37,31 @@ function confirmar(html, okLabel, peligro) {
 
 // ---- Enviar a ATGO ----
 function enviarEdicion(accion, key, datos) {
-  if (editPend) { toast('Espera a que termine el cambio anterior'); return; }
+  return new Promise(resolve => {
+  if (editPend) { toast('Espera a que termine el cambio anterior'); resolve({ ok: false, error: 'otro cambio en curso' }); return; }
   const src = hiloFuente();
-  if (!src) { toast('Abre ATGO y pulsa el favorito ⟳ Despacho ATGO'); return; }
-  const id = 'e' + Date.now().toString(36);
-  editPend = { id, key, accion, t0: Date.now(), datos };
+  if (!src) { toast('Abre ATGO y pulsa el favorito ⟳ Despacho ATGO'); resolve({ ok: false, error: 'sin pestaña de ATGO' }); return; }
+  const id = 'e' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+  editPend = { id, key, accion, t0: Date.now(), datos, resolve };
   try { src.postMessage({ type: 'despacho-editar', id, key, accion, ...datos }, ATGO_ORIGIN); }
-  catch (e) { editPend = null; toast('No se pudo contactar con la pestaña de ATGO'); return; }
-  renderFicha();
+  catch (e) { editPend = null; toast('No se pudo contactar con la pestaña de ATGO'); resolve({ ok: false, error: 'sin contacto con ATGO' }); return; }
+  if (fichaKey) renderFicha();
   setTimeout(() => {
     if (!editPend || editPend.id !== id) return;
-    const r = rows.find(x => tkey(x) === key) || {};
+    const r = ticketDe(key) || {};
     registrarEdicion({ key, num: r.num, accion, detalle: datos.resumen, ok: false, error: 'sin respuesta de ATGO' });
     editPend = null;
     toast('ATGO no ha respondido. Comprueba en ATGO si se aplicó antes de repetirlo.');
     if (fichaKey === key) renderFicha();
+    resolve({ ok: false, error: 'sin respuesta de ATGO' });
   }, EDIT_TIMEOUT_MS);
+  });
 }
 function recibirEdicion(m) {
   if (!editPend || m.id !== editPend.id) return;
-  const { key, accion, datos } = editPend;
+  const { key, accion, datos, resolve } = editPend;
   editPend = null;
-  const r = rows.find(x => tkey(x) === key) || {};
+  const r = ticketDe(key) || {};
   registrarEdicion({ key, num: r.num, accion, detalle: datos.resumen, ok: !!m.ok, error: m.error || '', dif: m.dif || null });
   if (m.hilo) recibirHilos({ [key]: m.hilo });
   if (m.ok) {
@@ -66,6 +69,7 @@ function recibirEdicion(m) {
     if (accion === 'comentario' && fichaKey === key) { const ta = document.getElementById('edCom'); if (ta) ta.value = ''; }
   } else toast('No se aplicó: ' + (m.error || 'error desconocido'));
   if (fichaKey === key) renderFicha();
+  if (resolve) resolve(m);
 }
 
 async function publicarComentario() {
@@ -73,7 +77,7 @@ async function publicarComentario() {
   const texto = (ta && ta.value || '').trim();
   if (!texto) { toast('Escribe el comentario'); ta && ta.focus(); return; }
   if (texto.length > 4000) { toast('El comentario es demasiado largo'); return; }
-  const r = rows.find(x => tkey(x) === key) || {};
+  const r = ticketDe(key) || {};
   const ok = await confirmar(`<b>Publicar en el hilo de ATGO</b><p>Nº ${esc(r.num || key)} · ${esc(r.descSede || '')}</p>
     <div class="dw-txt">${esc(texto)}</div><p class="hint">Quedará a tu nombre y lo verán el técnico y el resto de usuarios del ticket.</p>`, 'Publicar');
   if (ok) enviarEdicion('comentario', key, { texto, resumen: 'Comentario: ' + texto.slice(0, 120) });
@@ -82,7 +86,7 @@ async function cambiarEstadoAtgo() {
   const key = fichaKey, sel = document.getElementById('edEst');
   const est = sel && Number(sel.value);
   if (!est && est !== 0) { toast('Elige el nuevo estado'); return; }
-  const r = rows.find(x => tkey(x) === key) || {};
+  const r = ticketDe(key) || {};
   const nuevo = atgoEstados.find(x => x.estado === est);
   if (!nuevo) return;
   const cierra = nuevo.cierra === 'S';
@@ -96,11 +100,11 @@ async function cambiarEstadoAtgo() {
 // ---- Fase 2: asignar técnico y fecha/hora de visita ----
 // Hasta que la valides, solo funciona en el ticket de prueba. Luego se activa para todos en ⚙.
 const FASE2_PRUEBA = '2026/00/97784';
-function fase2Activa(key) { return atgoCaps.includes('asignar') && (tecCfg.fase2 === 'todos' || key === FASE2_PRUEBA); }
+function fase2Activa(key) { return atgoCaps.includes('asignar') && (tecCfg.fase2 !== 'prueba' || key === FASE2_PRUEBA); }
 function preAsignar(op) { const s = document.getElementById('asOp'); if (s) { s.value = op; s.dispatchEvent(new Event('change')); s.scrollIntoView({ block: 'nearest' }); } }
 function fechaIsoDe(r) { const d = parseEs(r.fVisita); return d ? isoHoy(d) : ''; }
 async function asignarAtgo() {
-  const key = fichaKey, r = rows.find(x => tkey(x) === key) || {};
+  const key = fichaKey, r = ticketDe(key) || {};
   const op = document.getElementById('asOp').value, f = document.getElementById('asFecha').value;
   const h1 = document.getElementById('asH1').value, h2 = document.getElementById('asH2').value;
   const datos = {}, cambios = [];
@@ -127,12 +131,12 @@ function asignarHtml(key, r, pend) {
   const ops = [...dispatcherOps(), ...TECNICOS];
   const ult = edicionesDe(key).find(e => e.accion === 'asignar');
   return `<div class="ed-asig">
-    <div class="dw-h" style="margin-top:6px">Planificar en ATGO ${key === FASE2_PRUEBA && tecCfg.fase2 !== 'todos' ? '<small>en prueba: solo este ticket</small>' : ''}</div>
+    <div class="dw-h" style="margin-top:6px">Planificar en ATGO ${key === FASE2_PRUEBA && tecCfg.fase2 === 'prueba' ? '<small>en prueba: solo este ticket</small>' : ''}</div>
     <div class="ed-grid">
       <label>Técnico<select id="asOp"${pend ? ' disabled' : ''}>${ops.map(op => `<option value="${esc(op)}"${op === cleanInitials(r.operario) ? ' selected' : ''}>${esc(op)} · ${esc(zonaDe(op))}</option>`).join('')}</select></label>
-      <label>Fecha de visita<input type="date" id="asFecha" value="${esc(fechaIsoDe(r))}"${pend ? ' disabled' : ''}></label>
-      <label>Desde<input type="time" id="asH1" value="${esc(r.desdeHora || '')}"${pend ? ' disabled' : ''}></label>
-      <label>Hasta<input type="time" id="asH2" value="${esc(r.hastaHora || '')}"${pend ? ' disabled' : ''}></label>
+      <label>Fecha de visita <i>(opcional)</i><input type="date" id="asFecha" value="${esc(fechaIsoDe(r))}"${pend ? ' disabled' : ''}></label>
+      <label>Desde <i>(opcional)</i><input type="time" id="asH1" value="${esc(r.desdeHora || '')}"${pend ? ' disabled' : ''}></label>
+      <label>Hasta <i>(opcional)</i><input type="time" id="asH2" value="${esc(r.hastaHora || '')}"${pend ? ' disabled' : ''}></label>
     </div>
     <div class="acts"><button class="btn" onclick="asignarAtgo()"${pend ? ' disabled' : ''}>Guardar en ATGO</button></div>
     ${ult && ult.dif ? difHtml(ult.dif) : ''}
@@ -153,6 +157,7 @@ function edicionHtml(key, r) {
   return `<div class="dw-sec">
     <div class="dw-h">Actuar en ATGO <small>con tu usuario</small></div>
     ${pend ? `<div class="ed-pend">Enviando a ATGO y comprobando… no cierres la pestaña de ATGO.</div>` : ''}
+    ${frasesHtml(r)}
     <textarea id="edCom" rows="2" placeholder="Comentario para el hilo del ticket (lo verá el técnico)"${pend ? ' disabled' : ''}></textarea>
     <div class="acts"><button class="btn" onclick="publicarComentario()"${pend ? ' disabled' : ''}>Publicar en el hilo</button></div>
     <div class="ed-row">

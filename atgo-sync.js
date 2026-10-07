@@ -151,8 +151,8 @@
     const exp = Number(localStorage.getItem('expires'));
     return !token() || (exp && exp * 1000 < Date.now());
   }
-  async function getPage(op, page) {
-    const q = 'estado.in=' + ESTADOS.join('-') + ',codOpe.equals=' + encodeURIComponent(op);
+  async function getPage(op, page, estados) {
+    const q = 'estado.in=' + (estados || ESTADOS).join('-') + ',codOpe.equals=' + encodeURIComponent(op);
     const url = '/api/v1/atgo/incidencias/listado?page=' + page + '&size=' + PAGE_SIZE + '&sort=fechaRegistro,asc&q=' + q;
     for (let intento = 1; intento <= 2; intento++) {
       const ctrl = new AbortController();
@@ -206,24 +206,29 @@
       setStatus('Cargando 0/' + OPERARIOS.length + ' técnicos…');
       if (!estadosAtgo) { try { const r = await fetch('/api/v1/atgo/estados', { headers: { Authorization: 'Bearer ' + token(), Accept: 'application/json' } }); if (r.ok) estadosAtgo = (await r.json()).map(x => ({ estado: x.estado, desEstado: x.desEstado, cierra: x.cierra })); } catch (e) {} }
       const add = (d) => (d.content || []).forEach(t => { if (OPERARIOS.includes(String(t.codOpe || '').trim().toUpperCase())) { const m = mapTicket(t); found.set(m.key, m); } });
-      const cola = OPERARIOS.slice();
+      // Sin asignar: tickets en PRESENCIAL de los operarios comodín de todas las zonas (≈15 s más, en paralelo)
+      if (!poolOps) { try { const r = await fetch('/api/v1/atgo/operario?q=codOpe.contains=XXX', { headers: { Authorization: 'Bearer ' + token(), Accept: 'application/json' } }); if (r.ok) { poolOps = {}; (await r.json()).forEach(o => { if (/^XXX/i.test(o.codOpe)) poolOps[o.codOpe] = o.desOpe || ''; }); } } catch (e) {} }
+      const pool = new Map();
+      const addPool = (d) => (d.content || []).forEach(t => { if (/^XXX/i.test(String(t.codOpe || ''))) { const m = mapTicket(t); m.operario = String(t.codOpe || '').trim().toUpperCase(); m.desOperario = (poolOps || {})[t.codOpe] || t.desOpe || ''; pool.set(m.key, m); } });
+      const cola = [...OPERARIOS.map(op => ({ op })), ...Object.keys(poolOps || {}).map(op => ({ op, pool: true }))];
+      const totalCola = cola.length;
       const worker = async () => {
         while (cola.length && !stopped) {
-          const op = cola.shift();
+          const it = cola.shift();
           for (let page = 0; ; page++) {
-            const d = await getPage(op, page);
-            add(d);
+            const d = await getPage(it.op, page, it.pool ? [10] : null);
+            it.pool ? addPool(d) : add(d);
             if (d.last !== false || !(d.content || []).length) break;
           }
           done++;
-          setStatus('Cargando ' + done + '/' + OPERARIOS.length + ' técnicos · ' + found.size + ' incidencias');
-          if (firstLoad) send({ type: 'atgo-data', partial: true, rows: [...found.values()], at: Date.now(), progress: done + '/' + OPERARIOS.length });
+          setStatus('Cargando ' + done + '/' + totalCola + ' · ' + found.size + ' incidencias · ' + pool.size + ' sin asignar');
+          if (firstLoad && !it.pool) send({ type: 'atgo-data', partial: true, rows: [...found.values()], at: Date.now(), progress: done + '/' + totalCola });
         }
       };
       // Si falla algún operario se descarta la carga entera: así nunca parece que sus tickets "salieron".
       await Promise.all(Array.from({ length: Math.min(PARALELO, cola.length) }, worker));
       if (stopped) return;
-      lastPayload = { type: 'atgo-data', partial: false, rows: [...found.values()], at: Date.now(), seconds: Math.round((Date.now() - t0) / 1000), caps: ['hilo', 'estado', 'editar', 'asignar'], estados: estadosAtgo || [] };
+      lastPayload = { type: 'atgo-data', partial: false, rows: [...found.values()], at: Date.now(), seconds: Math.round((Date.now() - t0) / 1000), caps: ['hilo', 'estado', 'editar', 'asignar', 'pool'], estados: estadosAtgo || [], pool: poolOps ? [...pool.values()] : null, poolOps: poolOps || {} };
       send(lastPayload);
       const hora = new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
       setStatus(found.size + ' incidencias · ' + hora + ' (' + lastPayload.seconds + ' s) · próxima en ' + REFRESCO_MIN + ' min');
@@ -251,7 +256,7 @@
   window.addEventListener('message', (e) => { if (e.origin === PWA_ORIGIN) opened = true; });
   // ===== Edición en ATGO (fase 1): comentario en el hilo y cambio de estado =====
   // Se hace con tu sesión, igual que desde la web de ATGO, y después se vuelve a leer para comprobarlo.
-  let estadosAtgo = null;
+  let estadosAtgo = null, poolOps = null;
   const pad = n => String(n).padStart(2, '0');
   function ahoraAtgo() { const d = new Date(); return pad(d.getDate()) + '/' + pad(d.getMonth() + 1) + '/' + d.getFullYear() + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds()); }
   // Réplica del guardado de la ficha de ATGO ("editar" de su web): mismos parámetros, orden y valores
@@ -296,7 +301,7 @@
         if (!texto || texto.length > 4000) throw new Error('comentario vacío o demasiado largo');
         const url = '/api/v1/atgo/hilo/' + p + '/' + s + '/' + c + '?currentDateTime=' + encodeURIComponent(ahoraAtgo()) + '&geolocalizacion=null';
         const r = await fetch(url, { method: 'POST', headers: { ...H, 'Content-Type': 'text/plain' }, body: texto });
-        if (!r.ok) throw new Error('ATGO respondió ' + r.status);
+        if (!r.ok) throw new Error('ATGO respondió ' + r.status + ': ' + (await r.text().catch(() => '')).replace(/\s+/g, ' ').slice(0, 160));
         // Comprobación: el comentario debe aparecer en el hilo
         const items = await getHilo(m.key);
         const ok = items.some(i => i.t.replace(/\s+/g, ' ').trim() === texto.replace(/\s+/g, ' ').trim());
@@ -305,7 +310,7 @@
         const est = Number(m.estado);
         if (!Number.isInteger(est) || (estadosAtgo && !estadosAtgo.some(x => x.estado === est))) throw new Error('estado no válido');
         const r = await fetch('/api/v1/atgo/incidencias/cambiar-estado/' + p + '/' + s + '/' + c + '/' + est, { method: 'PUT', headers: H });
-        if (!r.ok) throw new Error('ATGO respondió ' + r.status);
+        if (!r.ok) throw new Error('ATGO respondió ' + r.status + ': ' + (await r.text().catch(() => '')).replace(/\s+/g, ' ').slice(0, 160));
         const st = await getEstado(m.key);
         const esperado = (estadosAtgo || []).find(x => x.estado === est);
         const ok = !esperado || String(st.estado).trim().toUpperCase() === String(esperado.desEstado).trim().toUpperCase();
@@ -315,7 +320,7 @@
         // Fase 2: técnico y fecha/hora de visita. ATGO guarda la ficha completa, así que se reenvía tal cual
         // está (leída justo antes) cambiando solo esos campos, y después se comprueba campo a campo.
         const camb = {};
-        if (m.codOpe != null) { const op = String(m.codOpe).trim().toUpperCase(); if (!OPERARIOS.includes(op)) throw new Error('técnico no válido'); camb.codOpe = op; }
+        if (m.codOpe != null) { const op = String(m.codOpe).trim().toUpperCase(); if (!OPERARIOS.includes(op) && !(poolOps && poolOps[op])) throw new Error('técnico no válido'); camb.codOpe = op; }
         if (m.fechaVisita != null) { if (!/^\d{4}-\d{2}-\d{2}$/.test(m.fechaVisita)) throw new Error('fecha no válida'); camb.fechaVisita = m.fechaVisita; }
         for (const [k, n] of [['horaInicioVisita', 'horaInicio'], ['horaFinVisita', 'horaFin']]) {
           if (m[n] != null) { if (m[n] !== '' && !/^\d{2}:\d{2}$/.test(m[n])) throw new Error('hora no válida'); camb[k] = m[n] || null; }
@@ -325,7 +330,7 @@
         const leer = async () => { const r = await fetch(base, { headers: { ...H, Accept: 'application/json' } }); if (!r.ok) throw new Error('no se pudo leer la ficha (' + r.status + ')'); return r.json(); };
         const antes = await leer();
         const put = await fetch(urlGuardado(antes, camb), { method: 'PUT', headers: H });
-        if (!put.ok) throw new Error('ATGO respondió ' + put.status);
+        if (!put.ok) { const r = put; throw new Error('ATGO respondió ' + put.status + ': ' + (await r.text().catch(() => '')).replace(/\s+/g, ' ').slice(0, 160)); }
         const despues = await leer();
         const dif = compararFichas(antes, despues);
         const esperados = new Set(['codOpe', 'desOpe', 'fechaVisita', 'horaInicioVisita', 'horaFinVisita']);

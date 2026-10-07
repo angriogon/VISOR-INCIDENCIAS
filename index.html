@@ -376,6 +376,75 @@
   .ed-pend{background:var(--amber-dim); color:var(--amber); border-radius:8px; padding:6px 10px; font-size:12px;}
   .ed-hist li.ko{color:#b5432f;}
   .btn[disabled]{opacity:.5; cursor:default;}
+  /* Panel: sin asignar, semana, línea de tiempo, plegables */
+  .sync-aviso{font-size:11.5px; color:#b5432f; background:#fbe3df; border-radius:999px; padding:2px 4px 2px 10px; display:inline-flex; gap:6px; align-items:center;}
+  .sync-aviso[hidden]{display:none;}
+  .dsec .dsh{cursor:pointer; user-select:none;}
+  .pl-chev{color:var(--ink-faint); font-size:10px; transition:transform .15s; width:10px;}
+  .dsec.cerrada .pl-chev{transform:rotate(-90deg);}
+  .dsec.cerrada{padding-bottom:4px;}
+  .dsec.cerrada > :not(.dsh){display:none;}
+  .dsec.cerrada .dsh{margin-bottom:4px;}
+  .sa-list{display:grid; gap:6px;}
+  .sa-row{display:grid; grid-template-columns:minmax(0,1fr) auto; gap:12px; background:var(--panel); border:1px solid var(--line); border-left:3px solid var(--teal); border-radius:var(--radius); padding:9px 12px; cursor:pointer;}
+  .sa-row.otra{border-left-color:var(--line); opacity:.85;}
+  .sa-row:hover{background:var(--panel2);}
+  .sa-l1{display:flex; gap:6px; align-items:center; flex-wrap:wrap; font-size:12px;}
+  .sa-l1 .num{color:var(--amber); font-weight:600; text-decoration:none;}
+  .sa-zona{font-size:10.5px; padding:0 7px; border-radius:999px; background:var(--panel2); color:var(--ink-dim);}
+  .sa-zona.mia{background:var(--teal-dim); color:var(--teal); font-weight:600;}
+  .sa-act{font-size:11px; color:var(--ink-faint); margin-left:auto;}
+  .sa-l2{font-size:12px; color:var(--ink-dim); margin-top:2px;}
+  .sa-mot{font-size:11.5px; color:var(--ink-faint); margin-top:3px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .sa-acc{display:grid; gap:5px; justify-items:end; align-content:start; min-width:250px;}
+  .sa-rec{font-size:11.5px; color:var(--teal);}
+  .sa-asig{display:flex; gap:4px;}
+  .sa-asig select,.sa-asig input,.sp-lote select{font:inherit; font-size:11.5px; padding:3px 5px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--ink); max-width:190px;}
+  @media (max-width:760px){ .sa-row{grid-template-columns:1fr;} .sa-acc{justify-items:start; min-width:0;} }
+  .reinc{display:inline-block; font-size:10px; padding:0 6px; border-radius:999px; margin-left:4px; background:#efe7fb; color:#6b4fa0; border:1px solid #d7c7f0;}
+  .tc-extra{display:flex; gap:6px; flex-wrap:wrap; padding:4px 10px; border-bottom:1px solid var(--line); font-size:10.5px;}
+  .ch-h{color:var(--ink-dim);} .ch-h.over{color:#b5432f; font-weight:600;}
+  .tc-conf{color:#b5432f;}
+  .sem{display:grid; grid-template-columns:280px minmax(0,1fr); gap:12px; align-items:start;}
+  @media (max-width:900px){ .sem{grid-template-columns:1fr;} }
+  .sem-pend{background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:10px; display:grid; gap:4px; max-height:calc(100vh - 170px); overflow:auto; position:sticky; top:70px;}
+  .sp-it{display:flex; gap:6px; align-items:center; font-size:11.5px; padding:3px 2px; border-top:1px dashed var(--line); cursor:pointer;}
+  .sp-tx{min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--ink-dim);}
+  .sp-tx .venc{color:#b5432f;}
+  .sp-lote{display:grid; gap:5px; padding:8px; background:var(--amber-dim); border-radius:8px; font-size:12px; position:sticky; bottom:0;}
+  .tk{display:inline-flex; gap:4px; align-items:center; font-size:10.5px; padding:1px 6px; border-radius:6px; background:var(--panel2); border:1px solid var(--line); cursor:grab; white-space:nowrap;}
+  .tk b{color:var(--amber);} .tk.drag{opacity:.4;}
+  .tk i.pool{font-style:normal; color:var(--teal); font-size:9.5px;}
+  .sem-grid{background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:8px; overflow:auto;}
+  .sg-row{display:grid; grid-template-columns:70px repeat(5,minmax(0,1fr)); gap:4px; margin-bottom:4px;}
+  .sg-head div{font-size:11px; font-weight:700; color:var(--ink-dim); text-align:center; padding:4px 0;}
+  .sg-head div.hoy{color:var(--amber);}
+  .sg-zona{font-size:10.5px; font-weight:700; letter-spacing:.5px; color:var(--teal); margin:8px 0 3px;}
+  .sg-op{display:flex; align-items:center; font-size:12px;}
+  .sg-cell{border:1px dashed var(--line); border-radius:8px; padding:4px 5px; min-height:38px; display:grid; gap:3px; align-content:start;}
+  .sg-cell.over{border-color:var(--amber); background:var(--amber-dim);}
+  .sg-cell.conf{border-color:#e7a99d;}
+  .sg-n{font-size:11px; color:var(--ink-dim); cursor:pointer;} .sg-n b{color:var(--ink); font-size:12.5px;} .sg-n .lib{color:var(--ink-faint);} .sg-n .cf{color:#b5432f;}
+  .sg-bar{height:4px; border-radius:2px; background:var(--panel2); overflow:hidden;} .sg-bar i{display:block; height:100%; background:var(--teal);} .sg-bar i.over{background:#d9614f;}
+  .sg-tks{display:flex; flex-wrap:wrap; gap:3px;}
+  .tl{display:grid; gap:4px;}
+  .tl-row{display:grid; grid-template-columns:52px minmax(0,1fr); gap:6px; align-items:center;}
+  .tl-op{font-size:11px; font-weight:600;}
+  .tl-axis{position:relative; height:14px;} .tl-axis span{position:absolute; transform:translateX(-50%); font-size:9.5px; color:var(--ink-faint);}
+  .tl-track{position:relative; height:16px; background:var(--panel2); border-radius:4px;}
+  .tl-b{position:absolute; top:3px; height:10px; border-radius:3px; background:var(--line); cursor:pointer;}
+  .tl-b.st-d{background:var(--done);} .tl-b.st-t{background:var(--tra);} .tl-b.st-c{background:var(--cur);} .tl-b.st-p{background:#b9b3a6;} .tl-b.late{background:#e7a99d;}
+  .tl-now{position:absolute; top:-2px; bottom:-2px; width:2px; background:#d9614f;}
+  .tl-real{position:absolute; top:-3px; width:6px; height:6px; margin-left:-3px; border-radius:50%; background:var(--ink);}
+  .tl-sh{position:absolute; right:4px; top:1px; font-size:9.5px; color:var(--ink-faint);}
+  .fr{display:flex; gap:4px; flex-wrap:wrap;}
+  .fr-edit{list-style:none; margin:0; padding:0; display:grid; gap:4px;}
+  .fr-edit li{display:flex; gap:4px;} .fr-edit input{flex:1; font:inherit; font-size:12px; padding:4px 6px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--ink);}
+  .ed-grid label i{font-style:normal; color:var(--ink-faint);}
+  .md-mapa{width:min(1100px,100%);}
+  #mapa{height:62vh; border-radius:10px; border:1px solid var(--line);}
+  .mapa-leg{display:flex; gap:10px; flex-wrap:wrap; font-size:12px;} .mapa-leg i{display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:4px;}
+  .mapa-num{background:transparent; border:none; box-shadow:none; color:#fff; font-weight:700; font-size:10px;}
   .ed-grid{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px 8px;}
   .ed-grid label{display:grid; gap:2px; font-size:11px; color:var(--ink-dim);}
   .ed-grid select,.ed-grid input{font:inherit; font-size:12.5px; padding:5px 7px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--ink); min-width:0;}
@@ -392,9 +461,10 @@
 
 <header>
   <span style="font-size:13px; font-weight:600; letter-spacing:.2px;">Despacho</span>
-  <nav class="tabs"><button class="tab active" id="tabDia" onclick="showTab('dia')">Mi día<i class="tbadge" id="diaBadge" hidden></i></button><button class="tab" id="tabInc" onclick="showTab('inc')">Incidencias</button><button class="tab" id="tabMan" onclick="showTab('man')">Mañana</button></nav>
+  <nav class="tabs"><button class="tab active" id="tabDia" onclick="showTab('dia')">Mi día<i class="tbadge" id="diaBadge" hidden></i></button><button class="tab" id="tabSin" onclick="showTab('sin')">Sin asignar<i class="tbadge" id="sinBadge" hidden></i></button><button class="tab" id="tabInc" onclick="showTab('inc')">Incidencias</button><button class="tab" id="tabSem" onclick="showTab('sem')">Semana</button><button class="tab" id="tabMan" onclick="showTab('man')">Mañana</button></nav>
   <span class="sub" id="fileStatus">Sin datos</span>
   <span class="sub" id="atgoStatus"></span>
+  <span class="sync-aviso" id="syncAviso" hidden></span>
   <div class="spacer"></div>
   <button class="btn ghost" id="installBtn" style="display:none;" title="Instalar como aplicación de Windows">Instalar app</button>
   <button class="btn ghost" id="clearBtn" style="display:none;" title="Quitar datos cargados">✕</button>
@@ -435,6 +505,8 @@
 
   <div id="viewMan" style="display:none;"></div>
   <div id="viewDia" style="display:none;"></div>
+  <div id="viewSin" style="display:none;"></div>
+  <div id="viewSem" style="display:none;"></div>
 </main>
 
 <div id="drawer" class="drawer" hidden><div class="dw-back"></div><aside class="dw-panel" id="dwPanel" aria-label="Ficha del ticket"></aside></div>
@@ -447,6 +519,7 @@
 <script src="dia.js"></script>
 <script src="herramientas.js"></script>
 <script src="edicion.js"></script>
+<script src="panel.js"></script>
 <script>
 // Zonas: ordenan y agrupan a los técnicos en todas las vistas.
 // La zona "dispatcher" es quien controla (no es un técnico): va la primera en Incidencias
@@ -650,7 +723,7 @@ window.addEventListener('message', (e) => {
   if (e.origin !== ATGO_ORIGIN || !e.data || typeof e.data !== 'object') return;
   const m = e.data;
   atgoSource = e.source;   // pestaña de ATGO que sincroniza: a ella se le piden los hilos
-  if (m.type === 'atgo-data'){ recibirCapacidades(m); applyAtgo(m, false); }
+  if (m.type === 'atgo-data'){ recibirCapacidades(m); applyAtgo(m, false); recibirPool(m); }
   else if (m.type === 'atgo-editado') recibirEdicion(m);
   else if (m.type === 'atgo-hilo') recibirHilos(m.hilos);
   else if (m.type === 'atgo-estado') recibirEstados(m.estados);
@@ -771,7 +844,7 @@ function visitaHoyHtml(x){
 
 function lineHtml(r){
   return `<div class="line" data-key="${esc(tkey(r))}" style="border-left-color:${colorFor(r.estado)}">
-    ${numHtml(r)}${segBadges(r)}${cadBadge(r)}
+    ${numHtml(r)}${segBadges(r)}${cadBadge(r)}${reincBadge(r)}
     <span>· <b>${esc(r.fVisita || '—')}</b>${r.desdeHora ? ' '+esc(r.desdeHora) : ''}${r.hastaHora ? '–'+esc(r.hastaHora) : ''}</span>
     ${r.fCaducidad || r.estCaducidad ? `<span>· Caduca <b>${esc(r.fCaducidad || '—')}</b> (${esc(r.estCaducidad || '—')})</span>` : ''}
     ${r.tipo ? `<span>· ${esc(r.tipo)}</span>` : ''}
@@ -864,6 +937,7 @@ function renderManana(){
         </div>
         <div class="acts">
           <button class="btn sm" onclick="copyResumenDia()" title="Copia la carga de todos los técnicos visibles">Copiar resumen</button>
+          <button class="btn sm" onclick="abrirMapa(manDate)" title="Visitas del día en el mapa, en orden de ruta">Mapa</button>
           <button class="btn sm" onclick="toggleCorreos()" title="Correos de confirmación de las visitas del día en Outlook">Correos del día</button>
           <button class="btn sm" id="phonesBtn" onclick="togglePhones()">Técnicos y mensaje</button>
         </div>
@@ -921,6 +995,7 @@ function tecCard(op, items, max, sinEnvio){
       <span class="nm">${esc(items[0] && items[0].desOperario || '')}</span>
       <span class="count" style="color:var(--teal);font-weight:600;font-size:12px">${n ? n + ' visita' + (n===1?'':'s') : 'Libre'}</span>
     </div>
+    ${n ? `<div class="tc-extra">${cargaHtml(op, ddmmyyyy(manDate))}${conflictos(ddmmyyyy(manDate)).filter(c => c.op === op).map(c => `<span class="tc-conf" title="${esc(c.texto)}">⚠ ${esc(c.texto)}</span>`).join('')}</div>` : ''}
     ${n && !sinEnvio ? envioBadge(op) : ''}
     <div class="load"><i class="${cls}" style="width:${Math.round(n / max * 100)}%"></i></div>
     ${sortByHora(items).map(r => `<div class="vis" data-key="${esc(tkey(r))}">
@@ -1021,13 +1096,15 @@ function copyText(s){
 }
 
 function showTab(t){
-  for (const [k, v, tab] of [['dia','viewDia','tabDia'], ['inc','viewInc','tabInc'], ['man','viewMan','tabMan']]){
+  for (const [k, v, tab] of [['dia','viewDia','tabDia'], ['sin','viewSin','tabSin'], ['inc','viewInc','tabInc'], ['sem','viewSem','tabSem'], ['man','viewMan','tabMan']]){
     document.getElementById(v).style.display = t===k ? '' : 'none';
     document.getElementById(tab).classList.toggle('active', t===k);
   }
   if (location.hash !== '#'+t) history.replaceState(null, '', '#'+t);
   if (t==='dia') renderDia(true);
   if (t==='man') renderManana();
+  if (t==='sin') renderSin();
+  if (t==='sem') renderSemana();
   if (t==='inc' && rows.length){ renderFilters(); render(); }
   window.scrollTo(0, 0);
 }
@@ -1076,10 +1153,10 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:'){
 // Al abrir, mostramos la última carga de ATGO mientras llega la nueva.
 try{
   const cached = JSON.parse(localStorage.getItem(ATGO_KEY));
-  if (cached && Array.isArray(cached.rows) && !rows.length) applyAtgo(cached, true);
+  if (cached && Array.isArray(cached.rows) && !rows.length){ applyAtgo(cached, true); recibirPool({ ...cached, desdeCache: true }); }
 }catch(e){}
 
-showTab(['#inc','#man'].includes(location.hash) ? location.hash.slice(1) : 'dia');
+showTab(['#inc','#man','#sin','#sem'].includes(location.hash) ? location.hash.slice(1) : 'dia');
 updateDiaBadge();
 odIniciar();   // copia automática en OneDrive (herramientas.js)
 </script>
