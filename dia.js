@@ -575,11 +575,11 @@ function renderDia(force) {
     root.innerHTML = `<div class="dia-top"><h1>${esc(fecha)}</h1></div>
       <div class="empty"><h2>Sin incidencias cargadas</h2><div>Conecta ATGO para ver tu día.</div>
       <div class="acts" style="justify-content:center;margin-top:12px"><button class="btn pri" onclick="document.getElementById('atgoBtn').click()">Abrir ATGO</button><button class="btn" onclick="showTab('inc')">Cómo conectarlo</button></div></div>
-      ${rutinaHtml()}`;
+`;
     return;
   }
   const nv = noVistos(), mio = rows.filter(r => esMio(r.operario));
-  const sp = sinPlanificar(), sg = seguimientos(), par = parados(), rt = rutasResumen();
+  const rt = rutasResumen();
   const M = nextWorkday();
   const evHoy = eventos.filter(e => isoHoy(new Date(e.ts)) === isoHoy()).length;
   const mat = material(), cads = caducidadesProximas();
@@ -588,12 +588,9 @@ function renderDia(force) {
     { go: 'secNov', n: nv.length, l: 'Novedades', s: `${evHoy} hoy`, hot: nv.some(evImportante) },
     { go: 'mio', n: mio.length, l: 'A tu nombre', s: 'por asignar', hot: mio.length > 0 },
     { go: 'sin', n: sinListas().mias.length, l: 'Sin asignar', s: 'pendientes en tu zona', hot: sinListas().mias.length > 0 },
-    { go: 'secPlan', n: sp.sinFecha.length + sp.vencidas.length, l: 'Sin planificar', s: `${sp.vencidas.length} vencidas · ${sp.sinHora.length} sin hora` },
-    { go: 'secSeg', n: sg.pendientes.length, l: 'Seguimientos', s: sg.proximos.length ? `${sg.proximos.length} próximos` : 'para hoy', hot: sg.pendientes.length > 0 },
     { go: 'man', n: `${rt.enviadas}/${rt.total}`, l: `Rutas ${DIAS[M.getDay()]}`, s: rt.cambiadas ? `${rt.cambiadas} cambiadas tras enviar` : 'enviadas', hot: rt.cambiadas > 0 || (rt.total > 0 && rt.enviadas < rt.total && ahora.getHours() >= 15) },
     { go: 'secCad', n: cads.length, l: 'Caducidades', s: `${cadV} vencidas · ${cadU} en 24 h`, hot: cadV + cadU > 0 },
-    { go: 'secMat', n: mat.enMaterial.length + mat.listos.length, l: 'Material', s: `${mat.listos.length} listos para visita`, hot: mat.listos.length > 0 },
-    { go: 'secPar', n: par.length, l: 'Parados', s: `+${PARADO_SIN_CAMBIOS} días sin cambios` }
+    { go: 'secMat', n: mat.enMaterial.length + mat.listos.length, l: 'Material', s: `${mat.listos.length} listos para visita`, hot: mat.listos.length > 0 }
   ];
   const feed = eventos.filter(e => novFiltro === 'nv' ? !e.visto : novFiltro === 'hoy' ? isoHoy(new Date(e.ts)) === isoHoy() : true).slice(0, 80);
   const rh = rutinaHoy();
@@ -629,27 +626,6 @@ function renderDia(force) {
           ${mat.listos.length ? `<div class="dnote" style="margin:0 0 4px">Listos para visita (material movido)</div><ul class="tlist">${mat.listos.map(x => ticketLi(x.r, 'a PRESENCIAL ' + esc(cuando(x.ts)), 'due')).join('')}</ul>` : ''}
           ${mat.enMaterial.length ? `<div class="dnote" style="margin:6px 0 4px">En PTE. MOVER MATERIAL</div><ul class="tlist">${mat.enMaterial.map(x => ticketLi(x.r, x.ts ? 'desde ' + esc(cuando(x.ts)) : '')).join('')}</ul>` : ''}
           ${!mat.listos.length && !mat.enMaterial.length ? '<div class="dempty">Ningún ticket pendiente de mover material.</div>' : ''}
-        </section>
-        ${rutinaHtml(rh)}
-        <section class="dsec" id="secSeg">
-          <div class="dsh"><h2>Seguimientos</h2><small>Ábrelos desde la ficha de cualquier ticket</small></div>
-          ${sg.pendientes.length || sg.proximos.length ? `<ul class="tlist">${[...sg.pendientes.map(n => ({ n, due: true })), ...sg.proximos.map(n => ({ n, due: false }))].map(({ n, due }) =>
-            `<li class="${due ? 'due' : 'dim'}" data-key="${esc(n.key)}"><input type="checkbox" title="Hecho" onclick="event.stopPropagation();guardarNota('${jsq(n.key)}',{hecho:true});renderDia()"><b class="mono">${esc(n.num)}</b><span class="tx">${esc(n.texto || n.sede || '')}</span><span class="ex">${esc(fechaCorta(n.fecha))}</span></li>`).join('')}</ul>`
-          : '<div class="dempty">Nada pendiente. En la ficha de un ticket puedes dejar una nota y una fecha para revisarlo.</div>'}
-        </section>
-        <section class="dsec" id="secPlan">
-          <div class="dsh"><h2>Sin planificar</h2><small>Visitas presenciales</small>${sp.vencidas.length && fase2Activa('*') ? `<button class="btn sm" onclick="replanificarVencidas()" title="Propone técnico (menos carga de la zona) y el próximo laborable para cada vencida">Replanificar ${sp.vencidas.length} vencidas</button>` : ''}</div>
-          ${sp.vencidas.length || sp.sinFecha.length ? `<ul class="tlist">
-            ${sp.vencidas.slice(0, 15).map(r => ticketLi(r, 'vencida ' + esc(r.fVisita.slice(0, 5)), 'due')).join('')}
-            ${sp.sinFecha.slice(0, 25).map(r => { const d = dias(registro(r)); return ticketLi(r, d != null ? `sin fecha · ${d} d` : 'sin fecha'); }).join('')}
-            ${sp.vencidas.length + sp.sinFecha.length > 40 ? `<li class="more">y ${sp.vencidas.length + sp.sinFecha.length - 40} más…</li>` : ''}
-          </ul>` : '<div class="dempty">Todas las visitas presenciales tienen fecha.</div>'}
-          ${sp.sinHora.length ? `<div class="dnote">${plural(sp.sinHora.length, 'visita')} con fecha pero sin hora.</div>` : ''}
-        </section>
-        <section class="dsec" id="secPar">
-          <div class="dsh"><h2>Parados</h2><small>${esc(ESTADOS_ESPERA.length)} estados de espera · +${PARADO_ANTIGUEDAD} días abiertos o +${PARADO_SIN_CAMBIOS} sin cambios</small></div>
-          ${par.length ? `<ul class="tlist">${par.slice(0, 20).map(x => ticketLi(x.r, esc(x.r.estado) + ' · ' + (x.sin != null && x.sin >= PARADO_SIN_CAMBIOS ? `${x.sin} d sin cambios` : `${x.abierta} d abierto`))).join('')}${par.length > 20 ? `<li class="more">y ${par.length - 20} más…</li>` : ''}</ul>`
-          : '<div class="dempty">Ningún ticket parado.</div>'}
         </section>
       </div>
     </div>`;

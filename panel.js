@@ -90,21 +90,17 @@ function recomendar(r, fecha) {
 function sinFila(r, enBuzon) {
   const k = tkey(r), mia = esMiZonaPool(r), mot = motivoTexto(k), act = actualizado(r);
   const hoy = new Date(); hoy.setHours(12, 0, 0, 0);
-  const rec = mia ? recomendar(r, hoy) : null;
-  const best = rec && rec[0];
-  return `<div class="sa-row${mia ? '' : ' otra'}" data-key="${esc(k)}">
-    <div class="sa-main">
-      <div class="sa-l1">${numHtml(r)}${cadBadge(r)}${reincBadge(r)}<span class="sa-zona${mia ? ' mia' : ''}">${esc(zonaPool(r))}</span><span class="sa-act" title="Última actualización">${act ? esc(cuando(act)) : ''}</span></div>
-      <div class="sa-l2">${esc(r.descCliente || '')} · <b>${esc(r.descSede || '—')}</b> · ${esc([r.poblacion, r.provincia].filter(Boolean).join(', ') || r.domicilio || '')}</div>
-      ${mot ? `<div class="sa-mot">${esc(mot.slice(0, 160))}</div>` : ''}
-    </div>
-    <div class="sa-acc">
-      ${mia && best ? `<div class="sa-rec">Recomendado: <b>${esc(best.op)}</b> · ${best.carga ? plural(best.carga, 'visita') : 'libre'} hoy${best.juntos ? ' · ya va a ' + esc(r.poblacion || '') : ''}</div>
-        <div class="sa-asig"><select id="sa-op-${esc(k)}">${rec.map(x => `<option value="${esc(x.op)}">${esc(x.op)} · ${x.carga ? x.carga + ' hoy' : 'libre hoy'} · ${x.abiertas} abiertas</option>`).join('')}</select>
-        <input type="date" id="sa-f-${esc(k)}" title="Fecha de visita (opcional)">
-        <button class="btn sm pri" onclick="asignarSin('${jsq(k)}')">Asignar</button></div>` : ''}
-      <button class="btn sm ghost" onclick="archivar('${jsq(k)}', ${enBuzon ? 'false' : 'true'})">${enBuzon ? 'Recuperar' : 'Archivar'}</button>
-    </div>
+  const rec = mia && !enBuzon ? recomendar(r, hoy) : null;
+  const lugar = [r.poblacion, r.provincia].filter(Boolean).join(', ') || r.domicilio || '';
+  return `<div class="sa-row${mia ? '' : ' otra'}" data-key="${esc(k)}" title="${esc(mot || '')}">
+    <span class="sa-num">${numHtml(r)}</span>
+    <span class="sa-zona${mia ? ' mia' : ''}">${esc(zonaPool(r))}</span>
+    <span class="sa-tx"><b>${esc(r.descSede || '—')}</b> · ${esc(r.descCliente || '')} · ${esc(lugar)}${mot ? ` · <i>${esc(mot.slice(0, 90))}</i>` : ''}</span>
+    <span class="sa-badges">${cadBadge(r)}${reincBadge(r)}</span>
+    <span class="sa-act">${act ? esc(cuando(act)) : ''}</span>
+    <span class="sa-acc">${rec && rec.length ? `<select id="sa-op-${esc(k)}" title="Técnicos de la zona: el primero es el recomendado (menos visitas hoy)">${rec.map((x, i) => `<option value="${esc(x.op)}">${i === 0 ? '★ ' : ''}${esc(x.op)} · ${x.carga ? x.carga + ' hoy' : 'libre'}</option>`).join('')}</select>
+      <button class="btn sm pri" onclick="asignarSin('${jsq(k)}')">Asignar</button>` : ''}
+      <button class="iconbtn sm" onclick="archivar('${jsq(k)}', ${enBuzon ? 'false' : 'true'})" title="${enBuzon ? 'Recuperar a pendientes' : 'Archivar en el buzón'}" aria-label="${enBuzon ? 'Recuperar' : 'Archivar'}">${enBuzon ? '↩' : '⤓'}</button></span>
   </div>`;
 }
 function renderSin() {
@@ -124,12 +120,12 @@ function renderSin() {
 }
 async function asignarSin(key) {
   const r = ticketDe(key); if (!r) return;
-  const op = document.getElementById('sa-op-' + key).value, f = document.getElementById('sa-f-' + key).value;
+  const op = document.getElementById('sa-op-' + key).value;
   const ok = await confirmar(`<b>Asignar en ATGO</b><p>Nº ${esc(r.num)} · ${esc(r.descSede || '')}</p>
-    <table class="md-tab"><tr><td>Técnico</td><td><span>${esc(r.operario)}</span> → <b>${esc(op)}</b></td></tr>${f ? `<tr><td>Fecha de visita</td><td><b>${esc(f.split('-').reverse().join('/'))}</b></td></tr>` : ''}</table>
-    <p class="hint">Despacho reenvía la ficha tal cual cambiando solo esto y lo comprueba campo a campo.</p>`, 'Asignar');
+    <table class="md-tab"><tr><td>Técnico</td><td><span>${esc(r.operario)}</span> → <b>${esc(op)}</b></td></tr></table>
+    <p class="hint">Despacho reenvía la ficha tal cual cambiando solo el técnico y lo comprueba campo a campo. La fecha puedes ponerla después en Semana o en la ficha.</p>`, 'Asignar');
   if (!ok) return;
-  const res = await enviarEdicion('asignar', key, { codOpe: op, ...(f ? { fechaVisita: f } : {}), resumen: `Asignado: ${r.operario} → ${op}${f ? ' · visita ' + f : ''}` });
+  const res = await enviarEdicion('asignar', key, { codOpe: op, resumen: `Asignado: ${r.operario} → ${op}` });
   if (res && res.ok) { poolRows = poolRows.filter(x => tkey(x) !== key); renderSin(); updateSinBadge(); }
 }
 
@@ -296,43 +292,77 @@ function chipTicket(r, extra) {
   const k = tkey(r);
   return `<div class="tk" draggable="true" data-drag="${esc(k)}" title="${esc([r.descSede, motivoTexto(k)].filter(Boolean).join(' · '))}">${extra || ''}<b class="mono">${esc(String(r.num).slice(-5))}</b><span>${esc(r.desdeHora || '')}</span></div>`;
 }
+let semDet = null;   // casilla con el detalle abierto: "OP|yyyy-mm-dd"
+let semGrupos = { pool: true, sinF: true, venc: true };
+function semPendGrupos() {
+  const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+  const tec = rows.filter(r => esPresencial(r) && TECNICOS.includes(cleanInitials(r.operario)) && enZona(r));
+  return [
+    { id: 'pool', titulo: 'Sin asignar', l: poolRows.filter(r => esMiZonaPool(r) && !buzon[tkey(r)] && (!zonaSel || zonaPool(r) === zonaSel)) },
+    { id: 'venc', titulo: 'Vencidas', l: tec.filter(r => r.fVisita && parseEs(r.fVisita) < hoy) },
+    { id: 'sinF', titulo: 'Sin fecha', l: tec.filter(r => !r.fVisita) }
+  ];
+}
+function nivelCarga(m) { return !m ? 'l0' : m > JORNADA_MIN ? 'l3' : m > JORNADA_MIN * 0.75 ? 'l2' : 'l1'; }
 function renderSemana() {
   const root = document.getElementById('viewSem');
   const dias = diasSemana(), act = fase2Activa('*');
   const zonas = zonaSel ? ZONAS_TEC.filter(z => z.nombre === zonaSel) : ZONAS_TEC;
-  const pend = semPendientes();
-  const fmtD = d => DIAS[d.getDay()].slice(0, 3) + ' ' + d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
-  root.innerHTML = `<div class="dia-top"><h1>Semana</h1>
-      <div class="daynav"><button class="iconbtn" onclick="semOff--;renderSemana()" aria-label="Semana anterior">◀</button><span class="day">${esc(fmtD(dias[0]))} – ${esc(fmtD(dias[4]))}</span><button class="iconbtn" onclick="semOff++;renderSemana()" aria-label="Semana siguiente">▶</button>${semOff ? '<button class="btn sm" onclick="semOff=0;renderSemana()">Esta semana</button>' : ''}<button class="btn sm" onclick="abrirMapa(manDate)">Mapa</button></div></div>
-    <div id="semChips"></div>
-    ${act ? '' : '<div class="od-aviso">Para arrastrar y planificar, activa «Planificar en ATGO» para todos los tickets en ⚙.</div>'}
+  const grupos = semPendGrupos(), nPend = grupos.reduce((s, g) => s + g.l.length, 0), nVenc = grupos[1].l.length;
+  const fmtD = d => DIAS[d.getDay()].slice(0, 3) + ' ' + d.getDate();
+  const confDia = Object.fromEntries(dias.map(d => [isoHoy(d), conflictos(ddmmyyyy(d))]));
+  root.innerHTML = `<div class="sem-top">
+      <div class="daynav"><button class="iconbtn" onclick="semOff--;semDet=null;renderSemana()" aria-label="Semana anterior">◀</button>
+        <span class="day">${esc(dias[0].toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }))} – ${esc(dias[4].toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }))}</span>
+        <button class="iconbtn" onclick="semOff++;semDet=null;renderSemana()" aria-label="Semana siguiente">▶</button>
+        ${semOff ? '<button class="btn sm ghost" onclick="semOff=0;semDet=null;renderSemana()">Hoy</button>' : ''}</div>
+      <div id="semChips"></div>
+      <div class="acts">${nVenc && act ? `<button class="btn sm" onclick="replanificarVencidas()" title="Técnico con menos carga de la zona y el próximo laborable">Replanificar ${nVenc} vencidas</button>` : ''}<button class="btn sm" onclick="abrirMapa(manDate)">Mapa</button></div>
+    </div>
+    ${act ? '' : '<div class="od-aviso">Para planificar desde aquí, activa «Planificar en ATGO» para todos los tickets en ⚙.</div>'}
     <div class="sem">
       <aside class="sem-pend">
-        <div class="dsh"><h2>Por planificar</h2><small>${pend.length}</small></div>
-        <div class="dnote" style="margin:0 0 6px">Arrastra a una casilla, o marca varios y asígnalos de una vez.</div>
-        ${pend.length ? pend.map(({ r, pool }) => `<label class="sp-it" data-key="${esc(tkey(r))}"><input type="checkbox" ${seleccion.has(tkey(r)) ? 'checked' : ''} onclick="event.stopPropagation();selToggle('${jsq(tkey(r))}',this.checked)">${chipTicket(r, pool ? '<i class="pool">sin asignar</i>' : '')}<span class="sp-tx">${esc(cleanInitials(r.operario).startsWith('XXX') ? zonaPool(r) : r.operario)} · ${esc(r.descSede || '')}${r.fVisita ? ' · <span class="venc">vencida ' + esc(r.fVisita.slice(0, 5)) + '</span>' : ''}</span></label>`).join('') : '<div class="dempty">Nada por planificar.</div>'}
+        <div class="sp-head">Por planificar <b>${nPend}</b></div>
+        ${grupos.map(g => g.l.length ? `<div class="sp-g">
+          <button class="sp-gh" onclick="semGrupos['${g.id}']=!semGrupos['${g.id}'];renderSemana()"><span class="pl-chev"${semGrupos[g.id] ? '' : ' style="transform:rotate(-90deg)"'}>▾</span>${esc(g.titulo)} <i>${g.l.length}</i></button>
+          ${semGrupos[g.id] ? g.l.map(r => `<div class="sp-it${seleccion.has(tkey(r)) ? ' sel' : ''}" draggable="true" data-drag="${esc(tkey(r))}" data-key="${esc(tkey(r))}" title="${esc([r.descSede, r.domicilio, motivoTexto(tkey(r))].filter(Boolean).join(' · '))}">
+              <input type="checkbox" ${seleccion.has(tkey(r)) ? 'checked' : ''} onclick="event.stopPropagation();selToggle('${jsq(tkey(r))}',this.checked)" aria-label="Seleccionar">
+              <b class="mono">${esc(String(r.num).slice(-5))}</b><span>${esc(r.descSede || r.domicilio || '—')}</span>
+              <em>${esc(g.id === 'pool' ? zonaPool(r).split('/')[0] : r.operario)}</em></div>`).join('') : ''}
+        </div>` : '').join('') || '<div class="dempty">Todo planificado.</div>'}
         ${seleccion.size ? `<div class="sp-lote"><b>${plural(seleccion.size, 'seleccionado')}</b>
-          <select id="loteOp">${TECNICOS.map(op => `<option${op === loteOp ? ' selected' : ''}>${op}</option>`).join('')}</select>
-          <select id="loteDia">${dias.map(d => `<option value="${isoHoy(d)}"${isoHoy(d) === loteDia ? ' selected' : ''}>${fmtD(d)}</option>`).join('')}</select>
-          <button class="btn sm pri" onclick="loteOp=document.getElementById('loteOp').value;loteDia=document.getElementById('loteDia').value;asignarLote([...seleccion].map(k=>({key:k,codOpe:loteOp,fechaVisita:loteDia})),'Planificación en bloque')">Asignar</button>
-          <button class="btn sm ghost" onclick="seleccion.clear();renderSemana()">Quitar selección</button></div>` : ''}
+          <div class="sp-lote-f"><select id="loteOp">${TECNICOS.filter(op => !zonaSel || zonaDe(op) === zonaSel).map(op => `<option${op === loteOp ? ' selected' : ''}>${op}</option>`).join('')}</select>
+          <select id="loteDia">${dias.map(d => `<option value="${isoHoy(d)}"${isoHoy(d) === loteDia ? ' selected' : ''}>${fmtD(d)}</option>`).join('')}</select></div>
+          <div class="acts"><button class="btn sm pri" onclick="loteOp=document.getElementById('loteOp').value;loteDia=document.getElementById('loteDia').value;asignarLote([...seleccion].map(k=>({key:k,codOpe:loteOp,fechaVisita:loteDia})),'Planificación en bloque')">Asignar</button>
+          <button class="btn sm ghost" onclick="seleccion.clear();renderSemana()">Cancelar</button></div></div>` : `<div class="sp-hint">Arrastra a un técnico y día, o marca varios.</div>`}
       </aside>
-      <div class="sem-grid">
-        <div class="sg-row sg-head"><div></div>${dias.map(d => `<div class="${isoHoy(d) === isoHoy() ? 'hoy' : ''}">${esc(fmtD(d))}</div>`).join('')}</div>
-        ${zonas.map(z => `<div class="sg-zona">${esc(z.nombre)}</div>` + z.ops.map(op => `<div class="sg-row"><div class="sg-op"><b>${esc(op)}</b></div>${dias.map(d => {
-          const f = ddmmyyyy(d), vis = sortByHora(rows.filter(x => esPresencial(x) && x.fVisita === f && x.operario === op));
-          const m = cargaMin(op, f), pc = Math.min(100, Math.round(m / JORNADA_MIN * 100));
-          const conf = conflictos(f).filter(c => c.op === op);
-          const id = op + '|' + isoHoy(d), abierta = semAbierta[id];
-          return `<div class="sg-cell${conf.length ? ' conf' : ''}" data-drop="${esc(op)}|${isoHoy(d)}" title="${esc(conf.map(c => c.texto).join('\n'))}">
-            <div class="sg-n" onclick="semAbierta['${jsq(id)}']=!semAbierta['${jsq(id)}'];renderSemana()">${vis.length ? `<b>${vis.length}</b>${m ? ' · ' + fmtMin(m) : ''}` : '<span class="lib">—</span>'}${conf.length ? ' <span class="cf">⚠</span>' : ''}</div>
-            <div class="sg-bar"><i class="${m > JORNADA_MIN ? 'over' : ''}" style="width:${pc}%"></i></div>
-            ${abierta || vis.length <= 3 ? `<div class="sg-tks">${vis.map(r => chipTicket(r)).join('')}</div>` : ''}
-          </div>`;
-        }).join('')}</div>`).join('')).join('')}
+      <div class="sem-main">
+        <div class="sem-grid">
+          <div class="sg-row sg-head"><div></div>${dias.map(d => `<div class="${isoHoy(d) === isoHoy() ? 'hoy' : ''}">${esc(fmtD(d))}</div>`).join('')}</div>
+          ${zonas.map(z => `<div class="sg-zona">${esc(z.nombre)}</div>` + z.ops.map(op => `<div class="sg-row"><div class="sg-op">${esc(op)}</div>${dias.map(d => {
+            const f = ddmmyyyy(d), n = rows.filter(x => esPresencial(x) && x.fVisita === f && x.operario === op).length;
+            const m = cargaMin(op, f), conf = confDia[isoHoy(d)].filter(c => c.op === op), id = op + '|' + isoHoy(d);
+            return `<div class="sg-cell ${nivelCarga(m)}${semDet === id ? ' on' : ''}" data-drop="${esc(id)}" onclick="semDet=semDet==='${jsq(id)}'?null:'${jsq(id)}';renderSemana()" title="${esc((n ? plural(n, 'visita') + ' · ≈ ' + fmtMin(m) : 'Libre') + (conf.length ? '\n⚠ ' + conf.map(c => c.texto).join('\n⚠ ') : ''))}">
+              ${n ? `<b>${n}</b><small>${esc(fmtMin(m))}</small>` : '<span class="lib">·</span>'}${conf.length ? '<i class="cf">⚠</i>' : ''}</div>`;
+          }).join('')}</div>`).join('')).join('')}
+        </div>
+        <div class="sg-ley"><span><i class="l1"></i>holgado</span><span><i class="l2"></i>más del 75 % de la jornada</span><span><i class="l3"></i>más de ${JORNADA_MIN / 60} h</span><span><i class="cf">⚠</i> conflicto</span></div>
+        ${semDet ? semDetalleHtml(semDet) : ''}
       </div>
     </div>`;
-  document.getElementById('semChips').appendChild(zoneChips(() => renderSemana(), Object.fromEntries(ZONAS_TEC.map(z => [z.nombre, rows.filter(r => zonaDe(r.operario) === z.nombre && esPresencial(r)).length || '0'])), ZONAS_TEC));
+  document.getElementById('semChips').appendChild(zoneChips(() => { semDet = null; renderSemana(); }, Object.fromEntries(ZONAS_TEC.map(z => [z.nombre, rows.filter(r => zonaDe(r.operario) === z.nombre && esPresencial(r)).length || '0'])), ZONAS_TEC));
+}
+function semDetalleHtml(id) {
+  const [op, iso] = id.split('|'), d = parseIso(iso), f = ddmmyyyy(d);
+  const vis = sortByHora(rows.filter(x => esPresencial(x) && x.fVisita === f && x.operario === op));
+  const conf = conflictos(f).filter(c => c.op === op);
+  return `<div class="sem-det" data-drop="${esc(id)}">
+    <div class="sd-h"><b>${esc(op)}</b> · ${esc(diaLargo(d))} · ${vis.length ? plural(vis.length, 'visita') + ' · ≈ ' + fmtMin(cargaMin(op, f)) : 'libre'}
+      ${vis.length ? `<button class="btn sm ghost" onclick="abrirRuta('${jsq(op)}','${f}')">Ruta</button>` : ''}<button class="iconbtn sm" onclick="semDet=null;renderSemana()" aria-label="Cerrar">✕</button></div>
+    ${conf.map(c => `<div class="sd-conf">⚠ ${esc(c.texto)}</div>`).join('')}
+    ${vis.length ? vis.map(r => `<div class="sd-it" draggable="true" data-drag="${esc(tkey(r))}" data-key="${esc(tkey(r))}"><span class="h">${esc(r.desdeHora || '--:--')}</span><b class="mono">${esc(String(r.num).slice(-5))}</b><span>${esc(r.descSede || '')}</span><em>${esc(r.tipo || '')}</em></div>`).join('') : '<div class="dempty">Sin visitas. Arrastra aquí un ticket para planificarlo.</div>'}
+    ${vis.length ? '<div class="sp-hint">Arrastra una visita a otra casilla para moverla de técnico o de día.</div>' : ''}
+  </div>`;
 }
 function selToggle(k, on) { on ? seleccion.add(k) : seleccion.delete(k); renderSemana(); }
 // Arrastrar y soltar
@@ -375,14 +405,10 @@ function lineaTiempoHtml() {
 
 // ===== Secciones adicionales de Mi día =====
 function seccionesExtra() {
-  const fM = ddmmyyyy(nextWorkday()), cM = conflictos(fM), reinc = reincidencias();
+  const fM = ddmmyyyy(nextWorkday()), cM = conflictos(fM);
   return `<section class="dsec" id="secConf">
       <div class="dsh"><h2>Conflictos</h2><small>${esc(diaLargo(nextWorkday()))} · ${cM.length}</small></div>
       ${cM.length ? `<ul class="tlist">${cM.map(c => `<li class="due" data-key="${esc(c.keys[0])}"><b class="mono">${esc(c.op)}</b><span class="tx">${esc(c.texto)}</span><span class="ex">${esc(c.tipo === 'solape' ? 'solape' : c.tipo === 'gls' ? 'GLS' : 'carga')}</span></li>`).join('')}</ul>` : '<div class="dempty">Sin solapes, sobrecargas ni choques con la recogida en GLS.</div>'}
-    </section>
-    <section class="dsec" id="secReinc">
-      <div class="dsh"><h2>Reincidencias</h2><small>misma sede · 30 días · ${reinc.length}</small></div>
-      ${reinc.length ? `<ul class="tlist">${reinc.slice(0, 15).map(l => `<li data-key="${esc(l[0].key)}"><b class="mono">${l.length}×</b><span class="tx">${esc(l[0].sede)} · ${esc(l[0].cli || '')}</span><span class="ex">${esc(l.map(t => String(t.num).slice(-5)).join(', '))}</span></li>`).join('')}</ul>` : '<div class="dempty">Ninguna sede con varios tickets en 30 días.</div>'}
     </section>`;
 }
 
@@ -426,29 +452,56 @@ const COLORES_MAPA = ['#2f8f87', '#c9862b', '#5b8dd9', '#a97fd1', '#c9527a', '#5
 async function abrirMapa(fecha) {
   const f = ddmmyyyy(fecha || manDate), m = document.getElementById('modal');
   const ops = TECNICOS.filter(op => (!zonaSel || zonaDe(op) === zonaSel) && rows.some(x => esPresencial(x) && x.fVisita === f && x.operario === op));
-  m.innerHTML = `<div class="md-box md-mapa"><div class="dw-head"><div><div class="dw-num" style="color:var(--ink)">Mapa · ${esc(diaLargo(parseEs(f)))}</div><div class="dw-sub" id="mapaEst">Cargando…</div></div><button class="iconbtn" onclick="cerrarModal()" aria-label="Cerrar">✕</button></div><div id="mapa"></div><div class="mapa-leg">${ops.map((op, i) => `<span><i style="background:${COLORES_MAPA[i % COLORES_MAPA.length]}"></i>${esc(op)}</span>`).join('')}</div></div>`;
+  const color = op => COLORES_MAPA[ops.indexOf(op) % COLORES_MAPA.length];
+  m.innerHTML = `<div class="md-box md-mapa"><div class="dw-head"><div><div class="dw-num" style="color:var(--ink)">Mapa · ${esc(diaLargo(parseEs(f)))}</div><div class="dw-sub" id="mapaEst">Cargando…</div></div><button class="iconbtn" onclick="cerrarModal()" aria-label="Cerrar">✕</button></div><div id="mapa"></div><div class="mapa-leg" id="mapaLeg"></div></div>`;
   m.hidden = false;
-  if (!ops.length) { document.getElementById('mapaEst').textContent = 'Sin visitas ese día.'; return; }
-  try { await cargarLeaflet(); } catch (e) { document.getElementById('mapaEst').textContent = 'No se pudo cargar el mapa (sin conexión).'; return; }
-  const mapa = L.map('mapa').setView([37.4, -4.5], 7);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18, attribution: '© OpenStreetMap' }).addTo(mapa);
-  setTimeout(() => mapa.invalidateSize(), 150);   // la ventana acaba de abrirse: Leaflet recalcula su tamaño
-  const puntos = [];
-  let hechos = 0, total = ops.reduce((s, op) => s + paradasRuta(op, f).filter(x => !x.gls).length, 0);
-  for (let i = 0; i < ops.length; i++) {
-    const op = ops[i], color = COLORES_MAPA[i % COLORES_MAPA.length], linea = [];
+  const est = t => { const e = document.getElementById('mapaEst'); if (e) e.textContent = t; };
+  if (!ops.length) { est('Sin visitas ese día.'); return; }
+  try { await cargarLeaflet(); } catch (e) { est('No se pudo cargar el mapa (sin conexión).'); return; }
+  // Situar todas las visitas (las direcciones ya buscadas salen de la caché)
+  const datos = {}; let hechos = 0;
+  const total = ops.reduce((s, op) => s + paradasRuta(op, f).filter(x => !x.gls).length, 0);
+  for (const op of ops) {
+    datos[op] = [];
     for (const [n, x] of paradasRuta(op, f).filter(x => !x.gls).entries()) {
       const ll = await geocodificar(direccionMaps(x.r));
-      hechos++; const est = document.getElementById('mapaEst'); if (est) est.textContent = `Situando direcciones ${hechos}/${total}…`;
-      if (!ll || !document.getElementById('mapa')) continue;
-      linea.push(ll); puntos.push(ll);
-      L.circleMarker(ll, { radius: 9, color, fillColor: color, fillOpacity: .85, weight: 2 }).addTo(mapa)
-        .bindTooltip(`${n + 1}`, { permanent: true, direction: 'center', className: 'mapa-num' })
-        .bindPopup(`<b>${esc(op)} · ${esc(x.r.desdeHora || 'sin hora')}</b><br>Nº ${esc(x.r.num)}<br>${esc(x.r.descSede || '')}<br>${esc(x.r.domicilio || '')}`);
+      hechos++; est(`Situando direcciones ${hechos}/${total}…`);
+      if (!document.getElementById('mapa')) return;
+      if (ll) datos[op].push({ ll, x, n: n + 1 });
     }
-    if (linea.length > 1) L.polyline(linea, { color, weight: 3, opacity: .7 }).addTo(mapa);
   }
+  const mapa = L.map('mapa', { zoomControl: true }).setView([37.4, -4.5], 7);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18, attribution: '© OpenStreetMap' }).addTo(mapa);
+  setTimeout(() => mapa.invalidateSize(), 150);
+  const capa = L.layerGroup().addTo(mapa);
+  let modo = 'todos';
+  const centro = l => [l.reduce((s, p) => s + p.ll[0], 0) / l.length, l.reduce((s, p) => s + p.ll[1], 0) / l.length];
+  function leyenda(sel) {
+    document.getElementById('mapaLeg').innerHTML = ops.map(op => `<button class="mapa-tec${sel === op ? ' on' : ''}" onclick="window.__mapaVer('${jsq(op)}')"><i style="background:${color(op)}"></i>${esc(op)} <small>${datos[op].length}</small></button>`).join('') + (sel ? '<button class="mapa-tec" onclick="window.__mapaVer(null)">Ver todos</button>' : '');
+  }
+  function verTodos() {
+    modo = 'todos'; capa.clearLayers(); const pts = [];
+    ops.filter(op => datos[op].length).forEach(op => {
+      const c = centro(datos[op]); pts.push(c);
+      L.marker(c, { icon: L.divIcon({ className: 'mapa-burbuja', html: `<div style="background:${color(op)}"><b>${esc(op)}</b><span>${datos[op].length}</span></div>`, iconSize: [58, 38], iconAnchor: [29, 19] }), bubblingMouseEvents: false })
+        .on('click', ev => { L.DomEvent.stopPropagation(ev); verTecnico(op); }).addTo(capa);
+    });
+    if (pts.length) mapa.fitBounds(pts, { padding: [60, 60], maxZoom: 11 });
+    est(`${ops.length} técnicos · pulsa una burbuja para ver sus visitas`); leyenda(null);
+  }
+  function verTecnico(op) {
+    modo = op; capa.clearLayers(); const c = color(op), pts = datos[op].map(p => p.ll);
+    if (!pts.length) { est(op + ': no se encontraron sus direcciones'); return; }
+    datos[op].forEach(p => {
+      L.marker(p.ll, { icon: L.divIcon({ className: 'mapa-punto', html: `<div style="background:${c}">${p.n}</div>`, iconSize: [24, 24], iconAnchor: [12, 12] }), bubblingMouseEvents: false })
+        .bindPopup(`<b>${p.n}. ${esc(p.x.r.desdeHora || 'Sin hora')} · Nº ${esc(p.x.r.num)}</b><br>${esc(p.x.r.descSede || '')}<br>${esc(p.x.r.domicilio || '')}`).addTo(capa);
+    });
+    if (pts.length > 1) L.polyline(pts, { color: c, weight: 3, opacity: .75 }).addTo(capa);
+    mapa.fitBounds(pts, { padding: [50, 50], maxZoom: 14 });
+    est(`${op} · ${plural(pts.length, 'visita')} en orden de ruta · pulsa en el mapa para volver a todos`); leyenda(op);
+  }
+  window.__mapaVer = op => op ? verTecnico(op) : verTodos();
+  mapa.on('click', () => { if (modo !== 'todos') verTodos(); });
   mapa.invalidateSize();
-  if (puntos.length) mapa.fitBounds(puntos, { padding: [30, 30] });
-  const est = document.getElementById('mapaEst'); if (est) est.textContent = `${puntos.length}/${total} visitas situadas${puntos.length < total ? ' (algunas direcciones no se encontraron)' : ''}`;
+  verTodos();
 }

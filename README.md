@@ -21,7 +21,7 @@ No hace falta compilar nada: son archivos estáticos (HTML + JS) y GitHub Pages 
 | `herramientas.js` | Cerradas (15 días), material, caducidad (SLA), copia en OneDrive, ruta en Google Maps, técnico sugerido, correos del día e informe semanal |
 | `panel.js` | Sin asignar y buzón, Vista Semana (arrastrar y soltar, en bloque), replanificar, respuestas rápidas, carga en horas, línea de tiempo, conflictos, reincidencias, mapa, avisos de comentarios, vigilancia de la sincronización y secciones plegables |
 | `extension/`, `despacho-extension.zip` | Extensión de Edge/Chrome que arranca la sincronización sola al abrir ATGO |
-| `docs/` | Planteamientos para estudiar (supervisor y varios dispatchers) |
+| `docs/` | Estudios y planteamientos: supervisor y varios dispatchers, mejoras para Windows, versión para iPhone |
 | `edicion.js` | Edición en ATGO desde la ficha: comentario en el hilo y cambio de estado |
 | `dia.js` | Mi día, novedades, avisos, ficha del ticket, notas, buscador, rutina, resumen y copia de seguridad |
 | `atgo-sync.js` | Sincronización con ATGO (se ejecuta dentro de la pestaña de ATGO mediante el marcador) |
@@ -144,9 +144,11 @@ Pestaña **Sin asignar**: visitas en **PRESENCIAL** que siguen en un operario co
 
 Pestaña **Semana**: técnicos (por zona) × días de lunes a viernes, con nº de visitas, **carga en horas** y ⚠ si hay conflicto.
 
-- A la izquierda, **Por planificar**: sin asignar de tu zona, visitas sin fecha y vencidas. **Arrastra** un ticket a la casilla de un técnico y un día: se planifica en ATGO (con confirmación).
+- A la izquierda, **Por planificar**, en tres grupos plegables: *Sin asignar* (tu zona), *Vencidas* y *Sin fecha*. **Arrastra** un ticket a la casilla de un técnico y un día: se planifica en ATGO (con confirmación). Arrastrando una visita desde el detalle de una casilla a otra, se mueve de técnico o de día.
+- Las casillas muestran solo el nº de visitas y las horas estimadas; el **color** indica la carga (verde holgado, ámbar > 75 % de la jornada, rojo > 8 h) y ⚠ un conflicto. **Clic en una casilla** abre debajo su detalle (visitas por hora, conflictos, botón *Ruta*).
+- **Replanificar vencidas** (arriba): propone para cada visita vencida el técnico con menos carga de su zona y el próximo laborable, y las guarda en bloque.
 - **En bloque**: marca varios, elige técnico y día y pulsa *Asignar*. Se guardan uno a uno, cada uno comprobado; si alguno falla, los demás siguen y se muestra el motivo.
-- Botón **Mapa**: las visitas del día en un mapa (OpenStreetMap), numeradas en orden de ruta y por técnico. Las direcciones se sitúan con el servicio gratuito Nominatim (1 por segundo, la primera vez) y se guardan en el equipo.
+- Botón **Mapa**: primero una **burbuja por técnico** con su nº de visitas; al pulsar una, solo sus visitas numeradas en orden de ruta; al pulsar en cualquier parte del mapa, vuelven todas las burbujas (también se elige en la leyenda). Las direcciones se sitúan con Nominatim (OpenStreetMap), 1 por segundo la primera vez, y se guardan en el equipo.
 
 ## Mi día
 
@@ -155,16 +157,10 @@ Al abrir la app ves el día de un vistazo. Cada casilla de arriba lleva a su sec
 - **Novedades:** Despacho compara cada actualización de ATGO con la anterior y apunta lo que cambia: tickets nuevos, cambios de estado, reasignaciones, cambios de fecha u hora de visita y tickets que salen de la lista. Lo importante (a tu nombre, escalados, rutas cambiadas) va marcado en naranja. La pestaña *Mi día* muestra cuántas hay sin ver.
   - Un ticket "sale de la lista" cuando deja de estar en los estados u operarios que se siguen; no siempre significa cerrado. Solo se apunta si falta en dos actualizaciones seguidas, para evitar falsos avisos.
 - **A tu nombre:** tickets asignados a AMRG, pendientes de asignar.
-- **Sin planificar:** visitas presenciales sin fecha o con la fecha ya pasada (y cuántas tienen fecha pero no hora).
-- **Seguimientos:** las notas con fecha de revisión de hoy o vencidas (y las de los próximos 7 días).
 - **Rutas:** cuántas rutas de mañana has enviado por WhatsApp y si alguna **cambió en ATGO después de enviarla**.
-- **Parados:** tickets en espera (EN FABRICANTE, MATERIAL PTE. FABRICANTE, PTE. MOVER MATERIAL, ESCALADO TIER1, FUERA DE MANTENIMIENTO) con más de 15 días abiertos o 3 días sin cambios. Los días "sin cambios" se cuentan desde que Despacho empezó a vigilar, así que este dato se completa con los días.
 - **Hoy en directo:** línea de tiempo de 8:00 a 20:00 por técnico con sus visitas de hoy (color según estado), la hora real de inicio y una línea de "ahora".
 - **Conflictos (mañana):** solapes entre citas, más horas estimadas que la jornada (8 h) y citas en la franja de recogida en GLS (9:00-10:00).
-- **Reincidencias:** sedes con varios tickets en 30 días (también ↻ en cada ticket).
-- **Replanificar vencidas:** en *Sin planificar*, propone para cada visita vencida el técnico con menos carga de su zona y el próximo laborable, y las guarda en bloque.
 - **Secciones plegables:** clic en el título de cada sección para plegarla o desplegarla (se recuerda). Botones *Plegar* / *Desplegar* para todas; las casillas de arriba abren su sección.
-- **Rutina:** tus tareas fijas del día. Se vacían solas cada mañana; *Editar* para cambiarlas.
 - **Copiar resumen del día:** texto listo para pegar a tu responsable (abiertas por estado y zona, novedades de hoy, visitas de mañana, sin planificar, parados).
 
 ## Ficha del ticket, notas y seguimientos
