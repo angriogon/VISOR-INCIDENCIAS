@@ -152,6 +152,7 @@ Pestaña **Sin asignar**: visitas en **PRESENCIAL** que siguen en un operario co
 - **Mi zona** (las zonas con técnicos en tu perfil): cada una lleva el **técnico recomendado** (★: el que ya tiene otra incidencia abierta en esa sede, o el de su zona con menos visitas ese día; ir ya a esa población cuenta a favor), un selector con la carga de cada técnico y la **fecha de visita** (opcional). **Asignar** se guarda en ATGO con la comprobación campo a campo.
 - **📍 Misma sede**: si un técnico ya tiene abierta otra incidencia de esa sede, sale un bocadillo junto al técnico y la confirmación lo recuerda (en ámbar si eliges a otro). Igual en la ficha › Actuar.
 - **Ceuta** admite también a los técnicos de Cádiz (DSJ, AAR, EACL, JRHG) y **Melilla** a los de Málaga (JVR, ILG, FMNT, MMHG), marcados como «apoyo». Se cambia en `ZONAS_BASE` (`apoyo`) de `app.js`.
+- **Asignar en masivo**: elige el técnico (y la fecha, si quieres) en cada una y se marcan solas, o usa *Marcar todas* (cogen el técnico recomendado ★). **Asignar marcadas** las guarda una a una en ATGO con su comprobación; si alguna falla, las demás siguen y se muestra el motivo. Lo que elijas se conserva aunque ATGO refresque la lista.
 - **Otras zonas**: botón **Archivar** para pasarlas al **Buzón** y controlar si siguen pendientes.
 - Cuando un ticket recibe técnico (lo asignes tú o otro dispatcher) **desaparece solo** del panel y del buzón.
 - Aviso de Windows cuando aparece uno nuevo sin asignar en tu zona.
@@ -212,7 +213,7 @@ tickets nuevos o reasignados a tu nombre, escalados a TIER1, cambios en las ruta
 - ⚙ **General**: tema (Windows, claro u oscuro), tamaño (cómodo o denso), **resumen matinal** (aviso de Windows a la hora que elijas con visitas, sin asignar y caducidades) y aviso si un técnico **no ha iniciado ninguna visita** a la hora indicada.
 - ⚙ **Datos**: copia en OneDrive y manual, **exportar a Excel** (incidencias filtradas o la planificación de la semana), informe semanal con **histórico de 8 semanas** y **diagnóstico** (copia la versión y los últimos errores para enviarlos si algo falla).
 - **Incidencias** tiene filtros por estado, «caducan en 24 h o vencidas» y texto; ☆ **Guardar** los deja como acceso rápido. Cada incidencia muestra al final su **estado en color** y su **fecha de visita**.
-- La sincronización se hace cada 2 min en horario laboral (L-V de 7 a 20 h) y cada 10 min fuera de él. Si ATGO devuelve de golpe casi nada, Despacho no lo aplica hasta confirmarlo en la siguiente carga, y si cambia el formato de su web, avisa.
+- La sincronización con ATGO se hace cada 2 minutos. Si ATGO devuelve de golpe casi nada, Despacho no lo aplica hasta confirmarlo en la siguiente carga, y si cambia el formato de su web, avisa.
 
 ## Tus datos
 
@@ -229,6 +230,6 @@ tickets nuevos o reasignados a tu nombre, escalados a TIER1, cambios en las ruta
 
 - `ZONAS_BASE` (en `app.js`): zonas, sus técnicos y los de **apoyo**. La zona `DISPATCHER` (AMRG) es quien controla: sale la primera en Incidencias y no cuenta como técnico ni recibe WhatsApp. En `atgo-sync.js` está la misma lista en `OPERARIOS`: si añades o quitas un técnico, cámbialo en los dos (las pruebas automáticas lo comprueban). Un técnico nuevo entra solo en el perfil DSP1.
 - `ESTADOS`: estados que se cargan. En `app.js` por nombre; en `atgo-sync.js` por código de ATGO (10 PRESENCIAL, 20 PUESTO OPERATIVO, 30 FUERA DE MANTENIMIENTO, 40 MATERIAL PTE. FABRICANTE, 80 PTE. MOVER MATERIAL, 100 EN FABRICANTE, 110 ESCALADO TIER1).
-- `REFRESCO_MIN` y `REFRESCO_FUERA_MIN` (en `atgo-sync.js`): minutos entre actualizaciones dentro y fuera del horario laboral.
+- `REFRESCO_MIN` (en `atgo-sync.js`): minutos entre actualizaciones (2).
 - `COLS` (en `app.js`): qué columna del Excel corresponde a cada dato (0 = A, 1 = B, …).
 - Al publicar una versión, sube a la vez `VERSION` en `sw.js` y `APP_VERSION` en `ajustes.js`, y añade sus novedades en `NOVEDADES` (`ajustes.js`).

@@ -592,3 +592,9 @@
   body.densa .sa-row{min-height:30px; padding-top:3px; padding-bottom:3px;}
   body.densa .dsec, body.densa .tcard{font-size:12px;}
   body.densa main{padding-top:10px;}
+  /* Sin asignar: asignación masiva */
+  .sa-barra{display:flex; gap:12px; align-items:center; flex-wrap:wrap; background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:6px 10px; font-size:12px; color:var(--ink-dim); position:sticky; top:52px; z-index:3;}
+  .sa-barra .btn{margin-left:auto;}
+  .sa-todas{display:flex; gap:6px; align-items:center; color:var(--ink); font-weight:600; cursor:pointer;}
+  .sa-ck{margin:0 8px 0 0; vertical-align:-2px; cursor:pointer;}
+  .sa-row.marcada{background:var(--teal-dim);}

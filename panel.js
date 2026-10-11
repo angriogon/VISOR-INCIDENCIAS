@@ -49,6 +49,7 @@ function recibirPool(m) {
   // Los que ya tienen técnico desaparecen solos del panel y del buzón
   const vivos = new Set(poolRows.map(tkey));
   Object.keys(buzon).forEach(k => { if (!vivos.has(k)) delete buzon[k]; });
+  Object.keys(sinElec).forEach(k => { if (!vivos.has(k)) delete sinElec[k]; });
   lsSet(BUZON_KEY, buzon);
   // Aviso de nuevos sin asignar en tu zona (no la primera vez)
   if (poolVistos) {
@@ -108,19 +109,55 @@ function recomendar(r, fecha) {
     return { op, carga: vis.length, min: cargaMin(op, f), abiertas, juntos, apoyo, sede, score: vis.length - (juntos ? 1.5 : 0) - (sede ? 3 : 0) + (apoyo ? 0.5 : 0) + abiertas / 100 };
   }).sort((a, b) => a.score - b.score || a.min - b.min || opIndex(a.op) - opIndex(b.op));
 }
+// Elección de cada fila (técnico, fecha, marcada): se conserva aunque ATGO refresque la lista cada 2 min
+let sinElec = {};
+function sinSet(k, campo, v) {
+  const e = sinElec[k] = sinElec[k] || {};
+  e[campo] = v; if (campo !== 'on') e.on = true;   // elegir técnico o fecha marca la fila
+  const ck = document.getElementById('sa-ck-' + k); if (ck) ck.checked = !!e.on;
+  renderSinBarra();
+}
+function sinAsignables() { return sinVista === 'pend' ? (sinFiltro === 'mia' ? sinListas().mias : sinListas().pend).filter(esMiZonaPool) : []; }
+function sinMarcadas() { return sinAsignables().filter(r => sinElec[tkey(r)] && sinElec[tkey(r)].on); }
+function sinMarcarTodas(si) {
+  sinAsignables().forEach(r => { const k = tkey(r); sinElec[k] = { ...(sinElec[k] || {}), on: si }; });
+  renderSin();
+}
+function renderSinBarra() {
+  const b = document.getElementById('saBarra'); if (!b) return;
+  const tot = sinAsignables().length, n = sinMarcadas().length;
+  b.innerHTML = `<label class="sa-todas"><input type="checkbox" ${n && n === tot ? 'checked' : ''} onchange="sinMarcarTodas(this.checked)"> Marcar todas</label>
+    <span>${n ? plural(n, 'marcada') : 'Elige técnico (y fecha si quieres) en cada una: se marcan solas'}</span>
+    <button class="btn sm pri" onclick="asignarMarcadas()"${n ? '' : ' disabled'}>Asignar ${n ? plural(n, 'marcada') : 'marcadas'}</button>`;
+}
+// Asignación masiva: cada fila con su técnico y su fecha (opcional); se guardan una a una con comprobación
+async function asignarMarcadas() {
+  const items = sinMarcadas().map(r => {
+    const k = tkey(r), e = sinElec[k] || {}, sel = document.getElementById('sa-op-' + k);
+    const op = e.op || (sel && sel.value); return op ? { key: k, codOpe: op, ...(e.f ? { fechaVisita: e.f } : {}) } : null;
+  }).filter(Boolean);
+  if (!items.length) { toast('Marca al menos una'); return; }
+  const res = await asignarLote(items, 'Asignar sin asignar en ATGO');
+  if (res && res.okKeys.length) {
+    const ok = new Set(res.okKeys);
+    poolRows = poolRows.filter(x => !ok.has(tkey(x))); ok.forEach(k => delete sinElec[k]);
+    renderSin(); updateSinBadge();
+  }
+}
 function sinFila(r, enBuzon) {
   const k = tkey(r), mia = esMiZonaPool(r), mot = motivoTexto(k), act = actualizado(r);
   const hoy = new Date(); hoy.setHours(12, 0, 0, 0);
   const rec = mia && !enBuzon ? recomendar(r, hoy) : null;
   const lugar = [r.poblacion, r.provincia].filter(Boolean).join(', ') || r.domicilio || '';
-  return `<div class="sa-row${mia ? '' : ' otra'}" data-key="${esc(k)}" title="${esc(mot || '')}">
-    <span class="sa-num">${numHtml(r)}</span>
+  const e = sinElec[k] || {};
+  return `<div class="sa-row${mia ? '' : ' otra'}${e.on && rec ? ' marcada' : ''}" data-key="${esc(k)}" title="${esc(mot || '')}">
+    <span class="sa-num">${rec && rec.length ? `<input type="checkbox" class="sa-ck" id="sa-ck-${esc(k)}" ${e.on ? 'checked' : ''} onchange="sinSet('${jsq(k)}','on',this.checked);this.closest('.sa-row').classList.toggle('marcada',this.checked)" aria-label="Marcar para asignar">` : ''}${numHtml(r)}</span>
     <span class="sa-zona${mia ? ' mia' : ''}">${esc(zonaPool(r))}</span>
     <span class="sa-tx"><b>${esc(r.descSede || '—')}</b> · ${esc(r.descCliente || '')} · ${esc(lugar)}${mot ? ` · <i>${esc(mot.slice(0, 90))}</i>` : ''}</span>
     <span class="sa-badges">${cadBadge(r)}${reincBadge(r)}</span>
     <span class="sa-act">${act ? esc(cuando(act)) : ''}</span>
-    <span class="sa-acc">${rec && rec.length ? `${sedeAvisoHtml(r)}<select id="sa-op-${esc(k)}" title="Técnicos de la zona: el primero es el recomendado (misma sede o menos visitas hoy)">${rec.map((x, i) => `<option value="${esc(x.op)}">${i === 0 ? '★ ' : ''}${esc(x.op)} · ${x.sede ? 'ya va a la sede' : x.carga ? x.carga + ' hoy' : 'libre'}${x.apoyo ? ' · apoyo' : ''}</option>`).join('')}</select>
-      <input type="date" id="sa-f-${esc(k)}" title="Fecha de visita (opcional)">
+    <span class="sa-acc">${rec && rec.length ? `${sedeAvisoHtml(r)}<select id="sa-op-${esc(k)}" onchange="sinSet('${jsq(k)}','op',this.value);this.closest('.sa-row').classList.add('marcada')" title="Técnicos de la zona: el primero es el recomendado (misma sede o menos visitas hoy)">${rec.map((x, i) => `<option value="${esc(x.op)}"${e.op === x.op ? ' selected' : ''}>${i === 0 ? '★ ' : ''}${esc(x.op)} · ${x.sede ? 'ya va a la sede' : x.carga ? x.carga + ' hoy' : 'libre'}${x.apoyo ? ' · apoyo' : ''}</option>`).join('')}</select>
+      <input type="date" id="sa-f-${esc(k)}" value="${esc(e.f || '')}" onchange="sinSet('${jsq(k)}','f',this.value);this.closest('.sa-row').classList.add('marcada')" title="Fecha de visita (opcional)">
       <button class="btn sm pri" onclick="asignarSin('${jsq(k)}')">Asignar</button>` : ''}
       <button class="iconbtn sm" onclick="archivar('${jsq(k)}', ${enBuzon ? 'false' : 'true'})" title="${enBuzon ? 'Recuperar a pendientes' : 'Archivar en el buzón'}" aria-label="${enBuzon ? 'Recuperar' : 'Archivar'}">${enBuzon ? '↩' : '⤓'}</button></span>
   </div>`;
@@ -134,11 +171,12 @@ function renderSin() {
       ${sinVista === 'pend' ? `<span class="seg mini">${[['mia', `Mi zona · ${L.mias.length}`], ['todas', 'Todas las zonas']].map(([v, l]) => `<button class="segb${sinFiltro === v ? ' on' : ''}" onclick="sinFiltro='${v}';renderSin()">${l}</button>`).join('')}</span>` : ''}</div></div>
     <div class="dnote" style="margin:0">Visitas en PRESENCIAL que siguen en un operario «PENDIENTE ASIGNAR». La más reciente arriba. Al asignarse desaparecen solas, también del buzón.</div>
     ${!poolCargado ? '<div class="empty">Esperando la próxima actualización de ATGO (recarga la pestaña de ATGO y pulsa el favorito si no aparece).</div>'
-      : lista.length ? `<div class="sa-list">${lista.map(r => sinFila(r, sinVista === 'buzon')).join('')}</div>`
+      : lista.length ? `${sinAsignables().length ? '<div class="sa-barra" id="saBarra"></div>' : ''}<div class="sa-list">${lista.map(r => sinFila(r, sinVista === 'buzon')).join('')}</div>`
       : `<div class="empty">${sinVista === 'buzon' ? 'El buzón está vacío.'
           : sinFiltro === 'mia' && L.pend.length ? `<h2>Ninguna pendiente en tu zona</h2><div>Hay ${plural(L.pend.length, 'visita')} sin asignar en otras zonas.</div><div class="acts" style="justify-content:center;margin-top:10px"><button class="btn" onclick="sinFiltro='todas';renderSin()">Ver todas las zonas</button></div>`
           : 'No hay visitas pendientes de asignar en ninguna zona.'}</div>`}
     ${poolCargado ? `<div class="dnote">Actualizado ${esc(syncUltima ? cuando(syncUltima) : '—')} · ${plural(poolRows.length, 'visita')} sin asignar en toda España.</div>` : ''}`;
+  renderSinBarra();
 }
 async function asignarSin(key) {
   const r = ticketDe(key); if (!r) return;
@@ -149,7 +187,7 @@ async function asignarSin(key) {
     <p class="hint">Despacho reenvía la ficha tal cual cambiando solo esto y lo comprueba campo a campo.${f ? '' : ' La fecha puedes ponerla después en Planificación o en la ficha.'}</p>`, 'Asignar');
   if (!ok) return;
   const res = await enviarEdicion('asignar', key, { codOpe: op, ...(f ? { fechaVisita: f } : {}), resumen: `Asignado: ${r.operario} → ${op}${f ? ' · visita ' + f.split('-').reverse().join('/') : ''}` });
-  if (res && res.ok) { poolRows = poolRows.filter(x => tkey(x) !== key); renderSin(); updateSinBadge(); }
+  if (res && res.ok) { poolRows = poolRows.filter(x => tkey(x) !== key); delete sinElec[key]; renderSin(); updateSinBadge(); }
 }
 
 // ===== Vigilancia de la sincronización =====
@@ -318,23 +356,26 @@ function reincBadge(r) {
 let loteEnCurso = false;
 async function asignarLote(items, titulo) {
   if (loteEnCurso || !items.length) return;
+  // 📍 si otro técnico ya tiene abierta una incidencia de esa sede
+  const sedeLote = (r, op) => { const ms = mismaSede(r), ops = Object.keys(ms); return ops.length && op && !ops.includes(op) ? ` <span class="sede-aviso warn" title="${esc(ops.map(o => mismaSedeTexto(o, ms[o])).join('\n'))}">📍 ${esc(ops.join(', '))}</span>` : ''; };
   const ok = await confirmar(`<b>${esc(titulo || 'Planificar en ATGO')}</b><p>${plural(items.length, 'ticket')}:</p>
-    <table class="md-tab">${items.slice(0, 15).map(it => { const r = ticketDe(it.key) || {}; return `<tr><td>Nº ${esc(r.num || it.key)}</td><td><span>${esc(r.operario || '')}${r.fVisita ? ' · ' + esc(r.fVisita) : ''}</span> → <b>${esc(it.codOpe || r.operario)}${it.fechaVisita ? ' · ' + esc(it.fechaVisita.split('-').reverse().join('/')) : ''}</b></td></tr>`; }).join('')}${items.length > 15 ? `<tr><td colspan="2">…y ${items.length - 15} más</td></tr>` : ''}</table>
+    <table class="md-tab">${items.slice(0, 25).map(it => { const r = ticketDe(it.key) || {}; return `<tr><td>Nº ${esc(r.num || it.key)}</td><td><span>${esc(r.operario || '')}${r.fVisita ? ' · ' + esc(r.fVisita) : ''}</span> → <b>${esc(it.codOpe || r.operario)}${it.fechaVisita ? ' · ' + esc(it.fechaVisita.split('-').reverse().join('/')) : ''}</b>${sedeLote(r, it.codOpe)}</td></tr>`; }).join('')}${items.length > 25 ? `<tr><td colspan="2">…y ${items.length - 25} más</td></tr>` : ''}</table>
     <p class="hint">Se guardan uno a uno, comprobando cada ficha campo a campo. Si alguno falla, los demás siguen.</p>`, 'Guardar ' + plural(items.length, 'cambio'));
   if (!ok) return;
   loteEnCurso = true;
-  let bien = 0; const mal = [];
+  let bien = 0; const mal = [], okKeys = [];
   for (let i = 0; i < items.length; i++) {
     const it = items[i], r = ticketDe(it.key) || {};
     toast(`Guardando ${i + 1}/${items.length} en ATGO…`);
     const res = await enviarEdicion('asignar', it.key, { ...(it.codOpe && it.codOpe !== cleanInitials(r.operario) ? { codOpe: it.codOpe } : {}), ...(it.fechaVisita ? { fechaVisita: it.fechaVisita } : {}), resumen: `${r.operario || ''} → ${it.codOpe || r.operario}${it.fechaVisita ? ' · ' + it.fechaVisita : ''}` });
-    if (res && res.ok) bien++; else mal.push((r.num || it.key) + ': ' + ((res && res.error) || 'sin respuesta'));
+    if (res && res.ok) { bien++; okKeys.push(it.key); } else mal.push((r.num || it.key) + ': ' + ((res && res.error) || 'sin respuesta'));
   }
   loteEnCurso = false;
   seleccion.clear();
   toast(`${bien}/${items.length} guardados en ATGO${mal.length ? ' · fallaron ' + mal.length : ''}`);
   if (mal.length) confirmar(`<b>No se guardaron ${mal.length}</b><ul>${mal.map(x => `<li>${esc(x)}</li>`).join('')}</ul>`, 'Entendido');
   refreshVisible(); if (document.getElementById('viewSem').style.display !== 'none') renderSemana();
+  return { bien, okKeys, mal };
 }
 
 // ===== Replanificar visitas vencidas =====

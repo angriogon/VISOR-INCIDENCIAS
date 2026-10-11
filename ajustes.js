@@ -3,8 +3,9 @@
 // asistente de inicio, diagnóstico, resumen matinal, aviso de técnico sin actividad y exportar a Excel.
 // Usa utilidades de app.js, dia.js, herramientas.js, edicion.js y panel.js solo en tiempo de llamada.
 
-const APP_VERSION = '1.13.0';   // súbela a la vez que VERSION en sw.js
+const APP_VERSION = '1.13.1';   // súbela a la vez que VERSION en sw.js
 const NOVEDADES = [
+  { v: '1.13.1', f: '2026-10-11', l: ['Sin asignar: asignar en masivo (marca varias, cada una con su técnico y fecha).', 'ATGO se sincroniza siempre cada 2 minutos.'] },
   { v: '1.13.0', f: '2026-10-11', l: [
     'Perfiles DSP1–DSP5 y COORD: cada uno ve solo sus técnicos (⚙ › Perfiles).',
     'Mapa: al pulsar un técnico salen todas sus incidencias; las del día, numeradas en orden de ruta.',

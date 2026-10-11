@@ -34,7 +34,7 @@ Al terminar: "actualiza docs/ESTADO.md". Máximo ~40 líneas: lo antiguo se resu
 
 ## Decisiones tomadas
 - Sin build ni framework: archivos estáticos en la raíz, publicados con GitHub Pages.
-- Sincronización por operario (6 en paralelo); cada 2 min L-V 7-20 h, cada 10 min fuera. `codOpe.in` no funciona en ATGO.
+- Sincronización por operario (6 en paralelo); cada 2 min siempre (el usuario no quiere refresco más lento fuera de horario). `codOpe.in` no funciona en ATGO.
 - Sin asignar = PRESENCIAL de los operarios comodín `XXX-…`; "Mi zona" = zonas con técnicos en el perfil activo.
 - Perfiles: locales en cada equipo (`dispatcher_perfiles_v1`); cambiar de perfil reinicia la foto de novedades.
 - Escrituras en ATGO solo con confirmación y comprobación campo a campo; sin reintentos automáticos (también «Deshacer»).

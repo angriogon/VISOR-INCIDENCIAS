@@ -15,9 +15,8 @@
   // (codOpe.in no funciona en ATGO: ignora el filtro; y sin "sort" la consulta es mucho más lenta.)
   const PAGE_SIZE = 100;           // por operario; si alguno tuviera más, se piden más páginas
   const PARALELO = 6;              // consultas simultáneas
-  const REFRESCO_MIN = 2;          // minutos entre cargas en horario laboral (L-V de 7 a 20 h)
-  const REFRESCO_FUERA_MIN = 10;   // fuera de ese horario: menos carga para ATGO
-  function refrescoMin() { const d = new Date(), h = d.getHours(); return d.getDay() % 6 && h >= 7 && h < 20 ? REFRESCO_MIN : REFRESCO_FUERA_MIN; }
+  const REFRESCO_MIN = 2;          // minutos entre una carga y la siguiente (siempre, también fuera de horario)
+  function refrescoMin() { return REFRESCO_MIN; }
   const TIMEOUT_MS = 120000;
 
   if (location.hostname !== 'atgo.tier1.es') { alert('Abre primero https://atgo.tier1.es e inicia sesión.'); return; }
