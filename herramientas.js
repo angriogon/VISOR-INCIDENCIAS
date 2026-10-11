@@ -200,12 +200,15 @@ function zonaTicket(r) {
 function poblacionDe(r) { return norm(r.poblacion || String(r.domicilio || '').split(',').pop()); }
 function sugerirTecnico(r, fecha) {
   const z = zonaTicket(r); if (!z) return null;
-  const zona = ZONAS.find(x => x.nombre === z); if (!zona) return null;
-  const f = ddmmyyyy(fecha), pob = poblacionDe(r);
-  const lista = zona.ops.map(op => {
+  const zona = ZONAS_BASE.find(x => x.nombre === z); if (!zona) return null;
+  const f = ddmmyyyy(fecha), pob = poblacionDe(r), ms = mismaSede(r);
+  // Técnicos de la zona y los de apoyo (Cádiz para Ceuta, Málaga para Melilla)
+  const lista = zonaOps(z).map(op => {
     const vis = rows.filter(x => esPresencial(x) && x.fVisita === f && x.operario === op && tkey(x) !== tkey(r));
     const juntos = pob ? vis.filter(x => poblacionDe(x) === pob).length : 0;
-    return { op, carga: vis.length, juntos, score: vis.length - (juntos ? 1.5 : 0) };   // ir ya a esa población equivale a 1,5 visitas menos
+    const apoyo = !zona.ops.includes(op), sede = ms[op] || 0;
+    // ir ya a esa población equivale a 1,5 visitas menos; tener otra incidencia en la misma sede, a 3
+    return { op, carga: vis.length, juntos, apoyo, sede, score: vis.length - (juntos ? 1.5 : 0) - (sede ? 3 : 0) + (apoyo ? 0.5 : 0) };
   }).sort((a, b) => a.score - b.score || a.carga - b.carga || opIndex(a.op) - opIndex(b.op));
   return { zona: z, fecha, lista };
 }
@@ -219,7 +222,7 @@ function sugerenciaHtml(r) {
   return `<div class="dw-sec">
     <div class="dw-h">Técnico sugerido <small>${esc(s.zona)} · ${esc(diaLargo(fecha))}</small>
       <span class="seg mini" style="float:right">${[['hoy', 'Hoy'], ['man', 'Próximo laborable']].map(([v, l]) => `<button class="segb${sugDia === v ? ' on' : ''}" onclick="sugDia='${v}';renderFicha()">${l}</button>`).join('')}</span></div>
-    <ul class="sug">${s.lista.slice(0, 3).map((x, i) => `<li${i === 0 ? ' class="best"' : ''}><b>${esc(x.op)}</b><span>${x.carga ? plural(x.carga, 'visita') : 'libre'}${x.juntos ? ` · ya va a ${esc(pob)}` : ''}${x.op === cleanInitials(r.operario) ? ' · asignado ahora' : ''}</span>${typeof fase2Activa === 'function' && fase2Activa(tkey(r)) && x.op !== cleanInitials(r.operario) ? `<button class="btn sm" style="margin-left:auto" onclick="preAsignar('${jsq(x.op)}')">Asignar</button>` : ''}</li>`).join('')}</ul>
+    <ul class="sug">${s.lista.slice(0, 3).map((x, i) => `<li${i === 0 ? ' class="best"' : ''}><b>${esc(x.op)}</b><span>${x.carga ? plural(x.carga, 'visita') : 'libre'}${x.sede ? ' · 📍 ya tiene otra en esta sede' : ''}${x.juntos ? ` · ya va a ${esc(pob)}` : ''}${x.apoyo ? ' · apoyo' : ''}${x.op === cleanInitials(r.operario) ? ' · asignado ahora' : ''}</span>${typeof fase2Activa === 'function' && fase2Activa(tkey(r)) && x.op !== cleanInitials(r.operario) ? `<button class="btn sm" style="margin-left:auto" onclick="preAsignar('${jsq(x.op)}')">Asignar</button>` : ''}</li>`).join('')}</ul>
     <div class="dw-empty">${typeof fase2Activa === 'function' && fase2Activa(tkey(r)) ? '«Asignar» rellena «Planificar en ATGO»; nada se guarda hasta que lo confirmes.' : 'Solo es una sugerencia: la asignación se hace en el ERP.'}</div>
   </div>`;
 }
@@ -321,7 +324,7 @@ function guardarJornada() {
   const venc = rows.filter(r => { const c = !esCierre(r.estado) && caducidad(r); return c && c.ts < Date.now(); }).map(tkey);
   const prev = jornadas[isoHoy()] || {};
   jornadas[isoHoy()] = { ops, venc: [...new Set([...(prev.venc || []), ...venc])], at: Date.now() };
-  Object.keys(jornadas).forEach(k => { const d = parseIso(k); if (d && dias(d) > 40) delete jornadas[k]; });
+  Object.keys(jornadas).forEach(k => { const d = parseIso(k); if (d && dias(d) > 63) delete jornadas[k]; });   // 9 semanas: histórico de indicadores
   lsSet(JORN_KEY, jornadas);
 }
 let infSemana = 'esta';
@@ -368,12 +371,39 @@ function informeHtml(d) {
   ${d.filas.map(x => `<tr><td ${td}><b>${esc(x.op)}</b></td><td ${td}>${esc(x.zona)}</td><td ${tdr}>${x.tot}</td><td ${tdr}>${x.d}</td><td ${tdr}>${x.t}</td><td ${tdr}>${pct(x.d, x.tot)}</td><td ${tdr}>${x.cerr || 0}</td></tr>`).join('')}
   </table></div>`;
 }
+// Histórico de indicadores: últimas 8 semanas (cumplimiento de rutas y caducidades vencidas)
+function abrirHistorico() {
+  const m = document.getElementById('modal'), sem = [];
+  const lun = new Date(); lun.setHours(12, 0, 0, 0); lun.setDate(lun.getDate() - ((lun.getDay() + 6) % 7));
+  for (let i = 7; i >= 0; i--) {
+    const a = new Date(lun); a.setDate(a.getDate() - 7 * i); const b = new Date(a); b.setDate(b.getDate() + 6);
+    const ka = isoHoy(a), kb = isoHoy(b), js = Object.entries(jornadas).filter(([k]) => k >= ka && k <= kb).map(([, j]) => j);
+    const porOp = {}; let tot = 0, d = 0; const venc = new Set();
+    js.forEach(j => { Object.entries(j.ops || {}).forEach(([op, o]) => { const t = porOp[op] = porOp[op] || { tot: 0, d: 0 }; t.tot += o.tot; t.d += o.d; tot += o.tot; d += o.d; }); (j.venc || []).forEach(x => venc.add(x)); });
+    sem.push({ a, tot, d, venc: venc.size, porOp, dias: js.length });
+  }
+  const maxV = Math.max(1, ...sem.map(s => s.venc)), f = x => x.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
+  const ops = TECNICOS.filter(op => sem.some(s => s.porOp[op]));
+  const pc = (a, b) => b ? Math.round(a / b * 100) : null;
+  m.innerHTML = `<div class="md-box md-inf">
+    <div class="dw-head"><div><div class="dw-num" style="color:var(--ink)">Histórico de indicadores</div><div class="dw-sub">Últimas 8 semanas · se guarda un resumen de cada día con Despacho abierto</div></div>
+      <div class="acts"><span class="seg mini">${[['esta', 'Esta semana'], ['pasada', 'Semana pasada'], ['hist', 'Histórico']].map(([v, l]) => `<button class="segb${infSemana === v ? ' on' : ''}" onclick="infSemana='${v}';abrirInforme()">${l}</button>`).join('')}</span>
+      <button class="iconbtn" onclick="cerrarModal()" aria-label="Cerrar">✕</button></div></div>
+    <div class="hist-g">${sem.map(s => { const p = pc(s.d, s.tot); return `<div class="hist-c" title="${esc(`Semana del ${f(s.a)}: ${s.d}/${s.tot} visitas terminadas · ${s.venc} con caducidad vencida · ${plural(s.dias, 'día')} con datos`)}">
+      <div class="hist-bars"><i class="cum" style="height:${p || 0}%"></i><i class="ven" style="height:${Math.round(s.venc / maxV * 100)}%"></i></div>
+      <b>${p == null ? '—' : p + '%'}</b><small>${f(s.a)}</small></div>`; }).join('')}</div>
+    <div class="leg"><span><i style="background:var(--done)"></i>% de visitas terminadas</span><span><i style="background:#d9614f"></i>caducidades vencidas</span></div>
+    ${ops.length ? `<table class="inf hist-t"><thead><tr><th>Técnico</th>${sem.map(s => `<th>${f(s.a)}</th>`).join('')}</tr></thead><tbody>${ops.map(op => `<tr><td>${esc(op)}</td>${sem.map(s => { const o = s.porOp[op], p = o && pc(o.d, o.tot); return `<td class="${p == null ? '' : p >= 85 ? 'ok' : p >= 60 ? 'med' : 'bad'}">${p == null ? '·' : p + '%'}</td>`; }).join('')}</tr>`).join('')}</tbody></table>` : '<div class="dempty">Aún no hay días guardados.</div>'}
+  </div>`;
+  m.hidden = false;
+}
 function abrirInforme() {
+  if (infSemana === 'hist') return abrirHistorico();
   const m = document.getElementById('modal'), d = datosInforme();
   const f = x => x.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
   m.innerHTML = `<div class="md-box">
     <div class="dw-head"><div><div class="dw-num" style="color:var(--ink)">Informe semanal</div><div class="dw-sub">Del ${f(d.ini)} al ${f(d.fin)} · ${d.diasCon.length ? plural(d.diasCon.length, 'día') + ' con datos' : 'sin datos todavía'}</div></div>
-      <div class="acts"><span class="seg mini">${[['esta', 'Esta semana'], ['pasada', 'Semana pasada']].map(([v, l]) => `<button class="segb${infSemana === v ? ' on' : ''}" onclick="infSemana='${v}';abrirInforme()">${l}</button>`).join('')}</span>
+      <div class="acts"><span class="seg mini">${[['esta', 'Esta semana'], ['pasada', 'Semana pasada'], ['hist', 'Histórico']].map(([v, l]) => `<button class="segb${infSemana === v ? ' on' : ''}" onclick="infSemana='${v}';abrirInforme()">${l}</button>`).join('')}</span>
       <button class="iconbtn" onclick="cerrarModal()" aria-label="Cerrar">✕</button></div></div>
     <div class="kpis inc-kpis">
       <div class="kpi"><b>${d.tot.tot}</b>visitas enrutadas</div>
@@ -412,7 +442,7 @@ const IDB = {
 };
 let odHandle = null, odEstado = 'off', odUltima = lsGet('dispatcher_od_ultima', 0);
 function datosCopia() {
-  return { app: 'panel-despacho', version: 4, fecha: new Date().toISOString(), tecnicos: tecCfg, notas, rutina: { items: rutina.items }, avisos: { ...avisos, on: false }, cerradas, jornadas, plantillas: lsGet('dispatcher_plantillas_v2', undefined) };
+  return { app: 'panel-despacho', version: 4, fecha: new Date().toISOString(), tecnicos: tecCfg, notas, rutina: { items: rutina.items }, avisos: { ...avisos, on: false }, cerradas, jornadas, plantillas: lsGet('dispatcher_plantillas_v2', undefined), perfiles: perfilCfg, filtros: filtrosGuardados };
 }
 async function odElegir() {
   if (!window.showDirectoryPicker) { toast('Este navegador no permite elegir carpetas: usa Edge o Chrome'); return; }

@@ -66,6 +66,7 @@ function trackChanges(list) {
   Object.entries(segSnap.items).forEach(([k, o]) => {
     if (seen.has(k)) return;
     o.miss = (o.miss || 0) + 1;
+    if (o.miss >= 2 && !OPERARIOS.includes(cleanInitials(o.op))) { delete segSnap.items[k]; return; }   // técnico de otro perfil: no es que haya salido
     if (o.miss >= 2) { ev('salio', { key: k, num: o.num, operario: o.op, descSede: o.sede, descCliente: o.cli, fVisita: o.f }, o.e, ''); delete segSnap.items[k]; }
   });
   revisarRutasEnviadas(nuevos, now);
@@ -246,7 +247,8 @@ const HILO_KEY = 'dispatcher_hilos_v1';
 let hilos = lsGet(HILO_KEY, {});
 let atgoSource = null, hiloPend = {};
 // Mensajes automáticos de ATGO que no aportan al leer el hilo
-const HILO_SISTEMA = [/^el usuario \S+ ha (iniciado|finalizado|pausado|reanudado|cerrado|reabierto)/i, /^incidencia asignada a/i, /^se ha (cambiado|modificado) el estado/i];
+const HILO_SISTEMA = [/^el usuario \S+ ha (iniciado|finalizado|pausado|reanudado|cerrado|reabierto)/i, /^incidencia asignada a/i, /^se ha (cambiado|modificado) el estado/i,
+  /^el ticket ha cambiado del estado/i, /^cambio caducidad:/i, /^\S+ ha firmado el parte de trabajo/i, /^\[SM\][^-]*- Service Manager - Actualizaci/i];   // mensajes automáticos de ATGO vistos en hilos reales
 function hiloFuente() { return atgoSource || (typeof atgoWin !== 'undefined' && atgoWin && !atgoWin.closed ? atgoWin : null); }
 function pedirHilos(keys) {
   keys = [...new Set(keys)].filter(k => /^\d+\/[^/]+\/\d+$/.test(k));
@@ -367,7 +369,7 @@ function nombreCorto(n, u) {
   const tc = s => s.toLowerCase().replace(/(^|[\s-])\S/g, c => c.toUpperCase());
   return nom ? tc(nom.split(' ')[0] + ' ' + ap.split(' ')[0]) : (n || u || '');
 }
-function hiloHtml(key) {
+function hiloHtml(key, modo) {
   if (!/^\d+\/[^/]+\/\d+$/.test(key)) return '';
   const u = hiloUtil(key), pend = hiloPend[key], src = hiloFuente();
   const esperaLarga = pend && Date.now() - pend > 6000;
@@ -379,20 +381,24 @@ function hiloHtml(key) {
   }
   const m = u.utiles[0], ult = u.utiles.length > 1 ? u.utiles[u.utiles.length - 1] : null;
   const quien = i => `${esc(nombreCorto(i.n, i.u))} · ${esc(i.ts ? cuando(i.ts) : '')}`;
+  if (modo === 'todo') return `<div class="dw-sec"><div class="dw-h">Hilo de ATGO <small>${plural(u.utiles.length, 'mensaje')} · el más reciente arriba</small></div>
+      <ul class="dw-hilo">${u.utiles.slice().reverse().map((i, n) => `<li${n === u.utiles.length - 1 ? ' class="mot"' : ''}><span>${quien(i)}${n === u.utiles.length - 1 ? ' · motivo de apertura' : ''}</span>${esc(i.t)}</li>`).join('')}</ul>
+      ${estado ? `<div class="dw-empty">${esc(estado)}</div>` : ''}</div>`;
   const largo = t => t.length > 260;
   return `<div class="dw-sec">
       <div class="dw-h">Motivo de apertura <small>${quien(m)}</small></div>
       <div class="dw-txt${largo(m.tn) ? ' clamp' : ''}">${esc(m.t)}</div>${largo(m.tn) ? '<button class="dw-more" onclick="this.previousElementSibling.classList.toggle(\'clamp\');this.textContent=this.textContent===\'Ver más\'?\'Ver menos\':\'Ver más\'">Ver más</button>' : ''}
       ${ult ? `<div class="dw-h" style="margin-top:4px">Último comentario <small>${quien(ult)}</small></div>
       <div class="dw-txt last${largo(ult.tn) ? ' clamp' : ''}">${esc(ult.t)}</div>${largo(ult.tn) ? '<button class="dw-more" onclick="this.previousElementSibling.classList.toggle(\'clamp\');this.textContent=this.textContent===\'Ver más\'?\'Ver menos\':\'Ver más\'">Ver más</button>' : ''}` : ''}
-      ${u.utiles.length > 2 ? `<details class="dw-thread"><summary>Hilo completo · ${u.utiles.length} mensajes</summary><ul>${u.utiles.slice().reverse().map(i => `<li><span>${quien(i)}</span>${esc(i.t)}</li>`).join('')}</ul></details>` : ''}
+      ${u.utiles.length > 2 ? `<button class="dw-more" onclick="fichaIr('his')">Ver el hilo completo · ${u.utiles.length} mensajes →</button>` : ''}
       ${estado ? `<div class="dw-empty">${esc(estado)}</div>` : ''}
     </div>`;
 }
 
 // ===== Ficha del ticket (panel lateral) =====
 let fichaKey = null;
-function openTicket(key) {
+function openTicket(key, tab) {
+  if (String(key) !== fichaKey || tab) fichaTab = tab || 'res';
   fichaKey = String(key);
   marcarVistos(fichaKey);
   pedirHilos([fichaKey]);   // se muestra lo guardado y se refresca al momento
@@ -403,6 +409,9 @@ function openTicket(key) {
   refreshVisible();
 }
 function closeTicket() { document.getElementById('drawer').hidden = true; document.body.classList.remove('dw-open'); fichaKey = null; }
+// Pestañas de la ficha: Resumen (lo que hay que saber), Actuar (ATGO, sugerencia, WhatsApp) e Historial.
+let fichaTab = 'res';
+function fichaIr(t) { fichaTab = t; renderFicha(); const p = document.getElementById('dwPanel'); if (p) p.scrollTop = 0; }
 function renderFicha() {
   const edCom = document.getElementById('edCom'), edEst = document.getElementById('edEst');
   const prev = { com: edCom ? edCom.value : '', est: edEst ? edEst.value : '', foco: document.activeElement && document.activeElement.id };
@@ -419,6 +428,7 @@ function renderFicha() {
     ['Cliente', r.descCliente], ['Sede', r.descSede], ['Dirección', r.domicilio], ['Tipo', r.tipo], ['Referencia', r.referencia],
     ['Técnico', [nombreTecnico(r), r.operario, zonaDe(r.operario)].filter(Boolean).join(' · ')],
     ['Visita', visTxt(r.fVisita, r.desdeHora, r.hastaHora) || 'Sin fecha'],
+    ['Duración', esPresencial(r) ? duracionTexto(r) : ''],
     ['Registro', reg ? reg.toLocaleDateString('es-ES') + ` · hace ${plural(dias(reg), 'día')}` : ''],
     ['Sin cambios', s ? (s.last <= segSnap.start ? `desde que se vigila (${plural(dias(s.last), 'día')})` : plural(dias(s.last), 'día')) : '']
   ].filter(x => x[1]) : cz ? [['Cerrada', cuando(cz.ts) + ' · ' + cz.estado], ['Cliente', cz.cli], ['Sede', cz.sede], ['Dirección', cz.dir]].filter(x => x[1])
@@ -426,23 +436,11 @@ function renderFicha() {
   const q = d => isoHoy(d);
   const lunes = (() => { const d = new Date(); d.setDate(d.getDate() + ((8 - d.getDay()) % 7 || 7)); return d; })();
   const quick = [['Hoy', q(new Date())], ['Mañana', q(new Date(Date.now() + 86400000))], ['Lunes', q(lunes)], ['+1 semana', q(new Date(Date.now() + 7 * 86400000))]];
-  p.innerHTML = `
-    <div class="dw-head">
-      <div><div class="dw-num mono">Nº ${esc(base.num)}</div>
-      <div class="dw-sub">${base.estado ? `<span class="dot" style="background:${colorFor(base.estado)}"></span> <b>${esc(base.estado)}</b>` : ''} ${base.operario ? '· ' + esc(base.operario) : ''}</div></div>
-      <button class="iconbtn" onclick="closeTicket()" title="Cerrar (Esc)" aria-label="Cerrar">✕</button>
-    </div>
-    <div class="dw-acts">
-      ${(r || cz) && (r || cz).url && String((r || cz).url).startsWith(ATGO_ORIGIN + '/') ? `<a class="btn pri" href="${esc((r || cz).url)}" target="atgo-ticket" rel="noopener">Abrir en ATGO</a>` : ''}
-      ${r ? `<button class="btn" onclick="copiarFicha('${jsq(key)}')" title="Copia los datos con formato para pegarlos en tu plantilla de Outlook">Copiar ficha</button>` : ''}
-      <button class="btn" onclick="copyText('${jsq(base.num)}')">Copiar Nº</button>
-    </div>
-    ${hiloHtml(key)}
-    ${caducidadFichaHtml(key, r)}
-    ${edicionHtml(key, r)}
-    <dl class="dw-data">${campos.map(([k, v]) => `${k ? `<dt>${esc(k)}</dt>` : ''}<dd${k ? '' : ' class="full"'}>${esc(v)}</dd>`).join('')}</dl>
-    ${sugerenciaHtml(r)}
-    <div class="dw-sec">
+  const url = (r || cz) && (r || cz).url && String((r || cz).url).startsWith(ATGO_ORIGIN + '/') ? (r || cz).url : '';
+  const nHist = (hiloUtil(key) ? hiloUtil(key).utiles.length : 0) + hist.length;
+  if (!r && fichaTab === 'act') fichaTab = 'res';
+  const tabs = [['res', 'Resumen'], ...(r ? [['act', 'Actuar']] : []), ['his', 'Historial' + (nHist ? ' · ' + nHist : '')]];
+  const notaHtml = `<div class="dw-sec">
       <div class="dw-h">Nota y seguimiento</div>
       <textarea id="dwNota" rows="3" placeholder="Nota privada: qué falta, con quién hablaste…">${esc(n.texto || '')}</textarea>
       <div class="dw-quick">
@@ -451,11 +449,35 @@ function renderFicha() {
         <input type="date" id="dwFecha" value="${esc(n.fecha || '')}" onchange="setSeg(this.value)">
         ${n.fecha ? `<label class="dw-done"><input type="checkbox" ${n.hecho ? 'checked' : ''} onchange="guardarNota(fichaKey,{hecho:this.checked});renderFicha();refreshVisible()"> Hecho</label><button class="chip sm" onclick="setSeg('')">Quitar</button>` : ''}
       </div>
-    </div>
-    <div class="dw-sec">
-      <div class="dw-h">Historial en Despacho</div>
-      ${hist.length ? `<ul class="dw-hist">${hist.map(e => `<li><span>${esc(cuando(e.ts))}</span>${esc(evTexto(e))}</li>`).join('')}</ul>` : `<div class="dw-empty">Sin cambios registrados${segSnap.start ? ' desde el ' + new Date(segSnap.start).toLocaleDateString('es-ES') : ''}.</div>`}
     </div>`;
+  let cuerpo;
+  if (fichaTab === 'act' && r) {
+    cuerpo = `<div class="dw-cols"><div class="dw-col">${edicionHtml(key, r) || '<div class="dw-empty">Este ticket no se puede editar desde Despacho.</div>'}</div>
+      <div class="dw-col">${sugerenciaHtml(r)}${waFichaHtml(r)}</div></div>`;
+  } else if (fichaTab === 'his') {
+    cuerpo = `<div class="dw-cols"><div class="dw-col">${hiloHtml(key, 'todo')}</div>
+      <div class="dw-col"><div class="dw-sec"><div class="dw-h">Cambios vistos por Despacho</div>
+      ${hist.length ? `<ul class="dw-hist">${hist.map(e => `<li><span>${esc(cuando(e.ts))}</span>${esc(evTexto(e))}</li>`).join('')}</ul>` : `<div class="dw-empty">Sin cambios registrados${segSnap.start ? ' desde el ' + new Date(segSnap.start).toLocaleDateString('es-ES') : ''}.</div>`}
+      </div></div></div>`;
+  } else {
+    cuerpo = `<div class="dw-cols"><div class="dw-col">
+        <dl class="dw-data">${campos.map(([k, v]) => `${k ? `<dt>${esc(k)}</dt>` : ''}<dd${k ? '' : ' class="full"'}>${esc(v)}</dd>`).join('')}</dl>
+        ${caducidadFichaHtml(key, r)}
+      </div><div class="dw-col">${hiloHtml(key)}${notaHtml}</div></div>`;
+  }
+  p.innerHTML = `
+    <div class="dw-head">
+      <div class="dw-tit"><div class="dw-num mono">Nº ${esc(base.num)}${base.estado ? ` ${estadoPill(base.estado)}` : ''}</div>
+      <div class="dw-sub">${esc([base.descSede, r && r.descCliente, base.operario].filter(Boolean).join(' · '))}</div></div>
+      <div class="dw-hacts">
+        ${url ? `<a class="btn sm pri" href="${esc(url)}" target="atgo-ticket" rel="noopener" title="Abrir en ATGO">ATGO ↗</a>` : ''}
+        ${r ? `<button class="iconbtn" onclick="copiarFicha('${jsq(key)}')" title="Copiar ficha (para tu plantilla de Outlook)" aria-label="Copiar ficha">⧉</button>` : ''}
+        <button class="iconbtn" onclick="copyText('${jsq(base.num)}')" title="Copiar Nº" aria-label="Copiar Nº">#</button>
+        <button class="iconbtn" onclick="closeTicket()" title="Cerrar (Esc)" aria-label="Cerrar">✕</button>
+      </div>
+    </div>
+    <nav class="dw-tabs">${tabs.map(([t, l]) => `<button class="${fichaTab === t ? 'on' : ''}" onclick="fichaIr('${t}')">${esc(l)}</button>`).join('')}</nav>
+    ${cuerpo}`;
   const c2 = document.getElementById('edCom'), e2 = document.getElementById('edEst');
   if (c2 && prev.com && !c2.value) c2.value = prev.com;
   if (e2 && prev.est) e2.value = prev.est;
@@ -463,8 +485,7 @@ function renderFicha() {
   if (!(editPend && editPend.key === key)) asPrev.forEach(([id, v]) => { const el = document.getElementById(id); if (el) el.value = v; });
   if (prev.foco && /^as/.test(prev.foco) && document.getElementById(prev.foco)) document.getElementById(prev.foco).focus();
   const ta = document.getElementById('dwNota');
-  ta.addEventListener('input', () => { guardarNota(key, { texto: ta.value.trim() }); });
-  ta.addEventListener('blur', refreshVisible);
+  if (ta) { ta.addEventListener('input', () => { guardarNota(key, { texto: ta.value.trim() }); }); ta.addEventListener('blur', refreshVisible); }
 }
 function setSeg(fecha) { guardarNota(fichaKey, { fecha, hecho: false }); renderFicha(); refreshVisible(); }
 
@@ -473,7 +494,12 @@ let palSel = 0, palItems = [];
 const PAL_ACCIONES = [
   { t: 'Ir a Mi día', k: 'inicio hoy', run: () => showTab('dia') },
   { t: 'Ir a Incidencias', k: 'lista', run: () => showTab('inc') },
-  { t: 'Ir a Mañana', k: 'rutas planificacion whatsapp', run: () => showTab('man') },
+  { t: 'Ir a Planificación', k: 'semana manana rutas whatsapp', run: () => showTab('sem') },
+  { t: 'Ver el próximo laborable (rutas y WhatsApp)', k: 'manana dia rutas', run: () => { setDay('man'); showTab('man'); } },
+  { t: 'Enviar todas las rutas por WhatsApp', k: 'whatsapp tecnicos manana', run: () => { showTab('man'); enviarTodasRutas(); } },
+  { t: 'Exportar incidencias a Excel', k: 'xlsx descargar', run: () => exportarExcel('inc') },
+  { t: 'Atajos de teclado', k: 'teclas ayuda', run: () => abrirAtajos() },
+  { t: 'Novedades de la versión', k: 'version cambios', run: () => abrirNovedades() },
   { t: 'Copiar resumen del día', k: 'informe responsable', run: () => copiarResumenJornada() },
   { t: 'Informe semanal', k: 'semana responsable cumplimiento', run: () => abrirInforme() },
   { t: 'Marcar novedades como vistas', k: 'leido', run: () => { marcarVistos(); refreshVisible(); toast('Novedades marcadas como vistas'); } },
@@ -643,32 +669,7 @@ function rutinaHtml(rh) {
 }
 
 // ===== Ajustes: avisos y copia de seguridad =====
-function toggleCfg(ev) {
-  const m = document.getElementById('cfgMenu');
-  m.hidden = !m.hidden; if (!m.hidden) renderCfg();
-  if (ev) ev.stopPropagation();
-}
-function renderCfg() {
-  const m = document.getElementById('cfgMenu'); if (!m || m.hidden) return;
-  const perm = 'Notification' in window ? Notification.permission : 'unsupported';
-  const ck = (k, l) => `<label><input type="checkbox" ${avisos[k] ? 'checked' : ''} onchange="avisos['${k}']=this.checked;lsSet(AVI_KEY,avisos)"> ${l}</label>`;
-  m.innerHTML = `
-    <div class="cfg-h">Avisos de Windows</div>
-    ${avisos.on && perm === 'granted'
-      ? `<div class="cfg-ck">${ck('miNombre', 'Tickets nuevos o reasignados a mi nombre')}${ck('escalado', 'Escalados a TIER1')}${ck('ruta', 'Cambios en las rutas de mañana')}${ck('material', 'PTE. MOVER MATERIAL y su vuelta a PRESENCIAL')}${ck('sla', 'Caducidad en menos de ' + SLA_AVISO_HORAS + ' h')}${ck('sinAsignar', 'Nuevos sin asignar en mi zona')}${ck('comentarios', 'Comentarios de técnicos en el hilo')}${ck('nuevos', 'Cualquier ticket nuevo')}</div>
-         <div class="acts"><button class="btn sm" onclick="notificarPrueba()">Probar</button><button class="btn sm ghost" onclick="avisos.on=false;lsSet(AVI_KEY,avisos);renderCfg()">Desactivar</button></div>`
-      : perm === 'denied' ? '<div class="cfg-t">Windows tiene bloqueados los avisos de esta app. Actívalos en el candado de la barra de direcciones → Notificaciones.</div>'
-      : `<div class="cfg-t">Te avisa aunque estés en otra ventana. Necesita la pestaña de ATGO abierta.</div><button class="btn sm pri" onclick="activarAvisos()">Activar avisos</button>`}
-    <div class="cfg-h">Planificar en ATGO (técnico y visita)</div>
-    <div class="cfg-t">${tecCfg.fase2 !== 'prueba' ? 'Activo en todos los tickets (validado).' : 'Limitado al ticket de prueba 2026/00/97784.'}</div>
-    <div class="acts"><button class="btn sm ghost" onclick="tecCfg.fase2=tecCfg.fase2==='prueba'?'todos':'prueba';saveTec();renderCfg();if(fichaKey)renderFicha()">${tecCfg.fase2 !== 'prueba' ? 'Limitar al ticket de prueba' : 'Activar para todos los tickets'}</button></div>
-    <div class="cfg-h">Copia automática en OneDrive</div>
-    ${odCfgHtml()}
-    <div class="cfg-h">Copia de seguridad manual</div>
-    <div class="cfg-t">Notas, rutina, teléfonos, cerradas, informes y plantillas guardadas.</div>
-    <div class="acts"><button class="btn sm" onclick="exportBackup()">Exportar</button><button class="btn sm" onclick="document.getElementById('backupInput').click()">Restaurar</button></div>`;
-}
-document.addEventListener('click', e => { const m = document.getElementById('cfgMenu'); if (m && !m.hidden && !m.contains(e.target) && e.target.id !== 'cfgBtn') m.hidden = true; });
+// ⚙ Ajustes (toggleCfg, renderCfg): ajustes.js
 
 function exportBackup() {
   const data = datosCopia();
@@ -694,6 +695,8 @@ function restoreBackup(file) {
       if (d.tecnicos && typeof d.tecnicos === 'object') { tecCfg = { ...tecCfg, ...d.tecnicos, tel: { ...tecCfg.tel, ...(d.tecnicos.tel || {}) } }; saveTec(); hechos.push('teléfonos'); }
       if (d.cerradas && typeof d.cerradas === 'object') { cerradas = { ...d.cerradas, ...cerradas }; podarCerradas(); hechos.push('cerradas'); }
       if (d.jornadas && typeof d.jornadas === 'object') { jornadas = { ...d.jornadas, ...jornadas }; lsSet(JORN_KEY, jornadas); }
+      if (d.perfiles && d.perfiles.tecs) { try { localStorage.setItem(PERFIL_KEY, JSON.stringify({ ...d.perfiles, activo: PERFIL })); hechos.push('perfiles (se aplican al recargar)'); } catch (e) {} }
+      if (Array.isArray(d.filtros)) { filtrosGuardados = d.filtros; try { localStorage.setItem(FILTROS_KEY, JSON.stringify(d.filtros)); } catch (e) {} }
       if (Array.isArray(d.plantillas)) {
         const m = new Map((lsGet('dispatcher_plantillas_v2', []) || []).map(x => [x.id, x])); d.plantillas.forEach(x => x && m.set(x.id, x));
         lsSet('dispatcher_plantillas_v2', [...m.values()]); hechos.push(d.plantillas.length + ' plantillas guardadas');
@@ -715,6 +718,7 @@ document.addEventListener('keydown', e => {
     else if (e.key === 'ArrowDown') { e.preventDefault(); palSel = Math.min(palItems.length - 1, palSel + 1); palRender(); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); palSel = Math.max(0, palSel - 1); palRender(); }
     else if (e.key === 'Enter') { e.preventDefault(); palRun(palSel); }
+    else if (e.key === 'ArrowRight' && palItems[palSel] && palItems[palSel].type === 't') { e.preventDefault(); palAcciones(palItems[palSel]); }   // acciones sobre el ticket (ajustes.js)
     return;
   }
   if (e.key === 'Escape' && !document.getElementById('modal').hidden) { cerrarModal(); return; }

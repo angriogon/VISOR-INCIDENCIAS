@@ -15,7 +15,9 @@
   // (codOpe.in no funciona en ATGO: ignora el filtro; y sin "sort" la consulta es mucho más lenta.)
   const PAGE_SIZE = 100;           // por operario; si alguno tuviera más, se piden más páginas
   const PARALELO = 6;              // consultas simultáneas
-  const REFRESCO_MIN = 2;          // minutos entre el final de una carga y el inicio de la siguiente
+  const REFRESCO_MIN = 2;          // minutos entre cargas en horario laboral (L-V de 7 a 20 h)
+  const REFRESCO_FUERA_MIN = 10;   // fuera de ese horario: menos carga para ATGO
+  function refrescoMin() { const d = new Date(), h = d.getHours(); return d.getDay() % 6 && h >= 7 && h < 20 ? REFRESCO_MIN : REFRESCO_FUERA_MIN; }
   const TIMEOUT_MS = 120000;
 
   if (location.hostname !== 'atgo.tier1.es') { alert('Abre primero https://atgo.tier1.es e inicia sesión.'); return; }
@@ -161,7 +163,10 @@
         const r = await fetch(url, { headers: { Authorization: 'Bearer ' + token(), Accept: 'application/json' }, signal: ctrl.signal });
         if (r.status === 401 || r.status === 403) throw Object.assign(new Error('Sesión de ATGO caducada. Vuelve a iniciar sesión y pulsa ⟳.'), { fatal: true });
         if (!r.ok) throw new Error('ATGO respondió ' + r.status);
-        return await r.json();
+        const d = await r.json();
+        // Si Tier1 cambia su web y la respuesta ya no tiene la forma esperada, mejor un aviso claro que datos vacíos
+        if (!d || !Array.isArray(d.content)) throw Object.assign(new Error('ATGO ha cambiado: la lista de incidencias no llega con el formato esperado. Avisa para revisar la sincronización.'), { fatal: true });
+        return d;
       } catch (e) {
         if (e.fatal || intento === 2) throw e;
       } finally { clearTimeout(to); }
@@ -231,13 +236,13 @@
       lastPayload = { type: 'atgo-data', partial: false, rows: [...found.values()], at: Date.now(), seconds: Math.round((Date.now() - t0) / 1000), caps: ['hilo', 'estado', 'editar', 'asignar', 'pool'], estados: estadosAtgo || [], pool: poolOps ? [...pool.values()] : null, poolOps: poolOps || {} };
       send(lastPayload);
       const hora = new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-      setStatus(found.size + ' incidencias · ' + hora + ' (' + lastPayload.seconds + ' s) · próxima en ' + REFRESCO_MIN + ' min');
+      setStatus(found.size + ' incidencias · ' + hora + ' (' + lastPayload.seconds + ' s) · próxima en ' + refrescoMin() + ' min');
     } catch (e) {
       setStatus('Error: ' + e.message, true);
     } finally {
       running = false;
       clearTimeout(timer);
-      if (!stopped) timer = setTimeout(syncOnce, REFRESCO_MIN * 60000);
+      if (!stopped) timer = setTimeout(syncOnce, refrescoMin() * 60000);
     }
   }
   function refreshNow() { clearTimeout(timer); syncOnce(); }

@@ -6,7 +6,6 @@
 const BUZON_KEY = 'dispatcher_buzon_v1', POOLV_KEY = 'dispatcher_pool_vistos_v1', DUR_KEY = 'dispatcher_duraciones_v1';
 const GEO_KEY = 'dispatcher_geo_v1', PLIEGUE_KEY = 'dispatcher_pliegues_v1';
 const JORNADA_MIN = 8 * 60;              // jornada de referencia para la carga en horas
-const DURACION_DEF = 60;                 // minutos por visita si aún no hay datos reales
 const SYNC_AVISO_MIN = 10;               // aviso si ATGO lleva más de estos minutos sin actualizar
 // Operarios comodín "PENDIENTE ASIGNAR" de tus zonas (el resto son de otros dispatchers)
 const MIS_POOLS = ['XXX-SVQ', 'XXX-CA', 'XXX-MA', 'XXX-G', 'XXX-AL', 'XXX-J', 'XXX-0EXTREM', 'XXX-0CEUTA', 'XXX-0MELILL'];
@@ -33,7 +32,7 @@ function zonaPool(r) {
   const d = String(poolOpsDesc[cleanInitials(r.operario)] || r.desOperario || '').replace(/^PENDIENTE( DE)? ASIGNAR\s*/i, '').replace(/[()]/g, '').trim();
   return d ? d.toUpperCase() : 'OTRA ZONA';
 }
-function esMiZonaPool(r) { return MIS_POOLS.includes(cleanInitials(r.operario)) || ZONAS_TEC.some(z => z.nombre === zonaPool(r)); }
+function esMiZonaPool(r) { return ZONAS_TEC.some(z => z.nombre === zonaPool(r)); }   // zonas con técnicos en tu perfil
 function actualizado(r) {
   const h = hilos[tkey(r)];
   const ult = h && h.items.length ? Math.max(...h.items.map(i => i.ts || 0)) : 0;
@@ -75,16 +74,38 @@ function archivar(key, si) {
   lsSet(BUZON_KEY, buzon); renderSin(); updateSinBadge();
   toast(si ? 'Archivada en el buzón · desaparecerá sola al asignarse' : 'Recuperada a pendientes');
 }
-// Recomendación: técnico de la zona con menos visitas ese día (y menos abiertas para desempatar)
+// Misma sede: técnicos que ya tienen abierta otra incidencia de esa sede/centro → { op: nº }
+function mismaSede(r) {
+  const out = {}; if (!r || !r.descSede) return out;
+  const k = sedeKey(r), disp = ZONAS_BASE.filter(z => z.dispatcher).flatMap(z => z.ops);
+  rows.forEach(x => { const op = cleanInitials(x.operario); if (tkey(x) !== tkey(r) && sedeKey(x) === k && !disp.includes(op)) out[op] = (out[op] || 0) + 1; });
+  return out;
+}
+function mismaSedeTexto(op, n) { return `${op} ya tiene ${n === 1 ? 'otra incidencia abierta' : n + ' incidencias abiertas'} en esta sede`; }
+// Al asignar: bocadillo con el técnico que ya va a esa sede (ámbar si el elegido es otro)
+function sedeAvisoHtml(r, elegido) {
+  const ms = mismaSede(r), ops = Object.keys(ms).sort((a, b) => ms[b] - ms[a]); if (!ops.length) return '';
+  const otro = elegido && !ops.includes(elegido);
+  return `<span class="sede-aviso${otro ? ' warn' : ''}" title="${esc(ops.map(op => mismaSedeTexto(op, ms[op])).join('\n') + '\nSugerencia: asígnala al mismo técnico.')}">📍 ${esc(ops[0])}${ops.length > 1 ? ' +' + (ops.length - 1) : ''}</span>`;
+}
+// En la confirmación de cualquier asignación
+function sedeConfirmHtml(r, op) {
+  const ms = mismaSede(r), ops = Object.keys(ms); if (!ops.length) return '';
+  return ops.includes(op) ? `<p class="sede-ok">📍 ${esc(mismaSedeTexto(op, ms[op]))}: buena elección.</p>`
+    : `<p class="sede-warn">📍 ${esc(ops.map(o => mismaSedeTexto(o, ms[o])).join(' · '))}. Sugerencia: asígnala a ${esc(ops.join(' o '))}.</p>`;
+}
+// Recomendación: técnico de la zona (y de apoyo: Cádiz para Ceuta, Málaga para Melilla) con menos visitas ese día.
+// Si un técnico ya tiene abierta otra incidencia de la misma sede, va primero.
 function recomendar(r, fecha) {
-  const z = zonaPool(r), zona = ZONAS_TEC.find(x => x.nombre === z);
+  const z = zonaPool(r), zona = ZONAS_BASE.find(x => x.nombre === z);
   if (!zona) return null;
-  const f = ddmmyyyy(fecha), pob = poblacionDe(r);
-  return zona.ops.map(op => {
+  const f = ddmmyyyy(fecha), pob = poblacionDe(r), ms = mismaSede(r);
+  return zonaOps(z).map(op => {
     const vis = rows.filter(x => esPresencial(x) && x.fVisita === f && x.operario === op);
     const abiertas = rows.filter(x => x.operario === op).length;
     const juntos = pob ? vis.filter(x => poblacionDe(x) === pob).length : 0;
-    return { op, carga: vis.length, min: cargaMin(op, f), abiertas, juntos, score: vis.length - (juntos ? 1.5 : 0) + abiertas / 100 };
+    const apoyo = !zona.ops.includes(op), sede = ms[op] || 0;
+    return { op, carga: vis.length, min: cargaMin(op, f), abiertas, juntos, apoyo, sede, score: vis.length - (juntos ? 1.5 : 0) - (sede ? 3 : 0) + (apoyo ? 0.5 : 0) + abiertas / 100 };
   }).sort((a, b) => a.score - b.score || a.min - b.min || opIndex(a.op) - opIndex(b.op));
 }
 function sinFila(r, enBuzon) {
@@ -98,7 +119,8 @@ function sinFila(r, enBuzon) {
     <span class="sa-tx"><b>${esc(r.descSede || '—')}</b> · ${esc(r.descCliente || '')} · ${esc(lugar)}${mot ? ` · <i>${esc(mot.slice(0, 90))}</i>` : ''}</span>
     <span class="sa-badges">${cadBadge(r)}${reincBadge(r)}</span>
     <span class="sa-act">${act ? esc(cuando(act)) : ''}</span>
-    <span class="sa-acc">${rec && rec.length ? `<select id="sa-op-${esc(k)}" title="Técnicos de la zona: el primero es el recomendado (menos visitas hoy)">${rec.map((x, i) => `<option value="${esc(x.op)}">${i === 0 ? '★ ' : ''}${esc(x.op)} · ${x.carga ? x.carga + ' hoy' : 'libre'}</option>`).join('')}</select>
+    <span class="sa-acc">${rec && rec.length ? `${sedeAvisoHtml(r)}<select id="sa-op-${esc(k)}" title="Técnicos de la zona: el primero es el recomendado (misma sede o menos visitas hoy)">${rec.map((x, i) => `<option value="${esc(x.op)}">${i === 0 ? '★ ' : ''}${esc(x.op)} · ${x.sede ? 'ya va a la sede' : x.carga ? x.carga + ' hoy' : 'libre'}${x.apoyo ? ' · apoyo' : ''}</option>`).join('')}</select>
+      <input type="date" id="sa-f-${esc(k)}" title="Fecha de visita (opcional)">
       <button class="btn sm pri" onclick="asignarSin('${jsq(k)}')">Asignar</button>` : ''}
       <button class="iconbtn sm" onclick="archivar('${jsq(k)}', ${enBuzon ? 'false' : 'true'})" title="${enBuzon ? 'Recuperar a pendientes' : 'Archivar en el buzón'}" aria-label="${enBuzon ? 'Recuperar' : 'Archivar'}">${enBuzon ? '↩' : '⤓'}</button></span>
   </div>`;
@@ -120,12 +142,13 @@ function renderSin() {
 }
 async function asignarSin(key) {
   const r = ticketDe(key); if (!r) return;
-  const op = document.getElementById('sa-op-' + key).value;
+  const op = document.getElementById('sa-op-' + key).value, fEl = document.getElementById('sa-f-' + key), f = fEl ? fEl.value : '';
   const ok = await confirmar(`<b>Asignar en ATGO</b><p>Nº ${esc(r.num)} · ${esc(r.descSede || '')}</p>
-    <table class="md-tab"><tr><td>Técnico</td><td><span>${esc(r.operario)}</span> → <b>${esc(op)}</b></td></tr></table>
-    <p class="hint">Despacho reenvía la ficha tal cual cambiando solo el técnico y lo comprueba campo a campo. La fecha puedes ponerla después en Semana o en la ficha.</p>`, 'Asignar');
+    <table class="md-tab"><tr><td>Técnico</td><td><span>${esc(r.operario)}</span> → <b>${esc(op)}</b></td></tr>${f ? `<tr><td>Fecha de visita</td><td><b>${esc(f.split('-').reverse().join('/'))}</b></td></tr>` : ''}</table>
+    ${sedeConfirmHtml(r, op)}
+    <p class="hint">Despacho reenvía la ficha tal cual cambiando solo esto y lo comprueba campo a campo.${f ? '' : ' La fecha puedes ponerla después en Planificación o en la ficha.'}</p>`, 'Asignar');
   if (!ok) return;
-  const res = await enviarEdicion('asignar', key, { codOpe: op, resumen: `Asignado: ${r.operario} → ${op}` });
+  const res = await enviarEdicion('asignar', key, { codOpe: op, ...(f ? { fechaVisita: f } : {}), resumen: `Asignado: ${r.operario} → ${op}${f ? ' · visita ' + f.split('-').reverse().join('/') : ''}` });
   if (res && res.ok) { poolRows = poolRows.filter(x => tkey(x) !== key); renderSin(); updateSinBadge(); }
 }
 
@@ -133,7 +156,7 @@ async function asignarSin(key) {
 let syncUltima = 0, syncAvisado = false;
 function marcarSync(m) { if (m && !m.partial && m.at) { syncUltima = m.at; syncAvisado = !!m.desdeCache; renderSyncAviso(); } }   // con datos guardados no se manda aviso de Windows
 function renderSyncAviso() {
-  const el = document.getElementById('syncAviso'); if (!el) return;
+  const el = document.getElementById('syncAviso'); if (!el || (typeof caidaSeguida !== 'undefined' && caidaSeguida)) return;   // aviso de carga sospechosa a la vista
   const viejo = source === 'atgo' && syncUltima && Date.now() - syncUltima > SYNC_AVISO_MIN * 60000;
   el.hidden = !viejo;
   if (viejo) el.innerHTML = `⚠ ATGO sin actualizar desde las ${esc(hhmm(syncUltima))} <button class="btn sm" onclick="document.getElementById('atgoBtn').click()">Abrir ATGO</button>`;
@@ -172,19 +195,24 @@ function setFrase(i, t) { const l = frases().slice(); l[i] = t; tecCfg.frases = 
 function delFrase(i) { const l = frases().slice(); l.splice(i, 1); tecCfg.frases = l; saveTec(); renderFicha(); }
 function addFrase() { const el = document.getElementById('frNueva'); const t = (el && el.value || '').trim(); if (!t) return; tecCfg.frases = [...frases(), t]; saveTec(); renderFicha(); }
 
-// ===== Duración real de las visitas y carga en horas =====
-// Del hilo: "ha iniciado el ticket" → siguiente "ha finalizado el ticket" del mismo día.
+// ===== Duración de las visitas y carga en horas =====
+// 1) Lo que diga el hilo del ticket: "duración estimada 2 h", "despliegue de 7 a 15 horas", "jornada completa"…
+// 2) Si no, lo que han durado de verdad visitas de la misma sede (2+) o del mismo tipo (3+):
+//    "El usuario X ha iniciado el ticket" → "El usuario X ha finalizado el ticket", mismo técnico y día.
+// 3) Sin datos no se estima nada: solo cuenta la hora de inicio.
+Object.keys(duraciones).forEach(k => { if (!('sede' in duraciones[k])) delete duraciones[k]; });   // datos del cálculo antiguo (mezclaba usuarios)
 function registrarDuraciones(key) {
   const h = hilos[key], r = ticketDe(key); if (!h || !r) return;
   const it = h.items.slice().sort((a, b) => a.ts - b.ts);
-  let ini = null, cambio = false;
+  const ini = {}; let cambio = false;
   it.forEach(i => {
-    if (/ha iniciado el ticket/i.test(i.t)) ini = i.ts;
-    else if (/ha finalizado el ticket/i.test(i.t) && ini && isoHoy(new Date(ini)) === isoHoy(new Date(i.ts))) {
-      const min = Math.round((i.ts - ini) / 60000);
-      if (min >= 5 && min <= 600) { duraciones[key + '@' + ini] = { op: cleanInitials(r.operario), tipo: norm(r.tipo || ''), min, ts: i.ts }; cambio = true; }
-      ini = null;
-    }
+    const m = /el usuario (\S+) ha (iniciado|finalizado) el ticket/i.exec(i.t || ''); if (!m) return;
+    const u = cleanInitials(m[1]);
+    if (/^inic/i.test(m[2])) { if (!ini[u]) ini[u] = i.ts; return; }   // varios "iniciado" seguidos: cuenta el primero
+    const a = ini[u]; delete ini[u];
+    if (!a || !TODOS_OPS.includes(u) || isoHoy(new Date(a)) !== isoHoy(new Date(i.ts))) return;   // solo técnicos de campo, mismo día
+    const min = Math.round((i.ts - a) / 60000);
+    if (min >= 5 && min <= 600) { duraciones[key + '@' + a] = { op: u, tipo: norm(r.tipo || ''), sede: sedeKey(r), min, ts: i.ts }; cambio = true; }
   });
   if (cambio) {
     Object.keys(duraciones).forEach(k => { if (Date.now() - duraciones[k].ts > 90 * 86400000) delete duraciones[k]; });
@@ -192,20 +220,64 @@ function registrarDuraciones(key) {
   }
 }
 function mediana(a) { if (!a.length) return null; const s = a.slice().sort((x, y) => x - y), m = Math.floor(s.length / 2); return s.length % 2 ? s[m] : Math.round((s[m - 1] + s[m]) / 2); }
-function estimarMin(r) {
-  const d = Object.values(duraciones), tipo = norm(r.tipo || ''), op = cleanInitials(r.operario);
-  const porTipo = tipo ? d.filter(x => x.tipo === tipo).map(x => x.min) : [];
-  if (porTipo.length >= 3) return mediana(porTipo);
-  const porOp = d.filter(x => x.op === op).map(x => x.min);
-  if (porOp.length >= 3) return mediana(porOp);
-  return d.length >= 5 ? mediana(d.map(x => x.min)) : DURACION_DEF;
+const DUR_CTX = /(duraci|durar|tardar|estimad|aprox|previst|se preve|necesit|requier|intervenci|trabajo|despliegue|montaje|instalaci|ocupar|estara)/;
+const NUM_PAL = { un: 1, una: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8 };
+// Minutos que indica un texto, o null. Solo frases con contexto de duración (evita "llamar en 15 minutos").
+function minutosTexto(t) {
+  for (const fr of norm(t).split(/[.;\n]+/)) {
+    if (/jornada completa|toda la jornada/.test(fr)) return 480;
+    if (!DUR_CTX.test(fr)) continue;
+    // Franja: "de 7 a 15 horas", "de 9:00 a 13:30", "de 9h a 14h"
+    let m = /\bde (\d{1,2})(?:[:.h](\d{2}))?\s*h?\s+a\s+(\d{1,2})(?:[:.h](\d{2}))?\s*(h\b|horas?|hrs?)?/.exec(fr);
+    if (m && (m[5] || (m[2] && m[4]))) { const d = (+m[3] * 60 + +(m[4] || 0)) - (+m[1] * 60 + +(m[2] || 0)); if (d >= 15 && d <= 720) return d; }
+    if (/todo el dia/.test(fr)) return 480;
+    if (/toda la manana/.test(fr)) return 300;
+    if (/toda la tarde/.test(fr)) return 240;
+    if (/hora y media/.test(fr)) return 90;
+    if (/media hora/.test(fr)) return 30;
+    // Duración suelta: "2 h", "unas 3 horas", "90 minutos". No vale una hora del día ("a las 9 horas", "10:00 horas")
+    for (const m2 of fr.matchAll(/(\d+(?:[.,]\d+)?|\bun|\buna|\bdos|\btres|\bcuatro|\bcinco|\bseis|\bsiete|\bocho)\s*(h\b|hrs?\b|horas?|min\b|mins\b|minutos)/g)) {
+      const antes = fr.slice(0, m2.index);
+      if (/(\ben|dentro de|hace|cada|las|sobre la|desde la|hasta la)\s*$|[:.]$/.test(antes)) continue;
+      const w = m2[1].trim(), n = NUM_PAL[w] || parseFloat(w.replace(',', '.')), d = Math.round(/^m/.test(m2[2]) ? n : n * 60);
+      if (d >= 10 && d <= 720) return d;
+    }
+  }
+  return null;
 }
-function cargaMin(op, f) { return rows.filter(x => esPresencial(x) && x.fVisita === f && x.operario === op).reduce((s, x) => s + estimarMin(x), 0); }
+let durHiloCache = {};
+function duracionHilo(key) {
+  const u = hiloUtil(key); if (!u) return null;
+  const c = durHiloCache[key]; if (c && c.at === u.at) return c.v;
+  let v = null;
+  for (const i of u.utiles.slice().reverse()) { const min = minutosTexto(i.tn); if (min) { v = { min, src: 'hilo', texto: i.tn }; break; } }   // manda el comentario más reciente
+  durHiloCache[key] = { at: u.at, v }; return v;
+}
+// { min, src: 'hilo' | 'sede' | 'tipo', texto?, n? } o null si no se sabe
+function duracionInfo(r) {
+  const h = duracionHilo(tkey(r)); if (h) return h;
+  const d = Object.values(duraciones), sk = sedeKey(r), tipo = norm(r.tipo || '');
+  const sede = r.descSede ? d.filter(x => x.sede === sk).map(x => x.min) : [];
+  if (sede.length >= 2) return { min: mediana(sede), src: 'sede', n: sede.length };
+  const porTipo = tipo ? d.filter(x => x.tipo === tipo).map(x => x.min) : [];
+  if (porTipo.length >= 3) return { min: mediana(porTipo), src: 'tipo', n: porTipo.length };
+  return null;
+}
+function estimarMin(r) { const d = duracionInfo(r); return d ? d.min : null; }
+function duracionTexto(r) {
+  const d = duracionInfo(r); if (!d) return 'Sin estimar: el hilo no indica cuánto dura';
+  return '≈ ' + fmtMin(d.min) + (d.src === 'hilo' ? ' · según el hilo' : d.src === 'sede' ? ` · lo que duraron ${d.n} visitas a esta sede` : ` · lo que duran las visitas de este tipo (${d.n})`);
+}
+function cargaInfo(op, f) {
+  const vis = rows.filter(x => esPresencial(x) && x.fVisita === f && x.operario === op);
+  let min = 0, sin = 0; vis.forEach(x => { const m = estimarMin(x); if (m) min += m; else sin++; });
+  return { min, sin, n: vis.length };
+}
+function cargaMin(op, f) { return cargaInfo(op, f).min; }
 function fmtMin(m) { const h = Math.floor(m / 60), mm = m % 60; return h ? h + ' h' + (mm ? ' ' + String(mm).padStart(2, '0') : '') : mm + ' min'; }
 function cargaHtml(op, f) {
-  const m = cargaMin(op, f); if (!m) return '';
-  const pc = Math.min(100, Math.round(m / JORNADA_MIN * 100));
-  return `<span class="ch-h${m > JORNADA_MIN ? ' over' : ''}" title="Estimado con la duración real de las visitas (iniciar → finalizar en ATGO)">≈ ${fmtMin(m)} de ${JORNADA_MIN / 60} h</span>`;
+  const c = cargaInfo(op, f); if (!c.min) return c.sin ? `<span class="ch-h" title="El hilo no indica cuánto duran: solo cuenta la hora de inicio">${plural(c.sin, 'visita')} sin estimar</span>` : '';
+  return `<span class="ch-h${c.min > JORNADA_MIN ? ' over' : ''}" title="Según el hilo de cada ticket o lo que han durado visitas parecidas${c.sin ? '. ' + plural(c.sin, 'visita') + ' sin estimar' : ''}">≈ ${fmtMin(c.min)}${c.sin ? ' + ' + c.sin + ' s/e' : ''} de ${JORNADA_MIN / 60} h</span>`;
 }
 
 // ===== Conflictos de planificación =====
@@ -214,9 +286,9 @@ function conflictos(f) {
   TECNICOS.forEach(op => {
     const vis = sortByHora(rows.filter(x => esPresencial(x) && x.fVisita === f && x.operario === op));
     if (!vis.length) return;
-    const tot = vis.reduce((s, x) => s + estimarMin(x), 0);
+    const tot = vis.reduce((s, x) => s + (estimarMin(x) || 0), 0);
     if (tot > JORNADA_MIN) out.push({ op, tipo: 'sobrecarga', texto: `${fmtMin(tot)} estimadas (más de ${JORNADA_MIN / 60} h)`, keys: vis.map(tkey) });
-    const con = vis.filter(x => x.desdeHora).map(x => { const a = horaMin(x.desdeHora), b = x.hastaHora ? horaMin(x.hastaHora) : a + estimarMin(x); return { x, a, b }; });
+    const con = vis.filter(x => x.desdeHora).map(x => { const a = horaMin(x.desdeHora), b = x.hastaHora ? horaMin(x.hastaHora) : a + (estimarMin(x) || 1); return { x, a, b }; });
     for (let i = 0; i < con.length; i++) for (let j = i + 1; j < con.length; j++) {
       if (con[j].a < con[i].b && con[i].a < con[j].b && !con[i].x.hastaHora && !con[j].x.hastaHora || (con[i].x.hastaHora && con[j].x.hastaHora && con[j].a < con[i].b && con[i].a < con[j].b && con[i].b - con[i].a < 180 && con[j].b - con[j].a < 180))
         out.push({ op, tipo: 'solape', texto: `${con[i].x.desdeHora} (Nº ${con[i].x.num}) se solapa con ${con[j].x.desdeHora} (Nº ${con[j].x.num})`, keys: [tkey(con[i].x), tkey(con[j].x)] });
@@ -279,7 +351,7 @@ function replanificarVencidas() {
 // ===== Vista Semana: carga por técnico y día, con arrastrar y soltar =====
 let semOff = 0, semAbierta = {}, seleccion = new Set(), loteOp = '', loteDia = '';
 function diasSemana() {
-  const d = new Date(); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7) + semOff * 7);
+  const d = new Date(); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7) + (d.getDay() % 6 ? 0 : 7) + semOff * 7);   // sábado y domingo: la semana que viene
   return Array.from({ length: 5 }, (_, i) => { const x = new Date(d); x.setDate(d.getDate() + i); return x; });
 }
 function semPendientes() {
@@ -303,7 +375,7 @@ function semPendGrupos() {
     { id: 'sinF', titulo: 'Sin fecha', l: tec.filter(r => !r.fVisita) }
   ];
 }
-function nivelCarga(m) { return !m ? 'l0' : m > JORNADA_MIN ? 'l3' : m > JORNADA_MIN * 0.75 ? 'l2' : 'l1'; }
+function nivelCarga(m, n) { return !m ? (n ? 'l1' : 'l0') : m > JORNADA_MIN ? 'l3' : m > JORNADA_MIN * 0.75 ? 'l2' : 'l1'; }
 function renderSemana() {
   const root = document.getElementById('viewSem');
   const dias = diasSemana(), act = fase2Activa('*');
@@ -338,12 +410,13 @@ function renderSemana() {
       </aside>
       <div class="sem-main">
         <div class="sem-grid">
-          <div class="sg-row sg-head"><div></div>${dias.map(d => `<div class="${isoHoy(d) === isoHoy() ? 'hoy' : ''}">${esc(fmtD(d))}</div>`).join('')}</div>
+          <div class="sg-row sg-head"><div></div>${dias.map(d => `<div class="sg-dia${isoHoy(d) === isoHoy() ? ' hoy' : ''}" onclick="verDia('${isoHoy(d)}')" title="Ver el día: técnicos, rutas, WhatsApp y correos">${esc(fmtD(d))} ›</div>`).join('')}</div>
           ${zonas.map(z => `<div class="sg-zona">${esc(z.nombre)}</div>` + z.ops.map(op => `<div class="sg-row"><div class="sg-op">${esc(op)}</div>${dias.map(d => {
             const f = ddmmyyyy(d), n = rows.filter(x => esPresencial(x) && x.fVisita === f && x.operario === op).length;
-            const m = cargaMin(op, f), conf = confDia[isoHoy(d)].filter(c => c.op === op), id = op + '|' + isoHoy(d);
-            return `<div class="sg-cell ${nivelCarga(m)}${semDet === id ? ' on' : ''}" data-drop="${esc(id)}" onclick="semDet=semDet==='${jsq(id)}'?null:'${jsq(id)}';renderSemana()" title="${esc((n ? plural(n, 'visita') + ' · ≈ ' + fmtMin(m) : 'Libre') + (conf.length ? '\n⚠ ' + conf.map(c => c.texto).join('\n⚠ ') : ''))}">
-              ${n ? `<b>${n}</b><small>${esc(fmtMin(m))}</small>` : '<span class="lib">·</span>'}${conf.length ? '<i class="cf">⚠</i>' : ''}</div>`;
+            const ci = cargaInfo(op, f), m = ci.min, conf = confDia[isoHoy(d)].filter(c => c.op === op), id = op + '|' + isoHoy(d);
+            const durTx = m ? '≈ ' + fmtMin(m) + (ci.sin ? ' + ' + ci.sin + ' sin estimar' : '') : 'duración sin estimar';
+            return `<div class="sg-cell ${nivelCarga(m, n)}${semDet === id ? ' on' : ''}" data-drop="${esc(id)}" onclick="semDet=semDet==='${jsq(id)}'?null:'${jsq(id)}';renderSemana()" title="${esc((n ? plural(n, 'visita') + ' · ' + durTx : 'Libre') + (conf.length ? '\n⚠ ' + conf.map(c => c.texto).join('\n⚠ ') : ''))}">
+              ${n ? `<b>${n}</b>${m ? `<small>${esc(fmtMin(m))}${ci.sin ? '+' : ''}</small>` : ''}` : '<span class="lib">·</span>'}${conf.length ? '<i class="cf">⚠</i>' : ''}</div>`;
           }).join('')}</div>`).join('')).join('')}
         </div>
         <div class="sg-ley"><span><i class="l1"></i>holgado</span><span><i class="l2"></i>más del 75 % de la jornada</span><span><i class="l3"></i>más de ${JORNADA_MIN / 60} h</span><span><i class="cf">⚠</i> conflicto</span></div>
@@ -352,15 +425,16 @@ function renderSemana() {
     </div>`;
   document.getElementById('semChips').appendChild(zoneChips(() => { semDet = null; renderSemana(); }, Object.fromEntries(ZONAS_TEC.map(z => [z.nombre, rows.filter(r => zonaDe(r.operario) === z.nombre && esPresencial(r)).length || '0'])), ZONAS_TEC));
 }
+function verDia(iso) { manDate = parseIso(iso); manDate.setHours(12, 0, 0, 0); showTab("man"); }
 function semDetalleHtml(id) {
   const [op, iso] = id.split('|'), d = parseIso(iso), f = ddmmyyyy(d);
   const vis = sortByHora(rows.filter(x => esPresencial(x) && x.fVisita === f && x.operario === op));
   const conf = conflictos(f).filter(c => c.op === op);
   return `<div class="sem-det" data-drop="${esc(id)}">
-    <div class="sd-h"><b>${esc(op)}</b> · ${esc(diaLargo(d))} · ${vis.length ? plural(vis.length, 'visita') + ' · ≈ ' + fmtMin(cargaMin(op, f)) : 'libre'}
+    <div class="sd-h"><b>${esc(op)}</b> · ${esc(diaLargo(d))} · ${vis.length ? plural(vis.length, 'visita') + (cargaMin(op, f) ? ' · ≈ ' + fmtMin(cargaMin(op, f)) : '') : 'libre'}
       ${vis.length ? `<button class="btn sm ghost" onclick="abrirRuta('${jsq(op)}','${f}')">Ruta</button>` : ''}<button class="iconbtn sm" onclick="semDet=null;renderSemana()" aria-label="Cerrar">✕</button></div>
     ${conf.map(c => `<div class="sd-conf">⚠ ${esc(c.texto)}</div>`).join('')}
-    ${vis.length ? vis.map(r => `<div class="sd-it" draggable="true" data-drag="${esc(tkey(r))}" data-key="${esc(tkey(r))}"><span class="h">${esc(r.desdeHora || '--:--')}</span><b class="mono">${esc(String(r.num).slice(-5))}</b><span>${esc(r.descSede || '')}</span><em>${esc(r.tipo || '')}</em></div>`).join('') : '<div class="dempty">Sin visitas. Arrastra aquí un ticket para planificarlo.</div>'}
+    ${vis.length ? vis.map(r => { const e = estimarMin(r); return `<div class="sd-it" draggable="true" data-drag="${esc(tkey(r))}" data-key="${esc(tkey(r))}"><span class="h">${esc(r.desdeHora || '--:--')}</span><b class="mono">${esc(String(r.num).slice(-5))}</b><span>${esc(r.descSede || '')}</span><em title="${esc(duracionTexto(r))}">${e ? '≈ ' + esc(fmtMin(e)) + ' · ' : ''}${esc(r.tipo || '')}</em></div>`; }).join('') : '<div class="dempty">Sin visitas. Arrastra aquí un ticket para planificarlo.</div>'}
     ${vis.length ? '<div class="sp-hint">Arrastra una visita a otra casilla para moverla de técnico o de día.</div>' : ''}
   </div>`;
 }
@@ -394,7 +468,8 @@ function lineaTiempoHtml() {
       ${byOp[op].map(x => {
         const r = x.r, a = r.desdeHora ? horaMin(r.desdeHora) : null;
         if (a == null) return '';
-        const b = r.hastaHora ? horaMin(r.hastaHora) : a + estimarMin(r);
+        const est = estimarMin(r), b = r.hastaHora ? horaMin(r.hastaHora) : est ? a + est : null;
+        if (b == null) return `<span class="tl-b st-${x.st}${x.late ? ' late' : ''} sin-dur" data-key="${esc(tkey(r))}" style="left:${pos(a)}%" title="${esc(r.desdeHora + ' · Nº ' + r.num + ' · ' + (r.descSede || '') + ' · duración sin estimar · ' + (x.label || ST_LAB[x.st]))}"></span>`;
         const real = x.ts ? new Date(x.ts) : null, realM = real ? real.getHours() * 60 + real.getMinutes() : null;
         return `<span class="tl-b st-${x.st}${x.late ? ' late' : ''}" data-key="${esc(tkey(r))}" style="left:${pos(a)}%;width:${Math.max(1.5, pos(b) - pos(a))}%" title="${esc(r.desdeHora + ' · Nº ' + r.num + ' · ' + (r.descSede || '') + ' · ' + (x.label || ST_LAB[x.st]))}"></span>${realM != null ? `<i class="tl-real" style="left:${pos(realM)}%" title="Real: ${esc(hhmm(x.ts))}"></i>` : ''}`;
       }).join('')}
@@ -449,25 +524,52 @@ async function geocodificar(dir) {
   lsSet(GEO_KEY, geoCache); return geoCache[k];
 }
 const COLORES_MAPA = ['#2f8f87', '#c9862b', '#5b8dd9', '#a97fd1', '#c9527a', '#5ea86f', '#d9614f', '#7a6f5a', '#3b8bba', '#b07d2b'];
+// Dirección completa; si Nominatim no la encuentra, la población (se marca como aproximada).
+async function situar(r) {
+  let ll = await geocodificar(direccionMaps(r));
+  if (ll) return { ll, aprox: false };
+  const pob = [r.poblacion, r.provincia].filter(Boolean).join(', ');
+  if (pob) { ll = await geocodificar(pob); if (ll) return { ll, aprox: true }; }
+  return null;
+}
+// Kilómetros y tiempo de coche entre las visitas (OSRM, servicio gratuito de OpenStreetMap)
+const osrmCache = {};
+async function distanciaRuta(lls) {
+  const k = lls.map(p => p[1].toFixed(5) + ',' + p[0].toFixed(5)).join(';');
+  if (k in osrmCache) return osrmCache[k];
+  try {
+    const r = await fetch('https://router.project-osrm.org/route/v1/driving/' + k + '?overview=false');
+    const d = await r.json(), ro = d && d.routes && d.routes[0];
+    osrmCache[k] = ro ? { km: Math.round(ro.distance / 1000), min: Math.round(ro.duration / 60) } : null;
+  } catch (e) { return null; }
+  return osrmCache[k];
+}
+
+// Vista general: una burbuja por técnico (visitas de ese día). Al pulsar un técnico se ven TODAS sus
+// incidencias: las del día numeradas en orden de ruta y el resto con su fecha. Clic en el mapa: volver.
 async function abrirMapa(fecha) {
   const f = ddmmyyyy(fecha || manDate), m = document.getElementById('modal');
-  const ops = TECNICOS.filter(op => (!zonaSel || zonaDe(op) === zonaSel) && rows.some(x => esPresencial(x) && x.fVisita === f && x.operario === op));
+  const delOp = op => rows.filter(x => x.operario === op);
+  const diaDe = op => paradasRuta(op, f).filter(x => !x.gls);
+  const ops = TECNICOS.filter(op => (!zonaSel || zonaDe(op) === zonaSel) && delOp(op).length);
   const color = op => COLORES_MAPA[ops.indexOf(op) % COLORES_MAPA.length];
-  m.innerHTML = `<div class="md-box md-mapa"><div class="dw-head"><div><div class="dw-num" style="color:var(--ink)">Mapa · ${esc(diaLargo(parseEs(f)))}</div><div class="dw-sub" id="mapaEst">Cargando…</div></div><button class="iconbtn" onclick="cerrarModal()" aria-label="Cerrar">✕</button></div><div id="mapa"></div><div class="mapa-leg" id="mapaLeg"></div></div>`;
+  m.innerHTML = `<div class="md-box md-mapa"><div class="dw-head"><div><div class="dw-num" style="color:var(--ink)">Mapa · ${esc(diaLargo(parseEs(f)))}</div><div class="dw-sub" id="mapaEst">Cargando…</div></div><button class="iconbtn" onclick="cerrarModal()" aria-label="Cerrar">✕</button></div><div id="mapa"></div><div class="mapa-leg" id="mapaLeg"></div><div class="mapa-nota" id="mapaNota"></div></div>`;
   m.hidden = false;
   const est = t => { const e = document.getElementById('mapaEst'); if (e) e.textContent = t; };
-  if (!ops.length) { est('Sin visitas ese día.'); return; }
+  const nota = h => { const e = document.getElementById('mapaNota'); if (e) e.innerHTML = h; };
+  if (!ops.length) { est('Sin incidencias asignadas.'); return; }
   try { await cargarLeaflet(); } catch (e) { est('No se pudo cargar el mapa (sin conexión).'); return; }
-  // Situar todas las visitas (las direcciones ya buscadas salen de la caché)
-  const datos = {}; let hechos = 0;
-  const total = ops.reduce((s, op) => s + paradasRuta(op, f).filter(x => !x.gls).length, 0);
-  for (const op of ops) {
-    datos[op] = [];
-    for (const [n, x] of paradasRuta(op, f).filter(x => !x.gls).entries()) {
-      const ll = await geocodificar(direccionMaps(x.r));
+  const datos = {}, noSit = {}, completo = {};
+  const conDia = ops.filter(op => diaDe(op).length);
+  const total = conDia.reduce((s, op) => s + diaDe(op).length, 0);
+  let hechos = 0;
+  for (const op of conDia) {
+    datos[op] = []; noSit[op] = [];
+    for (const [n, x] of diaDe(op).entries()) {
+      const s = await situar(x.r);
       hechos++; est(`Situando direcciones ${hechos}/${total}…`);
       if (!document.getElementById('mapa')) return;
-      if (ll) datos[op].push({ ll, x, n: n + 1 });
+      if (s) datos[op].push({ ...s, r: x.r, n: n + 1, dia: true }); else noSit[op].push(x.r);
     }
   }
   const mapa = L.map('mapa', { zoomControl: true }).setView([37.4, -4.5], 7);
@@ -477,29 +579,59 @@ async function abrirMapa(fecha) {
   let modo = 'todos';
   const centro = l => [l.reduce((s, p) => s + p.ll[0], 0) / l.length, l.reduce((s, p) => s + p.ll[1], 0) / l.length];
   function leyenda(sel) {
-    document.getElementById('mapaLeg').innerHTML = ops.map(op => `<button class="mapa-tec${sel === op ? ' on' : ''}" onclick="window.__mapaVer('${jsq(op)}')"><i style="background:${color(op)}"></i>${esc(op)} <small>${datos[op].length}</small></button>`).join('') + (sel ? '<button class="mapa-tec" onclick="window.__mapaVer(null)">Ver todos</button>' : '');
+    document.getElementById('mapaLeg').innerHTML = ops.map(op => { const nd = diaDe(op).length; return `<button class="mapa-tec${sel === op ? ' on' : ''}" onclick="window.__mapaVer('${jsq(op)}')" title="${esc(plural(nd, 'visita') + ' este día · ' + plural(delOp(op).length, 'incidencia') + ' asignadas')}"><i style="background:${color(op)}"></i>${esc(op)} <small>${nd}/${delOp(op).length}</small></button>`; }).join('') + (sel ? '<button class="mapa-tec" onclick="window.__mapaVer(null)">Ver todos</button>' : '');
   }
   function verTodos() {
-    modo = 'todos'; capa.clearLayers(); const pts = [];
-    ops.filter(op => datos[op].length).forEach(op => {
-      const c = centro(datos[op]); pts.push(c);
-      L.marker(c, { icon: L.divIcon({ className: 'mapa-burbuja', html: `<div style="background:${color(op)}"><b>${esc(op)}</b><span>${datos[op].length}</span></div>`, iconSize: [58, 38], iconAnchor: [29, 19] }), bubblingMouseEvents: false })
+    modo = 'todos'; capa.clearLayers(); nota(''); const pts = [];
+    conDia.filter(op => datos[op].some(p => p.dia)).forEach(op => {
+      const dia = datos[op].filter(p => p.dia), c = centro(dia); pts.push(c);
+      L.marker(c, { icon: L.divIcon({ className: 'mapa-burbuja', html: `<div style="background:${color(op)}"><b>${esc(op)}</b><span>${dia.length}</span></div>`, iconSize: [58, 38], iconAnchor: [29, 19] }), bubblingMouseEvents: false })
         .on('click', ev => { L.DomEvent.stopPropagation(ev); verTecnico(op); }).addTo(capa);
     });
     if (pts.length) mapa.fitBounds(pts, { padding: [60, 60], maxZoom: 11 });
-    est(`${ops.length} técnicos · pulsa una burbuja para ver sus visitas`); leyenda(null);
+    est(`${plural(conDia.length, 'técnico')} con visitas este día · pulsa una burbuja o un técnico para ver todas sus incidencias`); leyenda(null);
   }
-  function verTecnico(op) {
-    modo = op; capa.clearLayers(); const c = color(op), pts = datos[op].map(p => p.ll);
-    if (!pts.length) { est(op + ': no se encontraron sus direcciones'); return; }
-    datos[op].forEach(p => {
-      L.marker(p.ll, { icon: L.divIcon({ className: 'mapa-punto', html: `<div style="background:${c}">${p.n}</div>`, iconSize: [24, 24], iconAnchor: [12, 12] }), bubblingMouseEvents: false })
-        .bindPopup(`<b>${p.n}. ${esc(p.x.r.desdeHora || 'Sin hora')} · Nº ${esc(p.x.r.num)}</b><br>${esc(p.x.r.descSede || '')}<br>${esc(p.x.r.domicilio || '')}`).addTo(capa);
+  async function verTecnico(op) {
+    modo = op; capa.clearLayers(); leyenda(op);
+    datos[op] = datos[op] || []; noSit[op] = noSit[op] || [];
+    if (!completo[op]) {
+      const resto = delOp(op).filter(r => !diaDe(op).some(x => tkey(x.r) === tkey(r)));
+      for (const [i, r] of resto.entries()) {
+        est(`${op}: situando sus incidencias ${i + 1}/${resto.length}…`);
+        const s = await situar(r);
+        if (!document.getElementById('mapa')) return;
+        if (s) datos[op].push({ ...s, r, dia: false }); else noSit[op].push(r);
+      }
+      completo[op] = true;
+      if (modo !== op) return;
+    }
+    const c = color(op), lista = datos[op];
+    if (!lista.length) { est(op + ': no se encontraron sus direcciones'); nota(noSitHtml(noSit[op])); return; }
+    // Incidencias en el mismo sitio (misma dirección o misma población si es aproximada): un solo marcador con todas
+    const grupos = new Map();
+    lista.forEach(p => { const k = p.ll[0].toFixed(3) + ',' + p.ll[1].toFixed(3); if (!grupos.has(k)) grupos.set(k, []); grupos.get(k).push(p); });
+    const lin = p => `<b>${p.dia ? p.n + '. ' + esc(p.r.desdeHora || 'Sin hora') : esc(p.r.fVisita ? p.r.fVisita + (p.r.desdeHora ? ' ' + p.r.desdeHora : '') : 'Sin fecha')} · Nº ${esc(p.r.num)}</b> · ${esc(p.r.estado || '')}<br>${esc(p.r.descSede || '')} · ${esc(p.r.domicilio || '')}<br><a href="#" onclick="cerrarModal();openTicket('${jsq(tkey(p.r))}');return false">Abrir ficha</a>`;
+    grupos.forEach(g => {
+      g.sort((a, b) => (b.dia - a.dia) || ((a.n || 0) - (b.n || 0)));
+      const p = g[0], pres = g.some(x => esPresencial(x.r)), dia = g.filter(x => x.dia);
+      const cls = 'mapa-punto' + (dia.length ? '' : pres ? ' otra' : ' gris') + (g.every(x => x.aprox) ? ' aprox' : '') + (g.length > 1 ? ' multi' : '');
+      const txt = dia.length ? dia.map(x => x.n).join('·') + (g.length > dia.length ? '+' + (g.length - dia.length) : '') : g.length > 1 ? g.length + ' inc.' : pres ? (p.r.fVisita ? p.r.fVisita.slice(0, 5) : '·') : '';
+      const w = dia.length ? Math.max(24, 10 + String(txt).length * 7) : pres || g.length > 1 ? 38 : 14, hgt = dia.length ? 24 : pres || g.length > 1 ? 20 : 14;
+      L.marker(p.ll, { icon: L.divIcon({ className: cls, html: `<div style="--c:${c};width:${w}px">${esc(String(txt))}</div>`, iconSize: [w, hgt], iconAnchor: [w / 2, hgt / 2] }), bubblingMouseEvents: false, zIndexOffset: dia.length ? 1000 : pres ? 500 : 0 })
+        .bindPopup(g.map(lin).join('<hr>') + (g.every(x => x.aprox) ? '<br><i>Ubicación aproximada (población)</i>' : ''), { maxHeight: 260 }).addTo(capa);
     });
-    if (pts.length > 1) L.polyline(pts, { color: c, weight: 3, opacity: .75 }).addTo(capa);
-    mapa.fitBounds(pts, { padding: [50, 50], maxZoom: 14 });
-    est(`${op} · ${plural(pts.length, 'visita')} en orden de ruta · pulsa en el mapa para volver a todos`); leyenda(op);
+    const ruta = lista.filter(p => p.dia).sort((a, b) => a.n - b.n).map(p => p.ll);
+    if (ruta.length > 1) L.polyline(ruta, { color: c, weight: 3, opacity: .75 }).addTo(capa);
+    // Encuadre: la ruta del día si la hay (el resto queda alrededor); si no, todas
+    mapa.fitBounds(ruta.length ? ruta : lista.map(p => p.ll), { padding: [50, 50], maxZoom: 13 });
+    const nd = lista.filter(p => p.dia).length, otras = lista.length - nd;
+    const txt = `${op} · ${plural(nd, 'visita')} este día (numeradas en orden de ruta)${otras ? ' · ' + plural(otras, 'incidencia') + ' más con su fecha' : ''}`;
+    est(txt + ' · pulsa en el mapa para volver');
+    const llRuta = lista.filter(p => p.dia).sort((a, b) => a.n - b.n).map(p => p.ll);
+    if (llRuta.length > 1) distanciaRuta(llRuta).then(d => { if (d && modo === op) est(`${txt} · ≈ ${d.km} km y ${fmtMin(d.min)} de coche entre visitas · pulsa en el mapa para volver`); });
+    nota(`<span><i class="lg dia" style="background:${c}"></i>Visita del día</span><span><i class="lg otra" style="border-color:${c}"></i>Otra visita (fecha)</span><span><i class="lg gris"></i>Otro estado</span><span><i class="lg aprox"></i>Aproximada</span>${noSitHtml(noSit[op])}`);
   }
+  function noSitHtml(l) { return l && l.length ? `<span class="mapa-nosit">Sin situar (${l.length}): ${l.map(r => `<a href="#" onclick="cerrarModal();openTicket('${jsq(tkey(r))}');return false">${esc(String(r.num).slice(-5))}</a>`).join(', ')}</span>` : ''; }
   window.__mapaVer = op => op ? verTecnico(op) : verTodos();
   mapa.on('click', () => { if (modo !== 'todos') verTodos(); });
   mapa.invalidateSize();

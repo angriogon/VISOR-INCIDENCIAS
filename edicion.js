@@ -42,7 +42,15 @@ function enviarEdicion(accion, key, datos) {
   const src = hiloFuente();
   if (!src) { toast('Abre ATGO y pulsa el favorito ⟳ Despacho ATGO'); resolve({ ok: false, error: 'sin pestaña de ATGO' }); return; }
   const id = 'e' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
-  editPend = { id, key, accion, t0: Date.now(), datos, resolve };
+  // Para "Deshacer": cómo estaba antes lo que se va a cambiar
+  const r0 = ticketDe(key) || {}, antes = {};
+  if (accion === 'asignar' && !datos.esDeshacer) {
+    if ('codOpe' in datos) antes.codOpe = cleanInitials(r0.operario);
+    if ('fechaVisita' in datos && fechaIsoDe(r0)) antes.fechaVisita = fechaIsoDe(r0);
+    if ('horaInicio' in datos || 'fechaVisita' in datos) antes.horaInicio = r0.desdeHora || '';
+    if ('horaFin' in datos || 'fechaVisita' in datos) antes.horaFin = r0.hastaHora || '';
+  }
+  editPend = { id, key, accion, t0: Date.now(), datos, resolve, antes, sinFechaAntes: 'fechaVisita' in datos && !fechaIsoDe(r0) };
   try { src.postMessage({ type: 'despacho-editar', id, key, accion, ...datos }, ATGO_ORIGIN); }
   catch (e) { editPend = null; toast('No se pudo contactar con la pestaña de ATGO'); resolve({ ok: false, error: 'sin contacto con ATGO' }); return; }
   if (fichaKey) renderFicha();
@@ -59,7 +67,7 @@ function enviarEdicion(accion, key, datos) {
 }
 function recibirEdicion(m) {
   if (!editPend || m.id !== editPend.id) return;
-  const { key, accion, datos, resolve } = editPend;
+  const { key, accion, datos, resolve, antes, sinFechaAntes } = editPend;
   editPend = null;
   const r = ticketDe(key) || {};
   registrarEdicion({ key, num: r.num, accion, detalle: datos.resumen, ok: !!m.ok, error: m.error || '', dif: m.dif || null });
@@ -67,6 +75,7 @@ function recibirEdicion(m) {
   if (m.ok) {
     toast(accion === 'comentario' ? 'Comentario publicado en ATGO ✓' : accion === 'asignar' ? 'Guardado en ATGO ✓ · comprobado campo a campo' : 'Estado cambiado en ATGO ✓ · ' + (m.estadoActual || ''));
     if (accion === 'comentario' && fichaKey === key) { const ta = document.getElementById('edCom'); if (ta) ta.value = ''; }
+    if (accion === 'asignar' && antes && Object.keys(antes).length) ofrecerDeshacer(key, r, antes, sinFechaAntes);
   } else toast('No se aplicó: ' + (m.error || 'error desconocido'));
   if (fichaKey === key) renderFicha();
   if (resolve) resolve(m);
@@ -117,8 +126,26 @@ async function asignarAtgo() {
   if (h1 && h2 && h2 <= h1) { toast('La hora "hasta" debe ser posterior a "desde"'); return; }
   const ok = await confirmar(`<b>Guardar en ATGO</b><p>Nº ${esc(r.num || key)} · ${esc(r.descSede || '')}</p>
     <table class="md-tab">${cambios.map(([k, a, b]) => `<tr><td>${esc(k)}</td><td><span>${esc(a)}</span> → <b>${esc(b)}</b></td></tr>`).join('')}</table>
+    ${datos.codOpe ? sedeConfirmHtml(r, datos.codOpe) : ''}
     <p class="hint">ATGO guarda la ficha completa: Despacho reenvía el resto tal cual, comprueba campo a campo y, si cambiara algo más, restaura la ficha original.${datos.codOpe ? ' El técnico puede recibir un aviso de ATGO.' : ''}</p>`, 'Guardar en ATGO');
   if (ok) enviarEdicion('asignar', key, { ...datos, resumen: cambios.map(([k, a, b]) => `${k}: ${a} → ${b}`).join(' · ') });
+}
+// ---- Deshacer la última asignación (30 s) ----
+// Vuelve a guardar el técnico y la fecha/horas anteriores, con la misma confirmación y comprobación.
+let deshacerT = null;
+function ofrecerDeshacer(key, r, antes, sinFechaAntes) {
+  let bar = document.getElementById('undoBar');
+  if (!bar) { bar = document.createElement('div'); bar.id = 'undoBar'; bar.className = 'undo-bar'; document.body.appendChild(bar); }
+  bar.innerHTML = `<span>Asignación guardada · Nº ${esc(r.num || key)}</span><button class="btn sm" id="undoBtn">Deshacer</button><button class="iconbtn sm" onclick="this.parentNode.hidden=true" aria-label="Cerrar">✕</button>`;
+  bar.hidden = false;
+  clearTimeout(deshacerT); deshacerT = setTimeout(() => { bar.hidden = true; }, 30000);
+  document.getElementById('undoBtn').onclick = async () => {
+    bar.hidden = true; clearTimeout(deshacerT);
+    const ok = await confirmar(`<b>Deshacer en ATGO</b><p>Nº ${esc(r.num || key)} · ${esc(r.descSede || '')}</p>
+      <table class="md-tab">${'codOpe' in antes ? `<tr><td>Técnico</td><td>vuelve a <b>${esc(antes.codOpe || '—')}</b></td></tr>` : ''}${antes.fechaVisita ? `<tr><td>Fecha de visita</td><td>vuelve al <b>${esc(antes.fechaVisita.split('-').reverse().join('/'))}</b></td></tr>` : ''}${'horaInicio' in antes ? `<tr><td>Horas</td><td><b>${esc(antes.horaInicio || '—')} – ${esc(antes.horaFin || '—')}</b></td></tr>` : ''}</table>
+      ${sinFechaAntes ? '<p class="md-warn">Antes no tenía fecha de visita: ATGO no deja quitarla desde Despacho. Quítala en ATGO si hace falta.</p>' : ''}`, 'Deshacer');
+    if (ok) enviarEdicion('asignar', key, { ...antes, esDeshacer: true, resumen: 'Deshacer: ' + Object.entries(antes).map(([k, v]) => k + ' → ' + (v || '—')).join(' · ') });
+  };
 }
 function nombreDe(op) { const r = rows.find(x => cleanInitials(x.operario) === op && x.desOperario); return r ? nombreTecnico(r) : ''; }
 function difHtml(dif) {
@@ -128,12 +155,18 @@ function difHtml(dif) {
 }
 function asignarHtml(key, r, pend) {
   if (!fase2Activa(key)) return '';
-  const ops = [...dispatcherOps(), ...TECNICOS];
+  // Tus técnicos (y los de apoyo de su zona) primero; el resto, aparte
+  const z = zonaTicket(r), mios = [...new Set([...dispatcherOps(), ...(z ? zonaOps(z) : []), ...TECNICOS])];
+  const otros = TODOS_OPS.filter(op => !mios.includes(op));
+  const actual = cleanInitials(r.operario), ms = mismaSede(r);
+  const opt = op => `<option value="${esc(op)}"${op === actual ? ' selected' : ''}>${ms[op] ? '📍 ' : ''}${esc(op)} · ${esc(ZONAS_BASE.find(x => x.ops.includes(op)) ? ZONAS_BASE.find(x => x.ops.includes(op)).nombre : '')}${z && zonaOps(z).includes(op) && !(ZONAS_BASE.find(x => x.nombre === z) || { ops: [] }).ops.includes(op) ? ' · apoyo ' + esc(z) : ''}</option>`;
   const ult = edicionesDe(key).find(e => e.accion === 'asignar');
+  const sug = sugerirTecnico(r, nextWorkday()), best = sug && sug.lista[0] && sug.lista[0].op !== actual ? sug.lista[0].op : '';
   return `<div class="ed-asig">
     <div class="dw-h" style="margin-top:6px">Planificar en ATGO ${key === FASE2_PRUEBA && tecCfg.fase2 === 'prueba' ? '<small>en prueba: solo este ticket</small>' : ''}</div>
+    ${best && !pend ? `<div class="acts"><button class="btn sm pri" onclick="preAsignar('${jsq(best)}');asignarAtgo()" title="Técnico recomendado: ${esc(sug.lista[0].sede ? 'ya tiene otra incidencia en esta sede' : 'menos carga el próximo laborable')}">Asignar a ★ ${esc(best)}</button>${sedeAvisoHtml(r, actual)}</div>` : sedeAvisoHtml(r, actual)}
     <div class="ed-grid">
-      <label>Técnico<select id="asOp"${pend ? ' disabled' : ''}>${ops.map(op => `<option value="${esc(op)}"${op === cleanInitials(r.operario) ? ' selected' : ''}>${esc(op)} · ${esc(zonaDe(op))}</option>`).join('')}</select></label>
+      <label>Técnico<select id="asOp"${pend ? ' disabled' : ''} onchange="const a=document.getElementById('asSede');if(a)a.innerHTML=sedeAvisoHtml(ticketDe(fichaKey),this.value)">${mios.map(opt).join('')}${otros.length ? `<optgroup label="Otros técnicos">${otros.map(opt).join('')}</optgroup>` : ''}</select><span id="asSede"></span></label>
       <label>Fecha de visita <i>(opcional)</i><input type="date" id="asFecha" value="${esc(fechaIsoDe(r))}"${pend ? ' disabled' : ''}></label>
       <label>Desde <i>(opcional)</i><input type="time" id="asH1" value="${esc(r.desdeHora || '')}"${pend ? ' disabled' : ''}></label>
       <label>Hasta <i>(opcional)</i><input type="time" id="asH2" value="${esc(r.hastaHora || '')}"${pend ? ' disabled' : ''}></label>

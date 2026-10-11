@@ -1,12 +1,14 @@
 # Visor de Incidencias · Panel de Despacho
 
-PWA para Windows para el trabajo diario de Dispatcher. Es un **visor**: no modifica ATGO ni el ERP; lee, avisa y ayuda con el seguimiento, los correos y la organización del día.
+PWA para Windows para el trabajo diario de Dispatcher. Lee ATGO, avisa y ayuda con el seguimiento, los correos y la organización del día; solo escribe en ATGO desde las acciones confirmadas de la ficha (comentar, cambiar estado, planificar).
 
-- **Mi día:** la pantalla de inicio con lo que pide acción: novedades, tickets a tu nombre, visitas sin planificar, seguimientos, rutas de mañana, tickets parados y tu rutina diaria.
+- **Mi día:** la pantalla de inicio con lo que pide acción: novedades, tickets a tu nombre, sin asignar, rutas, caducidades y material.
+- **Sin asignar:** visitas pendientes de técnico de tus zonas, con técnico recomendado, fecha y aviso 📍 si alguien ya va a esa sede.
 - **Incidencias:** un técnico por fila, agrupados por zona, con una **barra del progreso de su ruta de hoy** (terminadas, en curso, pendientes) y el resumen del equipo arriba. Clic en un técnico para desplegar sus visitas de hoy y el resto de sus incidencias; botón para plegar o desplegar todos. Se cargan **en tiempo real desde ATGO** (o importando un Excel/CSV). Solo se cargan los operarios y estados configurados.
 - **Zonas:** los técnicos se agrupan y ordenan por zona (Sevilla/Huelva, Córdoba/Jaén, Granada, Almería, Málaga, Cádiz, Ceuta, Melilla, Extremadura), con chips para filtrar por zona.
-- **Mañana:** visitas presenciales del próximo día laborable (se puede cambiar de día) por técnico y zona, con barra de carga, técnicos libres y botón **WhatsApp** que envía a cada técnico su planificación.
-- **Ficha del ticket:** clic en cualquier ticket para ver sus datos, copiarlos para tu correo, dejar una nota con fecha de seguimiento y ver su historial de cambios.
+- **Planificación:** la semana por técnico (arrastrar y soltar) y, al pulsar un día, su detalle: carga por técnico, técnicos libres, mapa, correos y **WhatsApp** con la ruta de cada técnico.
+- **Perfiles:** DSP1–DSP5 y COORD, cada uno con sus técnicos.
+- **Ficha del ticket:** clic en cualquier ticket: Resumen, Actuar (comentar, estado, planificar, WhatsApp) e Historial.
 - **Buscador (`Ctrl+K`):** encuentra cualquier ticket por Nº, sede, técnico, referencia o nota, y lanza acciones.
 
 No hace falta compilar nada: son archivos estáticos (HTML + JS) y GitHub Pages los publica tal cual.
@@ -15,11 +17,15 @@ No hace falta compilar nada: son archivos estáticos (HTML + JS) y GitHub Pages 
 
 | Archivo | Para qué sirve |
 |---|---|
-| `index.html` | La aplicación completa |
+| `index.html` | Estructura de la página (cabecera, pestañas y vistas) |
+| `styles.css` | Estilos (tema claro/oscuro y modo denso) |
+| `app.js` | Configuración (zonas, perfiles, estados), Incidencias, filtros, día de Planificación, WhatsApp y recepción de ATGO |
+| `ajustes.js` | ⚙ Ajustes, perfiles, novedades de versión, atajos de teclado, menú contextual, asistente, diagnóstico, resumen matinal y exportar a Excel |
+| `tests/pruebas.js` | Pruebas automáticas (`node tests/pruebas.js`; GitHub las ejecuta en cada cambio) |
 | `manifest.webmanifest` | Nombre, iconos y ajustes para instalarla como app de Windows |
 | `sw.js` | Service worker: funcionamiento sin conexión y actualizaciones |
 | `herramientas.js` | Cerradas (15 días), material, caducidad (SLA), copia en OneDrive, ruta en Google Maps, técnico sugerido, correos del día e informe semanal |
-| `panel.js` | Sin asignar y buzón, Vista Semana (arrastrar y soltar, en bloque), replanificar, respuestas rápidas, carga en horas, línea de tiempo, conflictos, reincidencias, mapa, avisos de comentarios, vigilancia de la sincronización y secciones plegables |
+| `panel.js` | Sin asignar y buzón, Planificación (semana) (arrastrar y soltar, en bloque), replanificar, respuestas rápidas, carga en horas, línea de tiempo, conflictos, reincidencias, mapa, avisos de comentarios, vigilancia de la sincronización y secciones plegables |
 | `extension/`, `despacho-extension.zip` | Extensión de Edge/Chrome que arranca la sincronización sola al abrir ATGO |
 | `docs/` | Estudios y planteamientos: supervisor y varios dispatchers, mejoras para Windows, versión para iPhone |
 | `edicion.js` | Edición en ATGO desde la ficha: comentario en el hilo y cambio de estado |
@@ -28,7 +34,7 @@ No hace falta compilar nada: son archivos estáticos (HTML + JS) y GitHub Pages 
 | `icon-192.png`, `icon-512.png`, `icon-maskable-512.png`, `favicon.svg` | Iconos |
 | `.nojekyll` | Hace que GitHub Pages publique los archivos sin procesarlos |
 
-Todos los archivos van **en la raíz** del repositorio, sin carpetas.
+Los archivos de la app van **en la raíz** del repositorio (salvo `extension/`, `docs/` y `tests/`).
 
 ## Publicar en GitHub Pages
 
@@ -66,9 +72,12 @@ Detalles:
 - Despacho guarda la última carga, así que al abrirla ves los últimos datos (marcados con la hora) hasta que llegue la siguiente.
 - Si la sesión de ATGO caduca, el recuadro lo indica: vuelve a iniciar sesión y pulsa ⟳.
 
-## Mañana y WhatsApp
+## Planificación: el día, rutas y WhatsApp
+
+La antigua pestaña Mañana va ahora **dentro de Planificación**: pulsa el nombre de un día de la semana (o `Ctrl+K` › *Ver el próximo laborable*) y «← Semana» para volver.
 
 - Por defecto muestra el **próximo día laborable** (el viernes y el sábado muestran el lunes). Con ◀ ▶ cambias de día.
+- **Enviar todas las rutas**: abre WhatsApp técnico a técnico (solo los que aún no la tienen); en la barra de abajo eliges *Abrir WhatsApp* o *Saltar*.
 - Cuenta como visita toda incidencia en estado **PRESENCIAL** con fecha de visita ese día. Se ordenan por hora.
 - La barra de carga se pone naranja desde `CARGA_ALTA` (5) visitas y roja desde `CARGA_MUY` (7); se cambia en `index.html`.
 - **WhatsApp:** el botón abre WhatsApp con el mensaje ya escrito (y lo deja también en el portapapeles).
@@ -90,14 +99,19 @@ Detalles:
 - **Material:** aviso cuando un ticket pasa a **PTE. MOVER MATERIAL** y cuando vuelve de ahí a **PRESENCIAL**. Panel *Material* en Mi día con los que están pendientes y los listos para visita (7 días).
 - **Caducidad (SLA):** se lee de los comentarios del hilo que hablan de caducidad, vencimiento, fecha límite o SLA. Manda el comentario **más reciente**; si dice "de X a Y", vale la **última** fecha. Acepta 15/10/2026, 15/10, 15-10-26 y "15 de octubre", con o sin hora. Se ve en cada ticket (⏱, rojo si quedan menos de 24 h o está vencida, ámbar si menos de 72 h), en *Caducidades* de Mi día y con aviso de Windows a menos de 4 h. En la ficha se puede **corregir a mano**. Los hilos se refrescan cada 10 minutos para ver los cambios.
 - **Copia en OneDrive:** ⚙ → *Elegir carpeta de OneDrive*. Guarda `Despacho-copia.json` cada 10 minutos y una copia por día de los últimos 7. Si Windows vuelve a pedir permiso (al reiniciar), aparece *Reanudar*.
-- **Ruta en Google Maps:** botón *Ruta* en Mañana y *Ruta de hoy en Maps* en Incidencias. Orden: citas con hora en su hora, **recogida en GLS de 9:00 a 10:00**, visitas sin hora a mediodía. El GLS de cada técnico se puede cambiar en *Técnicos y mensaje* (por defecto, "GLS + ciudad de su zona"). El enlace se añade al WhatsApp de la ruta.
+- **Ruta en Google Maps:** botón *Ruta* en el día de Planificación y *Ruta de hoy en Maps* en Incidencias. Orden: citas con hora en su hora, **recogida en GLS de 9:00 a 10:00**, visitas sin hora a mediodía. El GLS de cada técnico se puede cambiar en *Técnicos y mensaje* (por defecto, "GLS + ciudad de su zona"). El enlace se añade al WhatsApp de la ruta.
 - **Técnico sugerido:** en la ficha de cualquier visita presencial, los 3 técnicos de la zona del ticket (por su provincia) con menos visitas ese día; ir ya a esa población cuenta a favor. Solo sugiere: la asignación se hace en el ERP.
-- **Correos del día:** en Mañana → *Correos del día*. Un correo por visita al contacto del ticket en ATGO, abierto en Outlook uno tras otro (*Abrir siguiente*), y un *Correo resumen* con todas las visitas. La plantilla es editable.
+- **Correos del día:** en el día de Planificación → *Correos del día*. Un correo por visita al contacto del ticket en ATGO, abierto en Outlook uno tras otro (*Abrir siguiente*), y un *Correo resumen* con todas las visitas. La plantilla es editable.
 - **Informe semanal:** en Mi día. Por técnico: visitas enrutadas, terminadas, en trámite, % de cumplimiento y cerradas; además tickets nuevos, escalados, material y caducidades vencidas. *Copiar para el correo* (tabla con formato) o *Abrir en Outlook*. Se construye con la foto de cada día que Despacho guarda mientras sincroniza.
 
 ## Carga en horas
 
-Despacho aprende cuánto dura cada visita a partir del hilo de ATGO (*ha iniciado* → *ha finalizado* del mismo día): la mediana por tipo de avería (con 3 o más casos), si no por técnico, y si aún no hay datos, 60 minutos. Se usa en Mañana ("≈ 4 h 30 de 8 h"), en Semana, en conflictos y en la línea de tiempo.
+La duración de cada visita sale, por este orden, de:
+1. **El hilo del ticket**: «duración estimada 2 h», «horario de despliegue de 7 a 15 horas», «jornada completa», «media hora»… (manda el comentario más reciente; no confunde horas del día como «a las 10:00 horas» ni «llamar en 15 minutos»).
+2. **Lo que duraron de verdad** visitas a la misma sede (2 o más) o del mismo tipo (3 o más): *El usuario X ha iniciado el ticket* → *ha finalizado* del mismo técnico y día.
+3. Si no se sabe, **no se estima**: solo cuenta la hora de inicio (en la línea de tiempo sale una marca fina y en la carga «sin estimar»).
+
+Se ve en la ficha (*Duración*), en el día de Planificación («≈ 4 h 30 + 2 s/e de 8 h»), en las casillas de la semana, en conflictos y en la línea de tiempo.
 
 ## Avisos y vigilancia
 
@@ -135,20 +149,22 @@ En la ficha, dentro de *Actuar en ATGO*, **Planificar en ATGO**: técnico, fecha
 
 Pestaña **Sin asignar**: visitas en **PRESENCIAL** que siguen en un operario comodín «PENDIENTE ASIGNAR …» (`XXX-SVQ`, `XXX-MA`, `XXX-M`…), de todas las zonas, con la **última actualizada arriba**.
 
-- **Mi zona** (Sevilla/Huelva, Córdoba/Jaén, Granada, Almería, Málaga, Cádiz, Ceuta, Melilla, Extremadura): cada una lleva el **técnico recomendado** (el de su zona con menos visitas ese día; ir ya a esa población cuenta a favor) y un selector con la carga de cada técnico. **Asignar** solo necesita el técnico (la fecha es opcional) y se guarda en ATGO con la comprobación campo a campo.
+- **Mi zona** (las zonas con técnicos en tu perfil): cada una lleva el **técnico recomendado** (★: el que ya tiene otra incidencia abierta en esa sede, o el de su zona con menos visitas ese día; ir ya a esa población cuenta a favor), un selector con la carga de cada técnico y la **fecha de visita** (opcional). **Asignar** se guarda en ATGO con la comprobación campo a campo.
+- **📍 Misma sede**: si un técnico ya tiene abierta otra incidencia de esa sede, sale un bocadillo junto al técnico y la confirmación lo recuerda (en ámbar si eliges a otro). Igual en la ficha › Actuar.
+- **Ceuta** admite también a los técnicos de Cádiz (DSJ, AAR, EACL, JRHG) y **Melilla** a los de Málaga (JVR, ILG, FMNT, MMHG), marcados como «apoyo». Se cambia en `ZONAS_BASE` (`apoyo`) de `app.js`.
 - **Otras zonas**: botón **Archivar** para pasarlas al **Buzón** y controlar si siguen pendientes.
 - Cuando un ticket recibe técnico (lo asignes tú o otro dispatcher) **desaparece solo** del panel y del buzón.
 - Aviso de Windows cuando aparece uno nuevo sin asignar en tu zona.
 
-## Semana: planificar arrastrando
+## Planificación: la semana arrastrando
 
-Pestaña **Semana**: técnicos (por zona) × días de lunes a viernes, con nº de visitas, **carga en horas** y ⚠ si hay conflicto.
+Pestaña **Planificación**: técnicos (por zona) × días de lunes a viernes (el sábado y el domingo, la semana siguiente), con nº de visitas, **carga en horas** y ⚠ si hay conflicto. Pulsa un día para ver su detalle (rutas, WhatsApp y correos).
 
 - A la izquierda, **Por planificar**, en tres grupos plegables: *Sin asignar* (tu zona), *Vencidas* y *Sin fecha*. **Arrastra** un ticket a la casilla de un técnico y un día: se planifica en ATGO (con confirmación). Arrastrando una visita desde el detalle de una casilla a otra, se mueve de técnico o de día.
 - Las casillas muestran solo el nº de visitas y las horas estimadas; el **color** indica la carga (verde holgado, ámbar > 75 % de la jornada, rojo > 8 h) y ⚠ un conflicto. **Clic en una casilla** abre debajo su detalle (visitas por hora, conflictos, botón *Ruta*).
 - **Replanificar vencidas** (arriba): propone para cada visita vencida el técnico con menos carga de su zona y el próximo laborable, y las guarda en bloque.
 - **En bloque**: marca varios, elige técnico y día y pulsa *Asignar*. Se guardan uno a uno, cada uno comprobado; si alguno falla, los demás siguen y se muestra el motivo.
-- Botón **Mapa**: primero una **burbuja por técnico** con su nº de visitas; al pulsar una, solo sus visitas numeradas en orden de ruta; al pulsar en cualquier parte del mapa, vuelven todas las burbujas (también se elige en la leyenda). Las direcciones se sitúan con Nominatim (OpenStreetMap), 1 por segundo la primera vez, y se guardan en el equipo.
+- Botón **Mapa**: primero una **burbuja por técnico** con sus visitas del día; al pulsar una (o el técnico en la leyenda, que muestra «visitas del día / incidencias asignadas»), salen **todas sus incidencias**: las del día numeradas en orden de ruta y unidas por una línea, las de otros días con su fecha y las de otros estados en gris, con los **km y minutos de coche** entre visitas (OSRM). Varias en el mismo sitio van en un solo marcador («2·3»). Si la dirección no se encuentra, se sitúa en su población (borde discontinuo); las que no se pueden situar se listan debajo. Al pulsar en el mapa vuelven las burbujas. Las direcciones se buscan con Nominatim (OpenStreetMap), 1 por segundo la primera vez, y se guardan en el equipo.
 
 ## Mi día
 
@@ -165,10 +181,13 @@ Al abrir la app ves el día de un vistazo. Cada casilla de arriba lleva a su sec
 
 ## Ficha del ticket, notas y seguimientos
 
-Haz clic en cualquier ticket (en Mi día, Incidencias o Mañana) para abrir su ficha a la derecha:
+Haz clic en cualquier ticket para abrir su ficha, flotante y ancha (a dos columnas en pantallas grandes), con tres pestañas:
 
-- **Motivo de apertura y último comentario:** el texto con el que se abrió la incidencia y lo último que escribió alguien (normalmente el técnico tras la visita), sacados del hilo del ticket en ATGO. Debajo, el **hilo completo** plegado, sin los mensajes automáticos ("ha iniciado el ticket", "incidencia asignada a…"). Se guarda en el equipo y se refresca al abrir la ficha. Pedir el hilo de los ~90 tickets tarda menos de 1 segundo; después solo se piden los de tickets nuevos o que cambian. El buscador `Ctrl+K` también busca en el motivo.
-- **Abrir en ATGO**, **Copiar ficha** (Nº, cliente, sede, dirección, estado, visita, técnico, tipo y referencia, con formato para pegar en tu plantilla de Outlook) y **Copiar Nº**.
+- **Resumen:** datos, duración estimada, caducidad, **motivo de apertura y último comentario** (sacados del hilo de ATGO, sin los mensajes automáticos) y tu nota.
+- **Actuar:** comentar en el hilo, cambiar el estado, planificar (técnico, fecha, horas; botón «Asignar a ★» con el recomendado), técnico sugerido y **WhatsApp al técnico** con plantillas (cambio de visita, recordar finalizar, sobre este ticket; se editan en ⚙ › WhatsApp).
+- **Historial:** el hilo completo de ATGO y los cambios que Despacho ha visto.
+- Arriba: **ATGO ↗**, ⧉ **copiar ficha** (para tu plantilla de Outlook) y **#** copiar Nº.
+- Tras asignar, durante 30 s sale **Deshacer** abajo (vuelve a guardar el técnico, fecha y horas anteriores, con confirmación).
 - **Nota y seguimiento:** una nota privada y una fecha para revisarlo (Hoy, Mañana, Lunes, +1 semana o la que elijas). Aparece en *Seguimientos* ese día; márcalo como hecho al terminar. En las listas, los tickets con nota llevan ✎ y los que tienen cambios sin ver, un punto naranja.
 - **Historial:** los cambios que Despacho ha visto en ese ticket.
 
@@ -179,8 +198,21 @@ tickets nuevos o reasignados a tu nombre, escalados a TIER1, cambios en las ruta
 
 ## Atajos
 
-- `Ctrl+K` o `/`: buscador de tickets y acciones.
-- `Esc`: cierra la ficha o el buscador.
+- `1`–`4`: Mi día · Sin asignar · Incidencias · Planificación.
+- `J` / `K`: bajar y subir por los tickets; `Enter` abre la ficha; `A` asignar; `C` comentar.
+- `Ctrl+K` o `/`: buscador de tickets y acciones; con un ticket elegido, `→` muestra sus acciones.
+- **Clic derecho** sobre un ticket: abrir ficha, asignar, comentar, abrir en ATGO, copiar Nº o ficha, WhatsApp.
+- `?`: chuleta de atajos. `Esc`: cierra.
+
+## Cabecera, perfiles y ajustes
+
+- El **punto de color** junto a las pestañas es el estado de ATGO (verde al día, ámbar cargando o sin conexión, rojo con error); al pasar el ratón, el detalle. *Abrir ATGO* e *Importar Excel* están en ⚙ › General.
+- **Perfiles** (botón DSP1… junto a la lupa, o ⚙ › Perfiles): DSP1–DSP5 y COORD. Cada perfil ve solo sus técnicos; un técnico puede estar en varios. DSP1 empieza con todos y el resto se rellenan marcando casillas. Cambiar de perfil recarga la app.
+- **ⓘ Novedades**: versión actual y lo más importante de cada versión (un punto avisa de que hay novedades sin ver).
+- ⚙ **General**: tema (Windows, claro u oscuro), tamaño (cómodo o denso), **resumen matinal** (aviso de Windows a la hora que elijas con visitas, sin asignar y caducidades) y aviso si un técnico **no ha iniciado ninguna visita** a la hora indicada.
+- ⚙ **Datos**: copia en OneDrive y manual, **exportar a Excel** (incidencias filtradas o la planificación de la semana), informe semanal con **histórico de 8 semanas** y **diagnóstico** (copia la versión y los últimos errores para enviarlos si algo falla).
+- **Incidencias** tiene filtros por estado, «caducan en 24 h o vencidas» y texto; ☆ **Guardar** los deja como acceso rápido. Cada incidencia muestra al final su **estado en color** y su **fecha de visita**.
+- La sincronización se hace cada 2 min en horario laboral (L-V de 7 a 20 h) y cada 10 min fuera de él. Si ATGO devuelve de golpe casi nada, Despacho no lo aplica hasta confirmarlo en la siguiente carga, y si cambia el formato de su web, avisa.
 
 ## Tus datos
 
@@ -195,7 +227,8 @@ tickets nuevos o reasignados a tu nombre, escalados a TIER1, cambios en las ruta
 
 ## Configuración rápida
 
-- `ZONAS` (en `index.html`): zonas y sus técnicos. La zona `DISPATCHER` (AMRG) es quien controla: sale la primera en Incidencias y no cuenta como técnico en Mañana ni recibe WhatsApp. Los técnicos que se cargan son los de todas las zonas; en `atgo-sync.js` está la misma lista en `OPERARIOS`: si añades o quitas un técnico, cámbialo en los dos.
-- `ESTADOS`: estados que se cargan. En `index.html` por nombre; en `atgo-sync.js` por código de ATGO (10 PRESENCIAL, 20 PUESTO OPERATIVO, 30 FUERA DE MANTENIMIENTO, 40 MATERIAL PTE. FABRICANTE, 80 PTE. MOVER MATERIAL, 100 EN FABRICANTE, 110 ESCALADO TIER1).
-- `REFRESCO_MIN` (en `atgo-sync.js`): minutos entre actualizaciones.
-- `COLS` (en `index.html`): qué columna del Excel corresponde a cada dato (0 = A, 1 = B, …).
+- `ZONAS_BASE` (en `app.js`): zonas, sus técnicos y los de **apoyo**. La zona `DISPATCHER` (AMRG) es quien controla: sale la primera en Incidencias y no cuenta como técnico ni recibe WhatsApp. En `atgo-sync.js` está la misma lista en `OPERARIOS`: si añades o quitas un técnico, cámbialo en los dos (las pruebas automáticas lo comprueban). Un técnico nuevo entra solo en el perfil DSP1.
+- `ESTADOS`: estados que se cargan. En `app.js` por nombre; en `atgo-sync.js` por código de ATGO (10 PRESENCIAL, 20 PUESTO OPERATIVO, 30 FUERA DE MANTENIMIENTO, 40 MATERIAL PTE. FABRICANTE, 80 PTE. MOVER MATERIAL, 100 EN FABRICANTE, 110 ESCALADO TIER1).
+- `REFRESCO_MIN` y `REFRESCO_FUERA_MIN` (en `atgo-sync.js`): minutos entre actualizaciones dentro y fuera del horario laboral.
+- `COLS` (en `app.js`): qué columna del Excel corresponde a cada dato (0 = A, 1 = B, …).
+- Al publicar una versión, sube a la vez `VERSION` en `sw.js` y `APP_VERSION` en `ajustes.js`, y añade sus novedades en `NOVEDADES` (`ajustes.js`).
