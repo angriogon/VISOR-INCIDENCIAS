@@ -188,7 +188,7 @@
   .seg.mini .segb.on{background:var(--panel); color:var(--ink); box-shadow:0 1px 2px rgba(0,0,0,.12);}
   .dempty{color:var(--ink-faint); font-size:12px; padding:6px 2px;}
   .dnote{color:var(--ink-faint); font-size:11px; margin-top:6px;}
-  .feed,.tlist,.rut{list-style:none; margin:0; padding:0; display:grid;}
+  .feed,.tlist{list-style:none; margin:0; padding:0; display:grid;}
   .feed{max-height:calc(100vh - 290px); overflow:auto;}
   .feed li{display:grid; grid-template-columns:62px 1fr; gap:0 8px; padding:7px 4px; border-top:1px solid var(--line); cursor:pointer; font-size:12px;}
   .feed li:first-child{border-top:none;}
@@ -212,13 +212,6 @@
   .tlist li.dim{opacity:.65;}
   .tlist li.more{color:var(--ink-faint); cursor:default;}
   .tlist input[type=checkbox]{margin:0; align-self:center; cursor:pointer;}
-  .rut li{display:flex; gap:8px; align-items:center; padding:6px 4px; font-size:12.5px; cursor:pointer; border-radius:6px;}
-  .rut li:hover{background:var(--panel2);}
-  .rut .ck{width:16px; height:16px; border:1.5px solid var(--line); border-radius:4px; display:inline-flex; align-items:center; justify-content:center; font-size:11px; color:#fff; flex-shrink:0;}
-  .rut li.ok .ck{background:var(--teal); border-color:var(--teal);}
-  .rut li.ok{color:var(--ink-faint); text-decoration:line-through;}
-  .rut.edit li{cursor:default;}
-  .rut.edit input{flex:1; font:inherit; font-size:12.5px; padding:5px 8px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--ink);}
   /* Ficha del ticket */
   .drawer{position:fixed; inset:0; z-index:40;}
   .drawer[hidden]{display:none;}

@@ -40,11 +40,11 @@ function enviarEdicion(accion, key, datos) {
   return new Promise(resolve => {
   if (editPend) { toast('Espera a que termine el cambio anterior'); resolve({ ok: false, error: 'otro cambio en curso' }); return; }
   const src = hiloFuente();
-  if (!src) { toast('Abre ATGO y pulsa el favorito ⟳ Despacho ATGO'); resolve({ ok: false, error: 'sin pestaña de ATGO' }); return; }
+  if (!src || src.closed) { toast('Abre ATGO y pulsa el favorito ⟳ Despacho ATGO'); resolve({ ok: false, error: 'sin pestaña de ATGO', sinAtgo: true }); return; }
   const id = 'e' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
   // Para "Deshacer": cómo estaba antes lo que se va a cambiar
   const r0 = ticketDe(key) || {}, antes = {};
-  if (accion === 'asignar' && !datos.esDeshacer) {
+  if (accion === 'asignar' && !datos.esDeshacer && !datos.sinDeshacer) {
     if ('codOpe' in datos) antes.codOpe = cleanInitials(r0.operario);
     if ('fechaVisita' in datos && fechaIsoDe(r0)) antes.fechaVisita = fechaIsoDe(r0);
     if ('horaInicio' in datos || 'fechaVisita' in datos) antes.horaInicio = r0.desdeHora || '';
@@ -52,12 +52,13 @@ function enviarEdicion(accion, key, datos) {
   }
   editPend = { id, key, accion, t0: Date.now(), datos, resolve, antes, sinFechaAntes: 'fechaVisita' in datos && !fechaIsoDe(r0) };
   try { src.postMessage({ type: 'despacho-editar', id, key, accion, ...datos }, ATGO_ORIGIN); }
-  catch (e) { editPend = null; toast('No se pudo contactar con la pestaña de ATGO'); resolve({ ok: false, error: 'sin contacto con ATGO' }); return; }
+  catch (e) { editPend = null; toast('No se pudo contactar con la pestaña de ATGO'); resolve({ ok: false, error: 'sin contacto con ATGO', sinAtgo: true }); return; }
   if (fichaKey) renderFicha();
   setTimeout(() => {
     if (!editPend || editPend.id !== id) return;
     const r = ticketDe(key) || {};
     registrarEdicion({ key, num: r.num, accion, detalle: datos.resumen, ok: false, error: 'sin respuesta de ATGO' });
+    editTarde[id] = { key, accion, datos, ts: Date.now() };   // si ATGO contesta luego, se apunta el resultado real
     editPend = null;
     toast('ATGO no ha respondido. Comprueba en ATGO si se aplicó antes de repetirlo.');
     if (fichaKey === key) renderFicha();
@@ -65,11 +66,33 @@ function enviarEdicion(accion, key, datos) {
   }, EDIT_TIMEOUT_MS);
   });
 }
+// Respuestas que llegan después del tiempo de espera: el cambio pudo aplicarse igualmente
+let editTarde = {};
+function recibirEdicionTarde(m) {
+  const t = editTarde[m.id]; delete editTarde[m.id];
+  const r = ticketDe(t.key) || {};
+  const error = errorAtgo(m.error);
+  registrarEdicion({ key: t.key, num: r.num, accion: t.accion, detalle: t.datos.resumen + ' (respuesta tardía)', ok: !!m.ok, error, dif: m.dif || null });
+  if (m.hilo) recibirHilos({ [t.key]: m.hilo });
+  if (m.ok) confirmar(`<b>ATGO respondió tarde, pero sí se aplicó ✓</b><p>Nº ${esc(r.num || t.key)} · ${esc(t.datos.resumen || '')}</p><p class="hint">No lo repitas: ya está guardado y comprobado.</p>`, 'Entendido');
+  else toast('ATGO respondió tarde: no se aplicó · ' + error);
+  if (fichaKey === t.key) renderFicha();
+}
+// Mensajes de ATGO más claros para los fallos habituales
+function errorAtgo(e) {
+  const s = String(e || 'error desconocido');
+  if (/(^|\D)40[13](\D|$)|caducad/i.test(s)) return 'la sesión de ATGO ha caducado: vuelve a iniciar sesión en ATGO y repítelo';
+  if (/(^|\D)404(\D|$)/.test(s)) return 'ATGO no encuentra el ticket (puede que ya no exista o haya cambiado)';
+  if (/(^|\D)5\d\d(\D|$)|failed to fetch|network/i.test(s)) return 'ATGO no responde ahora mismo (' + s.slice(0, 80) + '). Comprueba en ATGO si se aplicó antes de repetirlo';
+  return s;
+}
 function recibirEdicion(m) {
+  if (m && editTarde[m.id]) { recibirEdicionTarde(m); return; }
   if (!editPend || m.id !== editPend.id) return;
   const { key, accion, datos, resolve, antes, sinFechaAntes } = editPend;
   editPend = null;
   const r = ticketDe(key) || {};
+  if (!m.ok) m = { ...m, error: errorAtgo(m.error), sinAtgo: /sesión de ATGO ha caducado/.test(errorAtgo(m.error)) };
   registrarEdicion({ key, num: r.num, accion, detalle: datos.resumen, ok: !!m.ok, error: m.error || '', dif: m.dif || null });
   if (m.hilo) recibirHilos({ [key]: m.hilo });
   if (m.ok) {
@@ -155,11 +178,13 @@ function difHtml(dif) {
 }
 function asignarHtml(key, r, pend) {
   if (!fase2Activa(key)) return '';
-  // Tus técnicos (y los de apoyo de su zona) primero; el resto, aparte
-  const z = zonaTicket(r), mios = [...new Set([...dispatcherOps(), ...(z ? zonaOps(z) : []), ...TECNICOS])];
+  // Mismo orden y etiquetas que en Sin asignar: los de su zona (y apoyo) por recomendación (★ el primero),
+  // después el resto de tus técnicos y, aparte, los de otros perfiles
+  const rec = recomendar(r, nextWorkday()) || [], recOp = Object.fromEntries(rec.map((x, i) => [x.op, { ...x, i }]));
+  const mios = [...new Set([...rec.map(x => x.op), ...dispatcherOps(), ...TECNICOS])];
   const otros = TODOS_OPS.filter(op => !mios.includes(op));
-  const actual = cleanInitials(r.operario), ms = mismaSede(r);
-  const opt = op => `<option value="${esc(op)}"${op === actual ? ' selected' : ''}>${ms[op] ? '📍 ' : ''}${esc(op)} · ${esc(ZONAS_BASE.find(x => x.ops.includes(op)) ? ZONAS_BASE.find(x => x.ops.includes(op)).nombre : '')}${z && zonaOps(z).includes(op) && !(ZONAS_BASE.find(x => x.nombre === z) || { ops: [] }).ops.includes(op) ? ' · apoyo ' + esc(z) : ''}</option>`;
+  const actual = cleanInitials(r.operario);
+  const opt = op => { const x = recOp[op]; return `<option value="${esc(op)}"${op === actual ? ' selected' : ''}>${x && x.i === 0 ? '★ ' : ''}${esc(op)} · ${x ? (x.sede ? 'ya va a la sede' : x.carga ? x.carga + ' el próx. laborable' : 'libre') + (x.apoyo ? ' · apoyo' : '') : esc(zonaDe(op))}</option>`; };
   const ult = edicionesDe(key).find(e => e.accion === 'asignar');
   const sug = sugerirTecnico(r, nextWorkday()), best = sug && sug.lista[0] && sug.lista[0].op !== actual ? sug.lista[0].op : '';
   return `<div class="ed-asig">

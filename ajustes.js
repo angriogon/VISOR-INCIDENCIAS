@@ -3,8 +3,9 @@
 // asistente de inicio, diagnóstico, resumen matinal, aviso de técnico sin actividad y exportar a Excel.
 // Usa utilidades de app.js, dia.js, herramientas.js, edicion.js y panel.js solo en tiempo de llamada.
 
-const APP_VERSION = '1.13.1';   // súbela a la vez que VERSION en sw.js
+const APP_VERSION = '1.14.0';   // súbela a la vez que VERSION en sw.js
 const NOVEDADES = [
+  { v: '1.14.0', f: '2026-10-11', l: ['Más estable: la actualización de ATGO ya no borra lo que estás escribiendo ni te mueve la página.', 'Errores de ATGO más claros (sesión caducada, sin respuesta) y aviso si un cambio se confirmó tarde.', 'Limpieza automática de lo guardado en el equipo para que nunca se llene.', 'Mismo selector de técnico y misma confirmación al asignar desde cualquier sitio.', 'La lista de técnicos que sincroniza ATGO sale de Despacho.', '«Quitar datos» pasa a ⚙ › Datos (con confirmación).'] },
   { v: '1.13.1', f: '2026-10-11', l: ['Sin asignar: asignar en masivo (marca varias, cada una con su técnico y fecha).', 'ATGO se sincroniza siempre cada 2 minutos.'] },
   { v: '1.13.0', f: '2026-10-11', l: [
     'Perfiles DSP1–DSP5 y COORD: cada uno ve solo sus técnicos (⚙ › Perfiles).',
@@ -120,6 +121,9 @@ function renderCfg() {
       <div class="acts"><button class="btn sm" onclick="exportBackup()">Exportar</button><button class="btn sm" onclick="document.getElementById('backupInput').click()">Restaurar</button></div>
       <div class="cfg-h">Exportar a Excel</div>
       <div class="acts"><button class="btn sm" onclick="exportarExcel('inc')">Incidencias</button><button class="btn sm" onclick="exportarExcel('sem')">Planificación de la semana</button><button class="btn sm" onclick="abrirInforme()">Informe semanal</button></div>
+      <div class="cfg-h">Datos cargados</div>
+      <div class="cfg-t">${esc(document.getElementById('fileStatus').textContent)} · ${Math.round(espacioUsado() / 1024)} KB guardados en este equipo (límite ~5 MB; lo antiguo se limpia solo).</div>
+      <div class="acts">${rows.length ? '<button class="btn sm ghost" onclick="document.getElementById(\'clearBtn\').click()">Quitar datos cargados</button>' : ''}<button class="btn sm ghost" onclick="liberarEspacio();renderCfg();toast(\'Espacio liberado\')">Liberar espacio ahora</button></div>
       <div class="cfg-h">Diagnóstico</div>
       <div class="cfg-t">Versión ${esc(APP_VERSION)} · ${plural(diagLista().length, 'error')} registrado${diagLista().length === 1 ? '' : 's'}.</div>
       <div class="acts"><button class="btn sm" onclick="copiarDiagnostico()">Copiar diagnóstico</button>${diagLista().length ? '<button class="btn sm ghost" onclick="lsSet(DIAG_KEY,[]);renderCfg()">Vaciar</button>' : ''}</div>`;
@@ -140,6 +144,32 @@ function copiarDiagnostico() {
     '', 'Errores recientes:', ...diagLista().map(d => `${new Date(d.ts).toLocaleString('es-ES')} · ${d.msg}${d.src ? ' (' + d.src + ')' : ''}`)].join('\n');
   copyText(txt);
 }
+
+// ---- Espacio guardado en el equipo ----
+// El navegador deja ~5 MB por web. Si se acerca al límite (o falla un guardado), se borra lo prescindible
+// y nunca notas, perfiles, ajustes ni cerradas.
+const ESPACIO_LIMITE = 3.5e6;
+function espacioUsado() {
+  let n = 0;
+  try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (/^dispatcher_/.test(k)) n += k.length + (localStorage.getItem(k) || '').length; } } catch (e) {}
+  return n * 2;   // el navegador guarda en UTF-16: 2 bytes por carácter
+}
+function liberarEspacio() {
+  const guardar = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
+  const vivos = new Set([...rows, ...poolRows].map(tkey));
+  // 1) Hilos de tickets que ya no están (salvo con nota) y mensajes muy largos recortados
+  Object.keys(hilos).forEach(k => { if (!vivos.has(k) && !notas[k]) delete hilos[k]; else hilos[k].items = hilos[k].items.slice(0, 60).map(i => ({ ...i, t: i.t.slice(0, 1500) })); });
+  guardar(HILO_KEY, hilos);
+  // 2) Direcciones del mapa: las 600 más recientes
+  const g = Object.keys(geoCache); if (g.length > 600) { g.slice(0, g.length - 600).forEach(k => delete geoCache[k]); guardar(GEO_KEY, geoCache); }
+  // 3) Novedades, historial de ediciones y diagnóstico más cortos
+  eventos = eventos.slice(0, 300); guardar(EVT_KEY, eventos);
+  ediciones = ediciones.slice(0, 150); guardar(EDIT_KEY, ediciones);
+  guardar(DIAG_KEY, diagLista().slice(0, 15));
+  diagLog('Espacio liberado: ' + Math.round(espacioUsado() / 1024) + ' KB en uso');
+}
+function revisarEspacio() { if (espacioUsado() > ESPACIO_LIMITE) liberarEspacio(); }
+setInterval(() => { try { revisarEspacio(); } catch (e) {} }, 3600000);
 
 // ---- Versionado de los datos guardados (migraciones en orden, una sola vez) ----
 const MIGRACIONES = [
@@ -296,6 +326,7 @@ function exportarExcel(que) {
 // ---- Arranque (cuando ya están cargados todos los scripts) ----
 window.addEventListener('DOMContentLoaded', () => {
   aplicarApariencia(); updatePerfilBtn(); marcarNovedades();
+  try { revisarEspacio(); } catch (e) {}
   let visto = null; try { visto = localStorage.getItem(BIENV_KEY); } catch (e) {}
   if (!visto && !lsGet(ATGO_KEY, null)) setTimeout(() => { if (document.getElementById('modal').hidden) abrirAsistente(1); }, 800);
   else if (!visto) { try { localStorage.setItem(BIENV_KEY, '1'); } catch (e) {} }

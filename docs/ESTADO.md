@@ -4,12 +4,16 @@ Archivo de traspaso entre sesiones. Al empezar una sesión: "lee docs/ESTADO.md 
 Al terminar: "actualiza docs/ESTADO.md". Máximo ~40 líneas: lo antiguo se resume o se borra.
 
 ## Versión actual
-- `sw.js`: despacho-v1.13.0 = `APP_VERSION` en `ajustes.js` (publicada en GitHub Pages).
+- `sw.js`: despacho-v1.14.0 = `APP_VERSION` en `ajustes.js` (publicada en GitHub Pages).
 - 1.13.0: perfiles DSP1–5/COORD, mapa con todas las incidencias del técnico, duración leída del hilo (sin estimación si no se sabe),
   fecha en Sin asignar, apoyo Cádiz→Ceuta y Málaga→Melilla, ficha flotante con pestañas, globo de estado + fecha en Incidencias,
   ⓘ novedades, aviso 📍 misma sede al asignar y toda la batería de `docs/estudio-mejoras-windows.md`.
 - Código partido: `index.html` (estructura) + `styles.css` + `app.js` + `ajustes.js` (nuevo). Pruebas en `tests/pruebas.js` + GitHub Actions.
 - Mi día sin Parados/Sin planificar/Seguimientos/Rutina/Reincidencias (el usuario lo pidió: no volver a añadirlas).
+
+- 1.13.1: asignación masiva en Sin asignar; sincronización siempre cada 2 min (el usuario lo pidió).
+- 1.14.0 (pulido, sin funciones nuevas): no repintar con un campo en uso, límites y limpieza del almacenamiento, errores de ATGO claros
+  y respuestas tardías, asignar siempre por asignarLote, lista de técnicos enviada a ATGO, código muerto quitado (rutina…), 38 pruebas.
 
 ## En curso
 - (vacío)

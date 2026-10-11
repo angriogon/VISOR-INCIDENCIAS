@@ -183,9 +183,6 @@ function abrirRuta(op, f) {
   if (paradasRuta(op, f || ddmmyyyy(manDate)).length > 10) toast('Más de 10 paradas: Google Maps puede no mostrarlas todas');
   window.open(u, 'maps-' + op);
 }
-function rutaTexto(op, f) {
-  return paradasRuta(op, f).map((x, i) => `${i + 1}) ${x.gls ? '9:00-10:00 Recogida en ' + x.label : (x.conHora ? x.r.desdeHora : 'Sin hora') + ' · ' + (x.r.descSede || '')}`).join('\n');
-}
 
 // ===== 6. Sugerencia de técnico =====
 const PROV_ZONA = { sevilla: 'SEVILLA/HUELVA', huelva: 'SEVILLA/HUELVA', cordoba: 'CÓRDOBA/JAÉN', jaen: 'CÓRDOBA/JAÉN', granada: 'GRANADA', almeria: 'ALMERÍA', malaga: 'MÁLAGA', cadiz: 'CÁDIZ', ceuta: 'CEUTA', melilla: 'MELILLA', badajoz: 'EXTREMADURA', caceres: 'EXTREMADURA' };
@@ -198,19 +195,10 @@ function zonaTicket(r) {
   return z === 'DISPATCHER' || z === 'SIN ZONA' ? null : z;
 }
 function poblacionDe(r) { return norm(r.poblacion || String(r.domicilio || '').split(',').pop()); }
+// Mismo cálculo que Sin asignar (recomendar, panel.js): misma sede, menos visitas ese día, misma población, apoyo al final
 function sugerirTecnico(r, fecha) {
-  const z = zonaTicket(r); if (!z) return null;
-  const zona = ZONAS_BASE.find(x => x.nombre === z); if (!zona) return null;
-  const f = ddmmyyyy(fecha), pob = poblacionDe(r), ms = mismaSede(r);
-  // Técnicos de la zona y los de apoyo (Cádiz para Ceuta, Málaga para Melilla)
-  const lista = zonaOps(z).map(op => {
-    const vis = rows.filter(x => esPresencial(x) && x.fVisita === f && x.operario === op && tkey(x) !== tkey(r));
-    const juntos = pob ? vis.filter(x => poblacionDe(x) === pob).length : 0;
-    const apoyo = !zona.ops.includes(op), sede = ms[op] || 0;
-    // ir ya a esa población equivale a 1,5 visitas menos; tener otra incidencia en la misma sede, a 3
-    return { op, carga: vis.length, juntos, apoyo, sede, score: vis.length - (juntos ? 1.5 : 0) - (sede ? 3 : 0) + (apoyo ? 0.5 : 0) };
-  }).sort((a, b) => a.score - b.score || a.carga - b.carga || opIndex(a.op) - opIndex(b.op));
-  return { zona: z, fecha, lista };
+  const lista = recomendar(r, fecha);
+  return lista && lista.length ? { zona: zonaPool(r), fecha, lista } : null;
 }
 let sugDia = 'man';
 function sugerenciaHtml(r) {
@@ -442,7 +430,7 @@ const IDB = {
 };
 let odHandle = null, odEstado = 'off', odUltima = lsGet('dispatcher_od_ultima', 0);
 function datosCopia() {
-  return { app: 'panel-despacho', version: 4, fecha: new Date().toISOString(), tecnicos: tecCfg, notas, rutina: { items: rutina.items }, avisos: { ...avisos, on: false }, cerradas, jornadas, plantillas: lsGet('dispatcher_plantillas_v2', undefined), perfiles: perfilCfg, filtros: filtrosGuardados };
+  return { app: 'panel-despacho', version: 4, fecha: new Date().toISOString(), tecnicos: tecCfg, notas, avisos: { ...avisos, on: false }, cerradas, jornadas, plantillas: lsGet('dispatcher_plantillas_v2', undefined), perfiles: perfilCfg, filtros: filtrosGuardados };
 }
 async function odElegir() {
   if (!window.showDirectoryPicker) { toast('Este navegador no permite elegir carpetas: usa Edge o Chrome'); return; }

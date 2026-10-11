@@ -8,7 +8,6 @@ const GEO_KEY = 'dispatcher_geo_v1', PLIEGUE_KEY = 'dispatcher_pliegues_v1';
 const JORNADA_MIN = 8 * 60;              // jornada de referencia para la carga en horas
 const SYNC_AVISO_MIN = 10;               // aviso si ATGO lleva más de estos minutos sin actualizar
 // Operarios comodín "PENDIENTE ASIGNAR" de tus zonas (el resto son de otros dispatchers)
-const MIS_POOLS = ['XXX-SVQ', 'XXX-CA', 'XXX-MA', 'XXX-G', 'XXX-AL', 'XXX-J', 'XXX-0EXTREM', 'XXX-0CEUTA', 'XXX-0MELILL'];
 const POOL_ZONA = { 'XXX-SVQ': 'SEVILLA/HUELVA', 'XXX-CA': 'CÁDIZ', 'XXX-MA': 'MÁLAGA', 'XXX-G': 'GRANADA', 'XXX-AL': 'ALMERÍA', 'XXX-J': 'CÓRDOBA/JAÉN', 'XXX-0EXTREM': 'EXTREMADURA', 'XXX-0CEUTA': 'CEUTA', 'XXX-0MELILL': 'MELILLA' };
 
 let poolRows = [], poolOpsDesc = {}, poolCargado = false;
@@ -59,7 +58,7 @@ function recibirPool(m) {
   poolVistos = [...vivos]; lsSet(POOLV_KEY, poolVistos);
   pedirHilos(poolRows.filter(r => !hilos[tkey(r)] || hilos[tkey(r)].at < Date.now() - 10 * 60000).map(tkey));
   updateSinBadge();
-  if (document.getElementById('viewSin').style.display !== 'none') renderSin();
+  if (document.getElementById('viewSin').style.display !== 'none') { if (ocupado()) refrescoPendiente = true; else renderSin(); }
 }
 function sinListas() {
   const ord = l => l.slice().sort((a, b) => actualizado(b) - actualizado(a));
@@ -102,7 +101,7 @@ function recomendar(r, fecha) {
   if (!zona) return null;
   const f = ddmmyyyy(fecha), pob = poblacionDe(r), ms = mismaSede(r);
   return zonaOps(z).map(op => {
-    const vis = rows.filter(x => esPresencial(x) && x.fVisita === f && x.operario === op);
+    const vis = rows.filter(x => esPresencial(x) && x.fVisita === f && x.operario === op && tkey(x) !== tkey(r));
     const abiertas = rows.filter(x => x.operario === op).length;
     const juntos = pob ? vis.filter(x => poblacionDe(x) === pob).length : 0;
     const apoyo = !zona.ops.includes(op), sede = ms[op] || 0;
@@ -180,14 +179,10 @@ function renderSin() {
 }
 async function asignarSin(key) {
   const r = ticketDe(key); if (!r) return;
+  // Misma confirmación y guardado que la asignación masiva (una sola pieza para todo)
   const op = document.getElementById('sa-op-' + key).value, fEl = document.getElementById('sa-f-' + key), f = fEl ? fEl.value : '';
-  const ok = await confirmar(`<b>Asignar en ATGO</b><p>Nº ${esc(r.num)} · ${esc(r.descSede || '')}</p>
-    <table class="md-tab"><tr><td>Técnico</td><td><span>${esc(r.operario)}</span> → <b>${esc(op)}</b></td></tr>${f ? `<tr><td>Fecha de visita</td><td><b>${esc(f.split('-').reverse().join('/'))}</b></td></tr>` : ''}</table>
-    ${sedeConfirmHtml(r, op)}
-    <p class="hint">Despacho reenvía la ficha tal cual cambiando solo esto y lo comprueba campo a campo.${f ? '' : ' La fecha puedes ponerla después en Planificación o en la ficha.'}</p>`, 'Asignar');
-  if (!ok) return;
-  const res = await enviarEdicion('asignar', key, { codOpe: op, ...(f ? { fechaVisita: f } : {}), resumen: `Asignado: ${r.operario} → ${op}${f ? ' · visita ' + f.split('-').reverse().join('/') : ''}` });
-  if (res && res.ok) { poolRows = poolRows.filter(x => tkey(x) !== key); delete sinElec[key]; renderSin(); updateSinBadge(); }
+  const res = await asignarLote([{ key, codOpe: op, ...(f ? { fechaVisita: f } : {}) }], 'Asignar en ATGO');
+  if (res && res.okKeys.length) { poolRows = poolRows.filter(x => tkey(x) !== key); delete sinElec[key]; renderSin(); updateSinBadge(); }
 }
 
 // ===== Vigilancia de la sincronización =====
@@ -363,16 +358,19 @@ async function asignarLote(items, titulo) {
     <p class="hint">Se guardan uno a uno, comprobando cada ficha campo a campo. Si alguno falla, los demás siguen.</p>`, 'Guardar ' + plural(items.length, 'cambio'));
   if (!ok) return;
   loteEnCurso = true;
+  const enLote = items.length > 1;   // «Deshacer» solo tiene sentido para una asignación suelta
   let bien = 0; const mal = [], okKeys = [];
   for (let i = 0; i < items.length; i++) {
     const it = items[i], r = ticketDe(it.key) || {};
     toast(`Guardando ${i + 1}/${items.length} en ATGO…`);
-    const res = await enviarEdicion('asignar', it.key, { ...(it.codOpe && it.codOpe !== cleanInitials(r.operario) ? { codOpe: it.codOpe } : {}), ...(it.fechaVisita ? { fechaVisita: it.fechaVisita } : {}), resumen: `${r.operario || ''} → ${it.codOpe || r.operario}${it.fechaVisita ? ' · ' + it.fechaVisita : ''}` });
+    const res = await enviarEdicion('asignar', it.key, { ...(it.codOpe && it.codOpe !== cleanInitials(r.operario) ? { codOpe: it.codOpe } : {}), ...(it.fechaVisita ? { fechaVisita: it.fechaVisita } : {}), ...(enLote ? { sinDeshacer: true } : {}), resumen: `${r.operario || ''} → ${it.codOpe || r.operario}${it.fechaVisita ? ' · ' + it.fechaVisita.split('-').reverse().join('/') : ''}` });
     if (res && res.ok) { bien++; okKeys.push(it.key); } else mal.push((r.num || it.key) + ': ' + ((res && res.error) || 'sin respuesta'));
+    // Sin pestaña de ATGO o con la sesión caducada no tiene sentido seguir: el resto ni se intenta
+    if (res && res.sinAtgo && i < items.length - 1) { items.slice(i + 1).forEach(x => mal.push((((ticketDe(x.key) || {}).num) || x.key) + ': no se intentó (' + res.error + ')')); break; }
   }
   loteEnCurso = false;
   seleccion.clear();
-  toast(`${bien}/${items.length} guardados en ATGO${mal.length ? ' · fallaron ' + mal.length : ''}`);
+  if (enLote) toast(`${bien}/${items.length} guardados en ATGO${mal.length ? ' · fallaron ' + mal.length : ''}`);
   if (mal.length) confirmar(`<b>No se guardaron ${mal.length}</b><ul>${mal.map(x => `<li>${esc(x)}</li>`).join('')}</ul>`, 'Entendido');
   refreshVisible(); if (document.getElementById('viewSem').style.display !== 'none') renderSemana();
   return { bien, okKeys, mal };
@@ -395,16 +393,6 @@ function diasSemana() {
   const d = new Date(); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7) + (d.getDay() % 6 ? 0 : 7) + semOff * 7);   // sábado y domingo: la semana que viene
   return Array.from({ length: 5 }, (_, i) => { const x = new Date(d); x.setDate(d.getDate() + i); return x; });
 }
-function semPendientes() {
-  const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
-  const sinF = rows.filter(r => esPresencial(r) && TECNICOS.includes(cleanInitials(r.operario)) && enZona(r) && (!r.fVisita || parseEs(r.fVisita) < hoy));
-  const pool = poolRows.filter(r => esMiZonaPool(r) && !buzon[tkey(r)] && (!zonaSel || zonaPool(r) === zonaSel));
-  return [...pool.map(r => ({ r, pool: true })), ...sinF.map(r => ({ r, pool: false }))];
-}
-function chipTicket(r, extra) {
-  const k = tkey(r);
-  return `<div class="tk" draggable="true" data-drag="${esc(k)}" title="${esc([r.descSede, motivoTexto(k)].filter(Boolean).join(' · '))}">${extra || ''}<b class="mono">${esc(String(r.num).slice(-5))}</b><span>${esc(r.desdeHora || '')}</span></div>`;
-}
 let semDet = null;   // casilla con el detalle abierto: "OP|yyyy-mm-dd"
 let semGrupos = { pool: true, sinF: true, venc: true };
 function semPendGrupos() {
@@ -419,6 +407,8 @@ function semPendGrupos() {
 function nivelCarga(m, n) { return !m ? (n ? 'l1' : 'l0') : m > JORNADA_MIN ? 'l3' : m > JORNADA_MIN * 0.75 ? 'l2' : 'l1'; }
 function renderSemana() {
   const root = document.getElementById('viewSem');
+  if (!rows.length && !poolRows.length) { root.innerHTML = `<div class="empty"><h2>Sin incidencias cargadas</h2><div>Abre ATGO (⚙ › General › Abrir ATGO) y deja su pestaña abierta: la semana se llena sola.</div></div>`; return; }
+  if (!ZONAS_TEC.length) { root.innerHTML = `<div class="empty"><h2>El perfil ${esc(PERFIL)} no tiene técnicos</h2><div>Añádelos en ⚙ › Perfiles.</div></div>`; return; }
   const dias = diasSemana(), act = fase2Activa('*');
   const zonas = zonaSel ? ZONAS_TEC.filter(z => z.nombre === zonaSel) : ZONAS_TEC;
   const grupos = semPendGrupos(), nPend = grupos.reduce((s, g) => s + g.l.length, 0), nVenc = grupos[1].l.length;

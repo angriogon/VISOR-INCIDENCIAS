@@ -1,13 +1,12 @@
-// ===== Mi día: seguimiento, avisos, notas, búsqueda, rutina y resumen =====
+// ===== Mi día: seguimiento, avisos, notas, búsqueda y resumen =====
 // Despacho es un visor: nada de esto modifica ATGO ni el ERP. Todo se guarda en este equipo.
 // Usa utilidades de index.html (rows, esc, toast, norm, ZONAS, nextWorkday, ddmmyyyy, …) en tiempo de llamada.
 
 const SNAP_KEY = 'dispatcher_snap_v1', EVT_KEY = 'dispatcher_eventos_v1', NOTAS_KEY = 'dispatcher_notas_v1';
-const RUT_KEY = 'dispatcher_rutina_v1', ENV_KEY = 'dispatcher_envios_v1', AVI_KEY = 'dispatcher_avisos_v1';
+const ENV_KEY = 'dispatcher_envios_v1', AVI_KEY = 'dispatcher_avisos_v1';
 const PARADO_SIN_CAMBIOS = 3;   // días sin cambios para considerar un ticket parado
 const PARADO_ANTIGUEDAD = 15;   // días desde el registro para considerarlo parado
 const ESTADOS_ESPERA = ['EN FABRICANTE', 'MATERIAL PTE. FABRICANTE', 'PTE. MOVER MATERIAL', 'ESCALADO TIER1', 'FUERA DE MANTENIMIENTO'];
-const RUTINA_DEF = ['Revisar novedades y tickets a mi nombre', 'Planificar visitas sin fecha o vencidas', 'Revisar escalados y tickets parados', 'Enviar las rutas de mañana por WhatsApp', 'Enviar el resumen del día'];
 
 function lsGet(k, def) { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? def : v; } catch (e) { return def; } }
 function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { toast('No se pudo guardar en este equipo'); } }
@@ -15,10 +14,9 @@ function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch
 let segSnap = lsGet(SNAP_KEY, { start: 0, items: {} });
 let eventos = lsGet(EVT_KEY, []);
 let notas = lsGet(NOTAS_KEY, {});
-let rutina = lsGet(RUT_KEY, null) || { items: RUTINA_DEF.map((t, i) => ({ id: 'r' + i, t })), hechos: {} };
 let envios = lsGet(ENV_KEY, {});
 let avisos = { on: false, miNombre: true, escalado: true, ruta: true, nuevos: false, material: true, sla: true, ...lsGet(AVI_KEY, {}) };
-let novFiltro = 'nv', rutEdit = false, diaPending = false;
+let novFiltro = 'nv', diaPending = false;
 
 function tkey(r) { return String(r.key || r.num); }
 function dispatcherOps() { return ZONAS.filter(z => z.dispatcher).flatMap(z => z.ops); }
@@ -201,18 +199,12 @@ function parados() {
 }
 
 // ===== 5. Notas y seguimientos =====
-function notaDe(key) { return notas[key]; }
 function guardarNota(key, cambios) {
   const r = rows.find(x => tkey(x) === key) || {};
   const n = { ...(notas[key] || {}), ...cambios, num: r.num || (notas[key] && notas[key].num) || key, sede: r.descSede || (notas[key] && notas[key].sede) || '', op: r.operario || (notas[key] && notas[key].op) || '', ts: Date.now() };
   if (!n.texto && !n.fecha && !n.cad) delete notas[key]; else notas[key] = n;
   lsSet(NOTAS_KEY, notas);
   updateDiaBadge();
-}
-function seguimientos() {
-  const hoy = isoHoy(), lim = isoHoy(new Date(Date.now() + 7 * 86400000));
-  const all = Object.entries(notas).filter(([k, n]) => n.fecha && !n.hecho).map(([k, n]) => ({ key: k, ...n }));
-  return { pendientes: all.filter(n => n.fecha <= hoy).sort((a, b) => a.fecha.localeCompare(b.fecha)), proximos: all.filter(n => n.fecha > hoy && n.fecha <= lim).sort((a, b) => a.fecha.localeCompare(b.fecha)) };
 }
 function fechaCorta(iso) { const d = parseIso(iso); if (!d) return ''; const hoy = isoHoy(); if (iso === hoy) return 'hoy'; if (iso < hoy) return 'vencido ' + d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' }); return DIAS[d.getDay()].slice(0, 3) + ' ' + d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' }); }
 // Indicadores en las listas de incidencias
@@ -249,7 +241,7 @@ let atgoSource = null, hiloPend = {};
 // Mensajes automáticos de ATGO que no aportan al leer el hilo
 const HILO_SISTEMA = [/^el usuario \S+ ha (iniciado|finalizado|pausado|reanudado|cerrado|reabierto)/i, /^incidencia asignada a/i, /^se ha (cambiado|modificado) el estado/i,
   /^el ticket ha cambiado del estado/i, /^cambio caducidad:/i, /^\S+ ha firmado el parte de trabajo/i, /^\[SM\][^-]*- Service Manager - Actualizaci/i];   // mensajes automáticos de ATGO vistos en hilos reales
-function hiloFuente() { return atgoSource || (typeof atgoWin !== 'undefined' && atgoWin && !atgoWin.closed ? atgoWin : null); }
+function hiloFuente() { return (atgoSource && !atgoSource.closed ? atgoSource : null) || (typeof atgoWin !== 'undefined' && atgoWin && !atgoWin.closed ? atgoWin : null); }
 function pedirHilos(keys) {
   keys = [...new Set(keys)].filter(k => /^\d+\/[^/]+\/\d+$/.test(k));
   const src = hiloFuente();
@@ -531,19 +523,6 @@ function palRun(i) {
   if (it.type === 'a') it.a.run(); else openTicket(tkey(it.r));
 }
 
-// ===== 12. Rutina diaria =====
-function rutinaHoy() { return rutina.hechos[isoHoy()] || []; }
-function toggleRutina(id) {
-  const h = new Set(rutinaHoy()); h.has(id) ? h.delete(id) : h.add(id);
-  rutina.hechos = { [isoHoy()]: [...h] };   // solo se guarda el día de hoy: mañana empieza vacía
-  lsSet(RUT_KEY, rutina); renderDia();
-}
-function rutinaAdd() {
-  const i = document.getElementById('rutNew'); const t = (i.value || '').trim(); if (!t) return;
-  rutina.items.push({ id: 'r' + Date.now().toString(36), t }); lsSet(RUT_KEY, rutina); i.value = ''; renderDia(true); document.getElementById('rutNew').focus();
-}
-function rutinaDel(id) { rutina.items = rutina.items.filter(x => x.id !== id); lsSet(RUT_KEY, rutina); renderDia(true); }
-function rutinaEdit(id, t) { const it = rutina.items.find(x => x.id === id); if (it) { it.t = t; lsSet(RUT_KEY, rutina); } }
 
 // ===== 14. Resumen del día =====
 function copiarResumenJornada() {
@@ -577,15 +556,19 @@ function updateDiaBadge() {
   const n = noVistos().length;
   b.textContent = n > 99 ? '99+' : n; b.hidden = !n;
 }
+let refrescoPendiente = false;
 function refreshVisible() {
-  updateDiaBadge();
-  const vis = id => document.getElementById(id).style.display !== 'none';
+  updateDiaBadge(); updateSinBadge();
+  // Con un campo en uso no se repinta la vista: se hace al soltarlo (ver ocupado() en app.js)
+  if (typeof ocupado === 'function' && ocupado()) { refrescoPendiente = true; return; }
+  refrescoPendiente = false;
+  const vis = id => document.getElementById(id).style.display !== 'none', y = window.scrollY;
   if (vis('viewDia')) renderDia();
   if (vis('viewInc') && rows.length) render();
   if (vis('viewMan')) renderManana();
   if (vis('viewSem')) renderSemana();
   if (vis('viewSin')) renderSin();
-  updateSinBadge();
+  if (Math.abs(window.scrollY - y) > 2) window.scrollTo(0, y);
   if (fichaKey && !document.getElementById('drawer').hidden && document.activeElement && !['dwNota', 'edCom', 'edEst', 'asOp', 'asFecha', 'asH1', 'asH2'].includes(document.activeElement.id)) renderFicha();
 }
 function ticketLi(r, extra, cls) {
@@ -619,7 +602,6 @@ function renderDia(force) {
     { go: 'secMat', n: mat.enMaterial.length + mat.listos.length, l: 'Material', s: `${mat.listos.length} listos para visita`, hot: mat.listos.length > 0 }
   ];
   const feed = eventos.filter(e => novFiltro === 'nv' ? !e.visto : novFiltro === 'hoy' ? isoHoy(new Date(e.ts)) === isoHoy() : true).slice(0, 80);
-  const rh = rutinaHoy();
   root.innerHTML = `
     <div class="dia-top">
       <h1>${esc(fecha)}</h1>
@@ -657,16 +639,6 @@ function renderDia(force) {
     </div>`;
   aplicarPliegues(root);
 }
-function rutinaHtml(rh) {
-  rh = rh || rutinaHoy();
-  const done = rutina.items.filter(i => rh.includes(i.id)).length;
-  return `<section class="dsec" id="secRut">
-    <div class="dsh"><h2>Rutina</h2><small>${done}/${rutina.items.length}</small><button class="btn sm ghost" onclick="rutEdit=!rutEdit;renderDia(true)">${rutEdit ? 'Listo' : 'Editar'}</button></div>
-    ${rutEdit ? `<ul class="rut edit">${rutina.items.map(i => `<li><input value="${esc(i.t)}" oninput="rutinaEdit('${i.id}',this.value)"><button class="iconbtn" onclick="rutinaDel('${i.id}')" title="Quitar">✕</button></li>`).join('')}
-        <li><input id="rutNew" placeholder="Nueva tarea diaria…" onkeydown="if(event.key==='Enter')rutinaAdd()"><button class="iconbtn" onclick="rutinaAdd()" title="Añadir">+</button></li></ul>`
-      : `<ul class="rut">${rutina.items.map(i => `<li class="${rh.includes(i.id) ? 'ok' : ''}" onclick="toggleRutina('${i.id}')"><span class="ck">${rh.includes(i.id) ? '✓' : ''}</span>${esc(i.t)}</li>`).join('')}</ul>`}
-  </section>`;
-}
 
 // ===== Ajustes: avisos y copia de seguridad =====
 // ⚙ Ajustes (toggleCfg, renderCfg): ajustes.js
@@ -690,7 +662,6 @@ function restoreBackup(file) {
       if (!d || d.app !== 'panel-despacho') throw new Error('no es una copia de Despacho');
       const hechos = [];
       if (d.notas && typeof d.notas === 'object') { notas = { ...notas, ...d.notas }; lsSet(NOTAS_KEY, notas); hechos.push(Object.keys(d.notas).length + ' notas'); }
-      if (d.rutina && Array.isArray(d.rutina.items)) { rutina.items = d.rutina.items; lsSet(RUT_KEY, rutina); hechos.push('rutina'); }
       if (d.avisos && typeof d.avisos === 'object') { avisos = { ...avisos, ...d.avisos, on: avisos.on }; lsSet(AVI_KEY, avisos); }
       if (d.tecnicos && typeof d.tecnicos === 'object') { tecCfg = { ...tecCfg, ...d.tecnicos, tel: { ...tecCfg.tel, ...(d.tecnicos.tel || {}) } }; saveTec(); hechos.push('teléfonos'); }
       if (d.cerradas && typeof d.cerradas === 'object') { cerradas = { ...d.cerradas, ...cerradas }; podarCerradas(); hechos.push('cerradas'); }

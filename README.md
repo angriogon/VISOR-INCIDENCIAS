@@ -21,7 +21,7 @@ No hace falta compilar nada: son archivos estáticos (HTML + JS) y GitHub Pages 
 | `styles.css` | Estilos (tema claro/oscuro y modo denso) |
 | `app.js` | Configuración (zonas, perfiles, estados), Incidencias, filtros, día de Planificación, WhatsApp y recepción de ATGO |
 | `ajustes.js` | ⚙ Ajustes, perfiles, novedades de versión, atajos de teclado, menú contextual, asistente, diagnóstico, resumen matinal y exportar a Excel |
-| `tests/pruebas.js` | Pruebas automáticas (`node tests/pruebas.js`; GitHub las ejecuta en cada cambio) |
+| `tests/pruebas.js` | Pruebas automáticas: duración, caducidad, guardado en ATGO, recomendación, misma sede, apoyo, conflictos y coherencia de listas (`node tests/pruebas.js`; GitHub las ejecuta en cada cambio) |
 | `manifest.webmanifest` | Nombre, iconos y ajustes para instalarla como app de Windows |
 | `sw.js` | Service worker: funcionamiento sin conexión y actualizaciones |
 | `herramientas.js` | Cerradas (15 días), material, caducidad (SLA), copia en OneDrive, ruta en Google Maps, técnico sugerido, correos del día e informe semanal |
@@ -213,7 +213,8 @@ tickets nuevos o reasignados a tu nombre, escalados a TIER1, cambios en las ruta
 - ⚙ **General**: tema (Windows, claro u oscuro), tamaño (cómodo o denso), **resumen matinal** (aviso de Windows a la hora que elijas con visitas, sin asignar y caducidades) y aviso si un técnico **no ha iniciado ninguna visita** a la hora indicada.
 - ⚙ **Datos**: copia en OneDrive y manual, **exportar a Excel** (incidencias filtradas o la planificación de la semana), informe semanal con **histórico de 8 semanas** y **diagnóstico** (copia la versión y los últimos errores para enviarlos si algo falla).
 - **Incidencias** tiene filtros por estado, «caducan en 24 h o vencidas» y texto; ☆ **Guardar** los deja como acceso rápido. Cada incidencia muestra al final su **estado en color** y su **fecha de visita**.
-- La sincronización con ATGO se hace cada 2 minutos. Si ATGO devuelve de golpe casi nada, Despacho no lo aplica hasta confirmarlo en la siguiente carga, y si cambia el formato de su web, avisa.
+- La sincronización con ATGO se hace cada 2 minutos. Si estás escribiendo o eligiendo algo (buscador, filtro, técnico, fecha), la pantalla no se repinta hasta que sueltas el campo, y no se mueve de sitio.
+- Lo guardado en el equipo se limpia solo al acercarse al límite del navegador (hilos de tickets que ya no están, direcciones del mapa antiguas…; nunca notas, perfiles ni ajustes). ⚙ › Datos muestra el espacio usado y tiene *Quitar datos cargados*. Si ATGO devuelve de golpe casi nada, Despacho no lo aplica hasta confirmarlo en la siguiente carga, y si cambia el formato de su web, avisa.
 
 ## Tus datos
 
@@ -228,7 +229,7 @@ tickets nuevos o reasignados a tu nombre, escalados a TIER1, cambios en las ruta
 
 ## Configuración rápida
 
-- `ZONAS_BASE` (en `app.js`): zonas, sus técnicos y los de **apoyo**. La zona `DISPATCHER` (AMRG) es quien controla: sale la primera en Incidencias y no cuenta como técnico ni recibe WhatsApp. En `atgo-sync.js` está la misma lista en `OPERARIOS`: si añades o quitas un técnico, cámbialo en los dos (las pruebas automáticas lo comprueban). Un técnico nuevo entra solo en el perfil DSP1.
+- `ZONAS_BASE` (en `app.js`): zonas, sus técnicos y los de **apoyo**. La zona `DISPATCHER` (AMRG) es quien controla: sale la primera en Incidencias y no cuenta como técnico ni recibe WhatsApp. Despacho manda esta lista a la pestaña de ATGO al conectar; `OPERARIOS` en `atgo-sync.js` es solo un respaldo, pero mantenlo igual (las pruebas automáticas lo comprueban). Un técnico nuevo entra solo en el perfil DSP1.
 - `ESTADOS`: estados que se cargan. En `app.js` por nombre; en `atgo-sync.js` por código de ATGO (10 PRESENCIAL, 20 PUESTO OPERATIVO, 30 FUERA DE MANTENIMIENTO, 40 MATERIAL PTE. FABRICANTE, 80 PTE. MOVER MATERIAL, 100 EN FABRICANTE, 110 ESCALADO TIER1).
 - `REFRESCO_MIN` (en `atgo-sync.js`): minutos entre actualizaciones (2).
 - `COLS` (en `app.js`): qué columna del Excel corresponde a cada dato (0 = A, 1 = B, …).

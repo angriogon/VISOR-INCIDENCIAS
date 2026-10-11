@@ -35,7 +35,8 @@ Publicada en GitHub Pages: https://angriogon.github.io/VISOR-INCIDENCIAS/
   `extension/`) y habla con la PWA por `postMessage`:
   - ATGO → PWA: `atgo-data`, `atgo-hilo`, `atgo-estado`, `atgo-editado`, `atgo-status`, `atgo-hello`
     (se reciben en `app.js`, `window.addEventListener('message', …)`).
-  - PWA → ATGO: `despacho-ready`, `despacho-refresh`, `despacho-hilo`, `despacho-editar`, `despacho-estado`.
+  - PWA → ATGO: `despacho-ready`, `despacho-config` (lista de técnicos = `TODOS_OPS`), `despacho-refresh`, `despacho-hilo`, `despacho-editar`, `despacho-estado`.
+  - Con un campo en uso (`ocupado()` en app.js) no se repinta: `atgo-data` queda en `atgoEnCola` y `refreshVisible` marca `refrescoPendiente`.
   - El token de ATGO nunca sale de su pestaña. No cambies eso.
 
 ## Índice de archivos
@@ -60,7 +61,8 @@ Publicada en GitHub Pages: https://angriogon.github.io/VISOR-INCIDENCIAS/
 1. **Sube `VERSION` en `sw.js`** en cada cambio publicado; si no, la app instalada no se actualiza.
    Súbela igual en `APP_VERSION` (`ajustes.js`) y añade la versión a `NOVEDADES`.
 2. Si creas un archivo nuevo que carga la app, añádelo a `SHELL` en `sw.js` y a `index.html`.
-3. **Técnicos duplicados:** `ZONAS_BASE` (app.js) y `OPERARIOS` (atgo-sync.js) deben coincidir.
+3. **Técnicos duplicados:** `ZONAS_BASE` (app.js) manda; `OPERARIOS` (atgo-sync.js) es el respaldo y debe coincidir.
+   Asignar: siempre por `asignarLote` (también una sola) y técnico recomendado por `recomendar` (sugerirTecnico lo usa).
    Lo mismo con estados: por nombre en `ESTADOS` (app.js) y por código en `atgo-sync.js`.
 4. Si cambias `extension/`, regenera `despacho-extension.zip`.
 5. No elimines funcionalidades existentes al añadir otras.

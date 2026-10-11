@@ -8,7 +8,7 @@ const leer = f => fs.readFileSync(path.join(raiz, f), 'utf8');
 function extraer(src, cab) {
   const i = src.indexOf(cab); if (i < 0) throw new Error('No encuentro: ' + cab);
   let j = src.indexOf(cab.startsWith('function') ? '{' : '=', i), prof = 0, k = j, cad = null;
-  if (!cab.startsWith('function')) { const fin = src.indexOf(';\n', i); return src.slice(i, fin + 1); }
+  if (!cab.startsWith('function')) { const m = /;\r?\n/.exec(src.slice(i)); return src.slice(i, i + m.index + 1); }
   for (; k < src.length; k++) {
     const c = src[k];
     if (cad) { if (c === '\\') { k++; continue; } if (c === cad) cad = null; continue; }
@@ -57,8 +57,53 @@ igual('caducidad real: detecta palabra clave', vm.runInContext('CAD_RE', ctx).te
 const g = ctx.fechasEnTexto('Caduca el 15 de octubre a las 14:00', ref), dg = new Date(g[g.length - 1].ts);
 igual('caducidad con mes en letra', [dg.getMonth() + 1, dg.getDate(), dg.getHours()], [10, 15, 14]);
 
+// ---- Guardado en ATGO: la ficha se reenvía igual cambiando solo lo pedido ----
+const sync = leer('atgo-sync.js');
+const cs = {}; vm.createContext(cs);
+vm.runInContext([extraer(sync, 'function urlGuardado('), extraer(sync, 'const CAMPOS_SISTEMA'), extraer(sync, 'function compararFichas(')].join('\n'), cs);
+const ficha = { incidenciaId: { periodo: 2026, codSerie: '00', codInc: 97784 }, estado: 10, codArt: null, tieneGarantia: 'N', fechaGarantia: null, codElemento: '2003060', codOpe: 'AMRG',
+  fechaVisita: '2026-10-08T00:00:00Z', horaInicioVisita: '20:50', horaFinVisita: null, codSeveridad: '3', codTipoEle: 'BT', codDivision: '01', suReferencia: 'Ref #12 & más', codCli: '430', desCli: 'CONSORCIO "PUNTOS" VUELA',
+  domicilio: 'C/ Gijón 1', poblacion: 'ALMERIA', provincia: 'Almeria', cp: '04001', telefono: '600', email: 'a@b.es', cif: 'A1', idSede: 77, datosRecepcion: null, numProy: null, codAct: null };
+const qs = u => Object.fromEntries(u.split('?')[1].split('&').map(p => { const i = p.indexOf('='); return [p.slice(0, i), decodeURIComponent(p.slice(i + 1))]; }));
+const sinCambios = qs(cs.urlGuardado(ficha, {})), conCambios = qs(cs.urlGuardado(ficha, { codOpe: 'DSG', fechaVisita: '2026-10-13' }));
+igual('guardado: ruta del ticket', cs.urlGuardado(ficha, {}).split('?')[0], '/api/v1/atgo/incidencias/2026/00/97784');
+igual('guardado: caracteres especiales intactos', [sinCambios.suReferencia, sinCambios.desCli], ['Ref #12 & más', 'CONSORCIO "PUNTOS" VUELA']);
+igual('guardado: cambia solo técnico y fecha', Object.keys(conCambios).filter(k => conCambios[k] !== sinCambios[k]).sort(), ['codOpe', 'fechaVisita']);
+igual('guardado: valores nuevos', [conCambios.codOpe, conCambios.fechaVisita], ['DSG', '2026-10-13']);
+igual('guardado: nulos como "null"', [sinCambios.finVisita, sinCambios.datosRecepcion, sinCambios.docCompra], ['null', 'null', 'null']);
+igual('comprobación: ignora campos de sistema', Object.keys(cs.compararFichas({ ...ficha, usuario: 'X', virtualOrderAsc: 1 }, { ...ficha, usuario: 'Y', virtualOrderAsc: 2 })), []);
+igual('comprobación: detecta un cambio inesperado', Object.keys(cs.compararFichas(ficha, { ...ficha, cp: '04002' })), ['cp']);
+
+// ---- Técnico recomendado, misma sede, zonas de apoyo y conflictos ----
+const dia = leer('dia.js');
+const cr = { console }; vm.createContext(cr);
+vm.runInContext([
+  extraer(app, 'function norm('), extraer(app, 'function cleanInitials('), extraer(app, 'const ZONAS_BASE'),
+  "const ZONAS = ZONAS_BASE; const ZONAS_TEC = ZONAS.filter(z => !z.dispatcher); const TECNICOS = ZONAS_TEC.flatMap(z => z.ops); const OPERARIOS = ZONAS.flatMap(z => z.ops);",
+  extraer(app, 'function zonaOps('), extraer(app, 'function zonaDe('), extraer(app, 'function opIndex('), extraer(app, 'function esPresencial('), extraer(app, 'function horaMin('), extraer(app, 'function sortByHora('), extraer(app, 'function ddmmyyyy('),
+  extraer(dia, 'function tkey('), extraer(dia, 'const ESTADOS_CIERRE'), extraer(dia, 'function esCierre('),
+  extraer(herr, 'const PROV_ZONA'), extraer(herr, 'function zonaTicket('), extraer(herr, 'function poblacionDe('),
+  extraer(panel, 'const POOL_ZONA'), extraer(panel, 'function zonaPool('), extraer(panel, 'function sedeKey('), extraer(panel, 'function mismaSede('), extraer(panel, 'function recomendar('), extraer(panel, 'function conflictos('), extraer(panel, 'function fmtMin('),
+  "let rows = [], poolOpsDesc = {}, duracionFija = {}; const JORNADA_MIN = 480; const tecCfg = {}; function cargaMin() { return 0; } function estimarMin(r) { return duracionFija[r.key] || null; }"
+].join('\n'), cr);
+const T = (key, op, sede, extra) => ({ key, num: key.replace(/\//g, ''), operario: op, estado: 'PRESENCIAL', descSede: sede, descCliente: 'CARREFOUR', provincia: 'CEUTA', poblacion: 'CEUTA', fVisita: '', ...(extra || {}) });
+vm.runInContext('rows = ' + JSON.stringify([T('1/00/1', 'EACL', '4416-Ceuta-Hiper'), T('1/00/2', 'JIFC', 'Otra sede')]), cr);
+const pool = T('1/00/9', 'XXX-0CEUTA', '4416-Ceuta-Hiper');
+igual('misma sede: detecta al técnico que ya va', JSON.stringify(cr.mismaSede(pool)), JSON.stringify({ EACL: 1 }));
+const rec = cr.recomendar(pool, new Date(2026, 9, 13, 12));
+igual('recomendado: el de la misma sede va primero', rec[0].op, 'EACL');
+igual('Ceuta: admite apoyo de Cádiz', ['DSJ', 'AAR', 'EACL', 'JRHG'].every(op => rec.some(x => x.op === op && x.apoyo)), true);
+igual('Ceuta: su técnico no es apoyo', rec.find(x => x.op === 'JIFC').apoyo, false);
+const recMel = cr.recomendar(T('1/00/8', 'XXX-0MELILL', 'Melilla Centro', { provincia: 'MELILLA', poblacion: 'MELILLA' }), new Date(2026, 9, 13, 12));
+igual('Melilla: PHEP primero y apoyo de Málaga', [recMel[0].op, ['JVR', 'ILG', 'FMNT', 'MMHG'].every(op => recMel.some(x => x.op === op))], ['PHEP', true]);
+vm.runInContext('rows = ' + JSON.stringify([T('2/00/1', 'DSG', 'A', { fVisita: '13/10/2026', desdeHora: '09:00' }), T('2/00/2', 'DSG', 'B', { fVisita: '13/10/2026', desdeHora: '10:00' })]) + "; duracionFija = { '2/00/1': 120 };", cr);
+igual('conflictos: solape por duración del hilo', cr.conflictos('13/10/2026').filter(c => c.tipo === 'solape').length, 1);
+vm.runInContext("duracionFija = {};", cr);
+igual('conflictos: sin duración no inventa solapes', cr.conflictos('13/10/2026').filter(c => c.tipo === 'solape').length, 0);
+igual('cierre: estados que cuentan como terminada', ['CERRADO', 'Puesto operativo', 'PTO. OPERATIVO PTE. ACEPTACIÓN PRESUPUESTO', 'EN FABRICANTE', 'PRESENCIAL'].map(e => cr.esCierre(e)), [true, true, true, false, false]);
+
 // ---- Coherencia de configuración ----
-const opsSync = (leer('atgo-sync.js').match(/const OPERARIOS = \[([^\]]*)\]/) || [])[1].match(/'([A-Z]+)'/g).map(s => s.slice(1, -1)).sort();
+const opsSync = (leer('atgo-sync.js').match(/(?:const|let) OPERARIOS = \[([^\]]*)\]/) || [])[1].match(/'([A-Z]+)'/g).map(s => s.slice(1, -1)).sort();
 const zb = app.slice(app.indexOf('const ZONAS_BASE'), app.indexOf('];', app.indexOf('const ZONAS_BASE')));
 const opsApp = [...new Set([...zb.matchAll(/ops:\[([^\]]*)\]/g)].flatMap(m => m[1].match(/'([A-Z]+)'/g).map(s => s.slice(1, -1))))].sort();
 igual('ZONAS_BASE (app.js) = OPERARIOS (atgo-sync.js)', opsApp, opsSync);

@@ -6,7 +6,8 @@
   'use strict';
 
   // ===== Configuración =====
-  const OPERARIOS = ['DSG','ACAB','CLH','JGAM','JCGM','LGV','ADJC','LEOC','IFF','JVR','ILG','MMHG','FMNT','EACL','AAR','DSJ','JRHG','JIFC','PHEP','MLOR','AMRG'];
+  // Respaldo: Despacho manda su lista (ZONAS_BASE) con 'despacho-config' al conectar y sustituye a esta.
+  let OPERARIOS = ['DSG','ACAB','CLH','JGAM','JCGM','LGV','ADJC','LEOC','IFF','JVR','ILG','MMHG','FMNT','EACL','AAR','DSJ','JRHG','JIFC','PHEP','MLOR','AMRG'];
   // PRESENCIAL, PUESTO OPERATIVO, FUERA DE MANTENIMIENTO, MATERIAL PTE. FABRICANTE,
   // PTE. MOVER MATERIAL, EN FABRICANTE, ESCALADO TIER1
   const ESTADOS = [10, 20, 30, 40, 80, 100, 110];
@@ -79,6 +80,9 @@
       else if (running) e.source.postMessage({ type: 'atgo-status', text: statusEl.textContent }, PWA_ORIGIN);
     } else if (e.data.type === 'despacho-refresh') {
       refreshNow();
+    } else if (e.data.type === 'despacho-config' && Array.isArray(e.data.operarios)) {
+      const l = [...new Set(e.data.operarios.map(x => String(x).trim().toUpperCase()).filter(x => /^[A-Z0-9]{2,8}$/.test(x)))];
+      if (l.length && l.length <= 80 && l.slice().sort().join() !== OPERARIOS.slice().sort().join()) { OPERARIOS = l; refreshNow(); }
     } else if (e.data.type === 'despacho-hilo' && Array.isArray(e.data.keys)) {
       enviarHilos(e.data.keys, e.source);
     } else if (e.data.type === 'despacho-editar' && e.data.id) {

@@ -113,7 +113,9 @@ if ('launchQueue' in window){
   });
 }
 
-document.getElementById('clearBtn').addEventListener('click', () => {
+document.getElementById('clearBtn').addEventListener('click', async () => {
+  // Desde ⚙ › Datos. Solo quita la lista cargada (se recupera en la próxima sincronización); notas y ajustes no se tocan
+  if (!await confirmar('<b>¿Quitar los datos cargados?</b><p>Se vacía la lista de incidencias de esta pantalla. Vuelve a llenarse en la próxima sincronización con ATGO. Tus notas y ajustes no se tocan.</p>', 'Quitar')) return;
   rows = [];
   source = null;
   try{ localStorage.removeItem(ATGO_KEY); }catch(e){}
@@ -162,14 +164,6 @@ function zonaDe(op){ const i = cleanInitials(op); const z = ZONAS.find(z => z.op
 function opIndex(op){ const i = OPERARIOS.indexOf(cleanInitials(op)); return i === -1 ? 999 : i; }
 function enZona(r){ return !zonaSel || zonaDe(r.operario) === zonaSel; }
 // Agrupa filas por zona (en el orden de ZONAS) y, dentro, por técnico.
-function porZona(list, sortOps){
-  const byOp = {};
-  list.forEach(r => { (byOp[r.operario] = byOp[r.operario] || []).push(r); });
-  return ZONAS.map(z => {
-    const ops = Object.keys(byOp).filter(op => zonaDe(op) === z.nombre).sort(sortOps || ((a,b) => opIndex(a) - opIndex(b)));
-    return { zona: z.nombre, ops: ops.map(op => ({ op, items: byOp[op] })) };
-  }).filter(g => g.ops.length);
-}
 function zoneChips(onPick, counts, lista){
   const el = document.createElement('span');
   el.className = 'filters';
@@ -259,17 +253,49 @@ function applyAtgo(msg, fromCache){
     refreshVisible();
   } else updateDiaBadge();
 }
+// ---- No repintar mientras escribes o eliges algo ----
+// Si llega una actualización de ATGO con un campo en uso (buscador, filtro, técnico, fecha…), se aplica al soltarlo.
+// Si el campo se queda en uso más de 4 min, se aplica igualmente para no trabajar con datos viejos.
+function ocupado(){
+  const a = document.activeElement;
+  return !!a && /^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName) && a.type !== 'checkbox' && !!a.closest('main, #cfgMenu');
+}
+let atgoEnCola = null, atgoEnColaDesde = 0;
+function aplicarDatosAtgo(m){
+  const y = window.scrollY;
+  applyAtgo(m, false); recibirPool(m);
+  if (Math.abs(window.scrollY - y) > 2) window.scrollTo(0, y);   // mantener el sitio de la página
+}
+function aplicarPendiente(){
+  if (ocupado()) return;
+  if (atgoEnCola){ const m = atgoEnCola; atgoEnCola = null; aplicarDatosAtgo(m); }
+  else if (refrescoPendiente) refreshVisible();
+}
+document.addEventListener('focusout', () => setTimeout(aplicarPendiente, 400));
+setInterval(aplicarPendiente, 2000);   // por si el navegador no avisa al soltar el campo (ventana en segundo plano)
 window.addEventListener('message', (e) => {
   if (e.origin !== ATGO_ORIGIN || !e.data || typeof e.data !== 'object') return;
   const m = e.data;
   atgoSource = e.source;   // pestaña de ATGO que sincroniza: a ella se le piden los hilos
-  if (m.type === 'atgo-data'){ recibirCapacidades(m); applyAtgo(m, false); recibirPool(m); }
+  if (m.type === 'atgo-data'){
+    recibirCapacidades(m); configurarAtgo(e.source);
+    if (!m.partial && ocupado() && (!atgoEnCola || Date.now() - atgoEnColaDesde < 4 * 60000)){ if (!atgoEnCola) atgoEnColaDesde = Date.now(); atgoEnCola = m; return; }
+    atgoEnCola = null; aplicarDatosAtgo(m);
+  }
   else if (m.type === 'atgo-editado') recibirEdicion(m);
   else if (m.type === 'atgo-hilo') recibirHilos(m.hilos);
   else if (m.type === 'atgo-estado') recibirEstados(m.estados);
   else if (m.type === 'atgo-status') setAtgoStatus(String(m.text||''), m.error ? 'err' : '');
-  else if (m.type === 'atgo-hello') e.source.postMessage({type:'despacho-ready'}, ATGO_ORIGIN);
+  else if (m.type === 'atgo-hello'){ e.source.postMessage({type:'despacho-ready'}, ATGO_ORIGIN); configurarAtgo(e.source); }
 });
+// La lista de técnicos que sincroniza la pestaña de ATGO sale de aquí (ZONAS_BASE): así no puede quedar desfasada.
+// atgo-sync.js mantiene su propia lista solo como respaldo si esta no llega.
+let atgoConfigurada = null;
+function configurarAtgo(src){
+  if (!src || atgoConfigurada === src) return;
+  atgoConfigurada = src;
+  try{ src.postMessage({ type:'despacho-config', operarios: TODOS_OPS }, ATGO_ORIGIN); }catch(e){}
+}
 // Si esta ventana la abrió ATGO (con el marcador), avisamos de que estamos listos.
 if (window.opener){ try{ window.opener.postMessage({type:'despacho-ready'}, ATGO_ORIGIN); }catch(e){} }
 
@@ -325,7 +351,7 @@ function render(){
   const ops = [...new Set([...Object.keys(byOp), ...Object.keys(rutaOp)])];
   renderedOps = ops;
   updToggle();
-  if (!ops.length){ panel.innerHTML = '<div class="empty">Sin incidencias para este filtro.</div>'; return; }
+  if (!ops.length){ panel.innerHTML = `<div class="empty"><h2>Nada con este filtro</h2>${filtroActivo() || zonaSel ? `<div class="acts" style="justify-content:center;margin-top:10px"><button class="btn" onclick="filtroInc={est:'',cad:false,q:''};zonaSel=null;renderFilters();render()">Quitar filtros</button></div>` : '<div>Este perfil no tiene incidencias abiertas ahora mismo.</div>'}</div>`; return; }
 
   panel.innerHTML = ZONAS.map(z => {
     const zops = ops.filter(op => zonaDe(op) === z.nombre).sort((a, b) => opIndex(a) - opIndex(b));
@@ -493,7 +519,7 @@ function renderManana(){
   document.getElementById('manDay').textContent = diaLargo(manDate).replace(/^./, c => c.toUpperCase()) + '/' + manDate.getFullYear();
   const body = document.getElementById('manBody');
   if (!rows.length){
-    body.innerHTML = '<div class="empty"><h2>Sin incidencias cargadas</h2><div>Sincroniza con ATGO o importa un Excel desde la pestaña Incidencias.</div></div>';
+    body.innerHTML = '<div class="empty"><h2>Sin incidencias cargadas</h2><div>Abre ATGO (⚙ › General › Abrir ATGO) y deja su pestaña abierta, o importa un Excel desde ⚙ › General.</div></div>';
     return;
   }
   if (zonaSel && !ZONAS_TEC.some(z => z.nombre === zonaSel)) zonaSel = null;   // la zona Dispatcher no aplica aquí
@@ -677,9 +703,9 @@ function copyText(s){
 }
 
 function showTab(t){
-  for (const [k, v, tab] of [['dia','viewDia','tabDia'], ['sin','viewSin','tabSin'], ['inc','viewInc','tabInc'], ['sem','viewSem','tabSem'], ['man','viewMan','tabMan']]){
+  for (const [k, v, tab] of [['dia','viewDia','tabDia'], ['sin','viewSin','tabSin'], ['inc','viewInc','tabInc'], ['sem','viewSem','tabSem'], ['man','viewMan','tabSem']]){
     document.getElementById(v).style.display = t===k ? '' : 'none';
-    document.getElementById(tab).classList.toggle('active', t===k || (t==='man' && k==='sem'));   // el detalle del día va dentro de Planificación
+    if (k !== 'man') document.getElementById(tab).classList.toggle('active', t===k || (t==='man' && k==='sem'));   // el detalle del día va dentro de Planificación
   }
   if (location.hash !== '#'+t) history.replaceState(null, '', '#'+t);
   if (t==='dia') renderDia(true);
