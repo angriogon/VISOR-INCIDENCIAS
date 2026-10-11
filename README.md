@@ -21,6 +21,7 @@ No hace falta compilar nada: son archivos estáticos (HTML + JS) y GitHub Pages 
 | `styles.css` | Estilos (tema claro/oscuro y modo denso) |
 | `app.js` | Configuración (zonas, perfiles, estados), Incidencias, filtros, día de Planificación, WhatsApp y recepción de ATGO |
 | `ajustes.js` | ⚙ Ajustes, perfiles, novedades de versión, atajos de teclado, menú contextual, asistente, diagnóstico, resumen matinal y exportar a Excel |
+| `tests/arranque.mjs` | Prueba de arranque: abre la app en un navegador sin pantalla con datos ficticios, recorre pestañas, ficha y ajustes, y falla ante cualquier error (GitHub Actions) |
 | `tests/pruebas.js` | Pruebas automáticas: duración, caducidad, guardado en ATGO, recomendación, misma sede, apoyo, conflictos y coherencia de listas (`node tests/pruebas.js`; GitHub las ejecuta en cada cambio) |
 | `manifest.webmanifest` | Nombre, iconos y ajustes para instalarla como app de Windows |
 | `sw.js` | Service worker: funcionamiento sin conexión y actualizaciones |
@@ -213,7 +214,7 @@ tickets nuevos o reasignados a tu nombre, escalados a TIER1, cambios en las ruta
 - ⚙ **General**: tema (Windows, claro u oscuro), tamaño (cómodo o denso), **resumen matinal** (aviso de Windows a la hora que elijas con visitas, sin asignar y caducidades) y aviso si un técnico **no ha iniciado ninguna visita** a la hora indicada.
 - ⚙ **Datos**: copia en OneDrive y manual, **exportar a Excel** (incidencias filtradas o la planificación de la semana), informe semanal con **histórico de 8 semanas** y **diagnóstico** (copia la versión y los últimos errores para enviarlos si algo falla).
 - **Incidencias** tiene filtros por estado, «caducan en 24 h o vencidas» y texto; ☆ **Guardar** los deja como acceso rápido. Cada incidencia muestra al final su **estado en color** y su **fecha de visita**.
-- La sincronización con ATGO se hace cada 2 minutos. Si estás escribiendo o eligiendo algo (buscador, filtro, técnico, fecha), la pantalla no se repinta hasta que sueltas el campo, y no se mueve de sitio.
+- La sincronización con ATGO se hace cada 2 minutos; tras guardar algo en ATGO se actualiza enseguida. Si la pestaña de ATGO tiene una versión antigua de la sincronización, sale un aviso para recargarla (F5). Si estás escribiendo o eligiendo algo (buscador, filtro, técnico, fecha), la pantalla no se repinta hasta que sueltas el campo, y no se mueve de sitio.
 - Lo guardado en el equipo se limpia solo al acercarse al límite del navegador (hilos de tickets que ya no están, direcciones del mapa antiguas…; nunca notas, perfiles ni ajustes). ⚙ › Datos muestra el espacio usado y tiene *Quitar datos cargados*. Si ATGO devuelve de golpe casi nada, Despacho no lo aplica hasta confirmarlo en la siguiente carga, y si cambia el formato de su web, avisa.
 
 ## Tus datos

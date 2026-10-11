@@ -3,8 +3,9 @@
 // asistente de inicio, diagnóstico, resumen matinal, aviso de técnico sin actividad y exportar a Excel.
 // Usa utilidades de app.js, dia.js, herramientas.js, edicion.js y panel.js solo en tiempo de llamada.
 
-const APP_VERSION = '1.14.0';   // súbela a la vez que VERSION en sw.js
+const APP_VERSION = '1.15.0';   // súbela a la vez que VERSION en sw.js
 const NOVEDADES = [
+  { v: '1.15.0', f: '2026-10-11', l: ['Progreso del día corregido: «en curso» y «terminada» solo cuentan si lo marca el técnico asignado, no el soporte remoto.', 'Tras guardar en ATGO la lista se actualiza enseguida, aunque coincida con una carga.', 'Aviso si la pestaña de ATGO tiene una sincronización antigua y hay que recargarla.', 'Arranque más rápido: el módulo de Excel se carga solo al importar o exportar.', 'Correcciones: Esc en una confirmación cancela, quitar datos refresca todo, notas y copiar ficha en tickets sin asignar.'] },
   { v: '1.14.0', f: '2026-10-11', l: ['Más estable: la actualización de ATGO ya no borra lo que estás escribiendo ni te mueve la página.', 'Errores de ATGO más claros (sesión caducada, sin respuesta) y aviso si un cambio se confirmó tarde.', 'Limpieza automática de lo guardado en el equipo para que nunca se llene.', 'Mismo selector de técnico y misma confirmación al asignar desde cualquier sitio.', 'La lista de técnicos que sincroniza ATGO sale de Despacho.', '«Quitar datos» pasa a ⚙ › Datos (con confirmación).'] },
   { v: '1.13.1', f: '2026-10-11', l: ['Sin asignar: asignar en masivo (marca varias, cada una con su técnico y fecha).', 'ATGO se sincroniza siempre cada 2 minutos.'] },
   { v: '1.13.0', f: '2026-10-11', l: [
@@ -174,6 +175,7 @@ setInterval(() => { try { revisarEspacio(); } catch (e) {} }, 3600000);
 // ---- Versionado de los datos guardados (migraciones en orden, una sola vez) ----
 const MIGRACIONES = [
   () => {},   // 1: perfiles (se crean solos en app.js con todos los técnicos en DSP1)
+  () => saveTec(),   // 2: separa datos de técnicos (teléfonos, GLS) y preferencias en dos claves
 ];
 (function migrar() {
   let v = 0; try { v = Number(localStorage.getItem(DATOS_VER_KEY)) || 0; } catch (e) {}
@@ -302,8 +304,8 @@ function revisarAvisosDia() {
 setInterval(() => { try { revisarAvisosDia(); } catch (e) { diagLog('Avisos del día: ' + e.message); } }, 60000);
 
 // ---- Exportar a Excel ----
-function exportarExcel(que) {
-  if (!window.XLSX) { toast('No se pudo cargar el módulo de Excel (sin conexión)'); return; }
+async function exportarExcel(que) {
+  try { await cargarXLSX(); } catch (e) { toast('No se pudo cargar el módulo de Excel (sin conexión)'); return; }
   let datos, nombre;
   if (que === 'sem') {
     const dias = diasSemana();

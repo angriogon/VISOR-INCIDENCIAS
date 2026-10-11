@@ -73,8 +73,27 @@ document.getElementById('fileInput').addEventListener('change', (e) => {
   if (file) readSpreadsheet(file);
 });
 
-function readSpreadsheet(file){
-  if (typeof XLSX === 'undefined'){ toast('No se pudo cargar el lector de Excel. Abre la app una vez con conexión.'); return; }
+// Librerías externas: se cargan solo cuando hacen falta (Excel al importar/exportar, Leaflet al abrir el mapa).
+// Un solo intento a la vez; si falla (sin conexión) se puede reintentar sin dejar restos en la página.
+const libsCargando = {};
+function cargarLibreria(url, lista, css){
+  if (lista()) return Promise.resolve();
+  if (libsCargando[url]) return libsCargando[url];
+  const p = new Promise((res, rej) => {
+    if (css && !document.querySelector(`link[href="${css}"]`)){ const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = css; document.head.appendChild(l); }
+    const s = document.createElement('script'); s.src = url;
+    s.onload = () => lista() ? res() : rej(new Error('no se pudo cargar'));
+    s.onerror = () => { s.remove(); rej(new Error('sin conexión')); };
+    document.head.appendChild(s);
+  });
+  libsCargando[url] = p; p.catch(() => { delete libsCargando[url]; });
+  return p;
+}
+const XLSX_URL = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';   // la guarda también sw.js para usarla sin conexión
+function cargarXLSX(){ return cargarLibreria(XLSX_URL, () => window.XLSX); }
+
+async function readSpreadsheet(file){
+  try{ await cargarXLSX(); }catch(e){ toast('No se pudo cargar el lector de Excel. Abre la app una vez con conexión.'); return; }
   const reader = new FileReader();
   reader.onload = (evt) => {
     try{
@@ -116,7 +135,7 @@ if ('launchQueue' in window){
 document.getElementById('clearBtn').addEventListener('click', async () => {
   // Desde ⚙ › Datos. Solo quita la lista cargada (se recupera en la próxima sincronización); notas y ajustes no se tocan
   if (!await confirmar('<b>¿Quitar los datos cargados?</b><p>Se vacía la lista de incidencias de esta pantalla. Vuelve a llenarse en la próxima sincronización con ATGO. Tus notas y ajustes no se tocan.</p>', 'Quitar')) return;
-  rows = [];
+  rows = []; poolRows = []; poolCargado = false;
   source = null;
   try{ localStorage.removeItem(ATGO_KEY); }catch(e){}
   setAtgoStatus('');
@@ -125,6 +144,7 @@ document.getElementById('clearBtn').addEventListener('click', async () => {
   document.getElementById('clearBtn').style.display = 'none';
   document.getElementById('fileStatus').textContent = 'Sin datos';
   document.getElementById('fileInput').value = '';
+  refreshVisible();   // Mi día, Sin asignar y Planificación también se vacían
 });
 
 const ESTADOS_N = ESTADOS.map(norm);
@@ -223,7 +243,7 @@ function setAtgoStatus(text, state){
   const dot = document.getElementById('syncDot');
   if (dot) dot.className = 'sync-dot ' + (state === 'err' ? 'err' : state === 'off' ? 'off' : /^Cargando/.test(text || '') ? 'load' : text ? 'ok' : '');
 }
-function horaCorta(ts){ return new Date(ts).toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit'}); }
+
 // Si ATGO devuelve de golpe casi nada (sesión rara o cambio en su web), no se da por bueno a la primera:
 // así no parece que todos los tickets "salieron". A la tercera carga seguida igual, se acepta.
 let caidaSeguida = 0;
@@ -245,7 +265,7 @@ function applyAtgo(msg, fromCache){
   setRows(Array.isArray(msg.rows) ? msg.rows : [], 'ATGO', !firstAtgo);
   if (msg.partial) setAtgoStatus(`Cargando… ${msg.progress||''}`, '');
   else if (fromCache) setAtgoStatus(`Último dato ${new Date(msg.at).toLocaleString('es-ES',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})} · sin conexión con ATGO`, 'off');
-  else setAtgoStatus(`En vivo · ${horaCorta(msg.at)}`, '');
+  else setAtgoStatus(`En vivo · ${hhmm(msg.at)}`, '');
   if (!msg.partial && !fromCache){
     try{ localStorage.setItem(ATGO_KEY, JSON.stringify(msg)); }catch(e){}
     hilosTrasCarga(trackChanges(rows));   // novedades, avisos, rutas cambiadas e hilos nuevos (dia.js)
@@ -279,6 +299,7 @@ window.addEventListener('message', (e) => {
   atgoSource = e.source;   // pestaña de ATGO que sincroniza: a ella se le piden los hilos
   if (m.type === 'atgo-data'){
     recibirCapacidades(m); configurarAtgo(e.source);
+    if (!m.partial){ syncVieja = m.v !== SYNC_VERSION; renderSyncAviso(); }
     if (!m.partial && ocupado() && (!atgoEnCola || Date.now() - atgoEnColaDesde < 4 * 60000)){ if (!atgoEnCola) atgoEnColaDesde = Date.now(); atgoEnCola = m; return; }
     atgoEnCola = null; aplicarDatosAtgo(m);
   }
@@ -288,6 +309,10 @@ window.addEventListener('message', (e) => {
   else if (m.type === 'atgo-status') setAtgoStatus(String(m.text||''), m.error ? 'err' : '');
   else if (m.type === 'atgo-hello'){ e.source.postMessage({type:'despacho-ready'}, ATGO_ORIGIN); configurarAtgo(e.source); }
 });
+// Versión de la sincronización que espera esta app. Si la pestaña de ATGO trae otra (la cargó antes de una
+// actualización), se avisa de que hay que recargarla. Debe coincidir con SYNC_VERSION de atgo-sync.js.
+const SYNC_VERSION = '1.15.0';
+let syncVieja = false;
 // La lista de técnicos que sincroniza la pestaña de ATGO sale de aquí (ZONAS_BASE): así no puede quedar desfasada.
 // atgo-sync.js mantiene su propia lista solo como respaldo si esta no llega.
 let atgoConfigurada = null;
@@ -464,9 +489,23 @@ const TEC_DEF = {
   saludo: 'Hola {nombre}, tu planificación para el {dia}:',
   despedida: 'Total: {total}. Cualquier cosa me dices. ¡Gracias!'
 };
-let tecCfg = (() => { try{ return { ...TEC_DEF, ...JSON.parse(localStorage.getItem(TEC_KEY)||'{}') }; }catch(e){ return { ...TEC_DEF }; } })();
-if (!tecCfg.tel || typeof tecCfg.tel !== 'object') tecCfg.tel = {};
-function saveTec(){ try{ localStorage.setItem(TEC_KEY, JSON.stringify(tecCfg)); }catch(e){ toast('No se pudo guardar en este equipo'); } }
+// Datos de los técnicos (teléfonos, GLS) y preferencias (mensajes, tema, horas, plantillas…) se guardan aparte:
+// un error o una copia restaurada en uno no afecta al otro. Antes todo iba en TEC_KEY: se lee y se separa solo.
+const PREF_KEY = 'dispatcher_preferencias_v1';
+const TEC_DATOS = ['tel', 'gls'];
+let tecCfg = (() => {
+  const leer = k => { try{ const v = JSON.parse(localStorage.getItem(k) || '{}'); return v && typeof v === 'object' ? v : {}; }catch(e){ return {}; } };
+  const t = leer(TEC_KEY), p = leer(PREF_KEY);
+  return { ...TEC_DEF, ...t, ...p, tel: t.tel && typeof t.tel === 'object' ? t.tel : {}, gls: t.gls && typeof t.gls === 'object' ? t.gls : {} };
+})();
+function saveTec(){
+  const tec = {}, pref = {};
+  Object.entries(tecCfg).forEach(([k, v]) => { (TEC_DATOS.includes(k) ? tec : pref)[k] = v; });
+  let ok = true;
+  try{ localStorage.setItem(TEC_KEY, JSON.stringify(tec)); }catch(e){ ok = false; }
+  try{ localStorage.setItem(PREF_KEY, JSON.stringify(pref)); }catch(e){ ok = false; }
+  if (!ok) toast('No se pudo guardar en este equipo');
+}
 
 const DIAS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 function ddmmyyyy(d){ return String(d.getDate()).padStart(2,'0') + '/' + String(d.getMonth()+1).padStart(2,'0') + '/' + d.getFullYear(); }

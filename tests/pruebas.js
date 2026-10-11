@@ -102,7 +102,22 @@ vm.runInContext("duracionFija = {};", cr);
 igual('conflictos: sin duración no inventa solapes', cr.conflictos('13/10/2026').filter(c => c.tipo === 'solape').length, 0);
 igual('cierre: estados que cuentan como terminada', ['CERRADO', 'Puesto operativo', 'PTO. OPERATIVO PTE. ACEPTACIÓN PRESUPUESTO', 'EN FABRICANTE', 'PRESENCIAL'].map(e => cr.esCierre(e)), [true, true, true, false, false]);
 
+// ---- Progreso del día: solo cuenta el técnico asignado (el soporte remoto también "inicia" tickets) ----
+const cp = {}; vm.createContext(cp);
+vm.runInContext([extraer(app, 'function cleanInitials('), extraer(dia, 'function isoHoy('), extraer(dia, 'function progresoHilo('), 'let hilos = {};'].join('\n'), cp);
+const ahora = Date.now(), hilo = items => vm.runInContext('hilos = ' + JSON.stringify({ k: { at: ahora, items } }), cp);
+hilo([{ ts: ahora - 3600000, t: 'El usuario MAAP ha iniciado el ticket' }]);
+igual('progreso: inicio del soporte remoto no cuenta', cp.progresoHilo('k', 'EACL'), null);
+hilo([{ ts: ahora - 3600000, t: 'El usuario MAAP ha iniciado el ticket' }, { ts: ahora - 1800000, t: 'El usuario EACL ha iniciado el ticket' }]);
+igual('progreso: inicio del técnico = en curso', cp.progresoHilo('k', 'EACL').k, 'c');
+hilo([{ ts: ahora - 1800000, t: 'El usuario EACL ha iniciado el ticket' }, { ts: ahora - 600000, t: 'El usuario EACL ha finalizado el ticket' }]);
+igual('progreso: finalizado por el técnico', cp.progresoHilo('k', 'EACL').k, 'd');
+hilo([{ ts: ahora - 86400000 * 2, t: 'El usuario EACL ha finalizado el ticket' }]);
+igual('progreso: lo de otros días no cuenta', cp.progresoHilo('k', 'EACL'), null);
+
 // ---- Coherencia de configuración ----
+const vSyncA = (leer('atgo-sync.js').match(/SYNC_VERSION = '([\d.]+)'/) || [])[1], vSyncP = (app.match(/SYNC_VERSION = '([\d.]+)'/) || [])[1];
+igual('SYNC_VERSION igual en atgo-sync.js y app.js', vSyncA, vSyncP);
 const opsSync = (leer('atgo-sync.js').match(/(?:const|let) OPERARIOS = \[([^\]]*)\]/) || [])[1].match(/'([A-Z]+)'/g).map(s => s.slice(1, -1)).sort();
 const zb = app.slice(app.indexOf('const ZONAS_BASE'), app.indexOf('];', app.indexOf('const ZONAS_BASE')));
 const opsApp = [...new Set([...zb.matchAll(/ops:\[([^\]]*)\]/g)].flatMap(m => m[1].match(/'([A-Z]+)'/g).map(s => s.slice(1, -1))))].sort();

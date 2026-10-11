@@ -19,6 +19,9 @@
   const REFRESCO_MIN = 2;          // minutos entre una carga y la siguiente (siempre, también fuera de horario)
   function refrescoMin() { return REFRESCO_MIN; }
   const TIMEOUT_MS = 120000;
+  // Versión de este script: Despacho la compara con la suya (SYNC_VERSION en app.js) y avisa si esta pestaña
+  // sigue con una versión antigua (hay que recargarla). Súbela cuando cambie este archivo.
+  const SYNC_VERSION = '1.15.0';
 
   if (location.hostname !== 'atgo.tier1.es') { alert('Abre primero https://atgo.tier1.es e inicia sesión.'); return; }
 
@@ -35,6 +38,8 @@
   let running = false;
   let timer = null;
   let stopped = false;
+  let otraVez = false;   // se pidió actualizar mientras había una carga en marcha: se repite al acabar
+  let gen = 0;           // cada carga tiene su número; si una falla, sus consultas pendientes se abandonan
 
   // ===== Indicador flotante dentro de ATGO =====
   const box = document.createElement('div');
@@ -210,6 +215,7 @@
     const t0 = Date.now();
     const found = new Map();
     let done = 0, firstLoad = !lastPayload;
+    const yo = ++gen, viva = () => yo === gen && !stopped;
     try {
       setStatus('Cargando 0/' + OPERARIOS.length + ' técnicos…');
       if (!estadosAtgo) { try { const r = await fetch('/api/v1/atgo/estados', { headers: { Authorization: 'Bearer ' + token(), Accept: 'application/json' } }); if (r.ok) estadosAtgo = (await r.json()).map(x => ({ estado: x.estado, desEstado: x.desEstado, cierra: x.cierra })); } catch (e) {} }
@@ -221,10 +227,11 @@
       const cola = [...OPERARIOS.map(op => ({ op })), ...Object.keys(poolOps || {}).map(op => ({ op, pool: true }))];
       const totalCola = cola.length;
       const worker = async () => {
-        while (cola.length && !stopped) {
+        while (cola.length && viva()) {
           const it = cola.shift();
           for (let page = 0; ; page++) {
             const d = await getPage(it.op, page, it.pool ? [10] : null);
+            if (!viva()) return;   // la carga se abandonó (falló otra consulta): no seguir ni escribir el estado
             it.pool ? addPool(d) : add(d);
             if (d.last !== false || !(d.content || []).length) break;
           }
@@ -236,19 +243,22 @@
       // Si falla algún operario se descarta la carga entera: así nunca parece que sus tickets "salieron".
       await Promise.all(Array.from({ length: Math.min(PARALELO, cola.length) }, worker));
       if (stopped) return;
-      lastPayload = { type: 'atgo-data', partial: false, rows: [...found.values()], at: Date.now(), seconds: Math.round((Date.now() - t0) / 1000), caps: ['hilo', 'estado', 'editar', 'asignar', 'pool'], estados: estadosAtgo || [], pool: poolOps ? [...pool.values()] : null, poolOps: poolOps || {} };
+      lastPayload = { type: 'atgo-data', partial: false, v: SYNC_VERSION, rows: [...found.values()], at: Date.now(), seconds: Math.round((Date.now() - t0) / 1000), caps: ['hilo', 'estado', 'editar', 'asignar', 'pool'], estados: estadosAtgo || [], pool: poolOps ? [...pool.values()] : null, poolOps: poolOps || {} };
       send(lastPayload);
       const hora = new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
       setStatus(found.size + ' incidencias · ' + hora + ' (' + lastPayload.seconds + ' s) · próxima en ' + refrescoMin() + ' min');
     } catch (e) {
+      if (yo === gen) gen++;   // abandona las consultas que siguen en marcha de esta carga
       setStatus('Error: ' + e.message, true);
     } finally {
       running = false;
       clearTimeout(timer);
-      if (!stopped) timer = setTimeout(syncOnce, refrescoMin() * 60000);
+      // Tras guardar algo en ATGO se pide actualizar: si coincidió con una carga, se repite enseguida
+      if (!stopped) timer = setTimeout(syncOnce, otraVez ? 300 : refrescoMin() * 60000);
+      otraVez = false;
     }
   }
-  function refreshNow() { clearTimeout(timer); syncOnce(); }
+  function refreshNow() { if (running) { otraVez = true; return; } clearTimeout(timer); syncOnce(); }
 
   window.__despachoSync = { refreshNow };
   let opened = false;

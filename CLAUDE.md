@@ -19,7 +19,8 @@ Publicada en GitHub Pages: https://angriogon.github.io/VISOR-INCIDENCIAS/
 
 - **Sin build, sin npm, sin framework.** HTML + JS estático. GitHub Pages publica la raíz tal cual.
 - **Scripts clásicos que comparten el ámbito global** (no son módulos ES). Orden de carga en `index.html`:
-  `xlsx` (CDN) → `dia.js` → `herramientas.js` → `edicion.js` → `panel.js` → `app.js` → `ajustes.js`.
+  `dia.js` → `herramientas.js` → `edicion.js` → `panel.js` → `app.js` → `ajustes.js`. Excel (XLSX) y Leaflet se cargan
+  al usarlos con `cargarLibreria` (app.js).
   El arranque de `ajustes.js` va en `DOMContentLoaded` (cuando ya existe todo).
   Las funciones se llaman entre archivos solo *en tiempo de llamada*: en el nivel superior de un archivo
   no uses nada definido en un archivo que se carga después.
@@ -59,7 +60,8 @@ Publicada en GitHub Pages: https://angriogon.github.io/VISOR-INCIDENCIAS/
 ## Reglas al cambiar código
 
 1. **Sube `VERSION` en `sw.js`** en cada cambio publicado; si no, la app instalada no se actualiza.
-   Súbela igual en `APP_VERSION` (`ajustes.js`) y añade la versión a `NOVEDADES`.
+   Súbela igual en `APP_VERSION` (`ajustes.js`) y añade la versión a `NOVEDADES`. Si cambias `atgo-sync.js`, sube `SYNC_VERSION`
+   en él y en `app.js` (Despacho avisará de recargar la pestaña de ATGO).
 2. Si creas un archivo nuevo que carga la app, añádelo a `SHELL` en `sw.js` y a `index.html`.
 3. **Técnicos duplicados:** `ZONAS_BASE` (app.js) manda; `OPERARIOS` (atgo-sync.js) es el respaldo y debe coincidir.
    Asignar: siempre por `asignarLote` (también una sola) y técnico recomendado por `recomendar` (sugerirTecnico lo usa).
@@ -69,7 +71,9 @@ Publicada en GitHub Pages: https://angriogon.github.io/VISOR-INCIDENCIAS/
 6. Cualquier escritura en ATGO debe pedir confirmación, verificarse después y no reintentarse sola.
 7. Textos de la interfaz en español de España, cortos y claros.
 8. Si cambia el comportamiento visible, actualiza solo la sección afectada del README.
-9. Antes de dar algo por terminado: `for f in *.js extension/*.js; do node --check "$f"; done` y `node tests/pruebas.js`.
+9. Antes de dar algo por terminado: `for f in *.js extension/*.js; do node --check "$f"; done`, `node tests/pruebas.js` y,
+   si puedes, `tests/arranque.mjs` (necesita `playwright-core`; en GitHub Actions se ejecuta solo).
+   Preferencias en `tecCfg` se guardan en `dispatcher_preferencias_v1`; teléfonos y GLS en `dispatcher_tecnicos_v1` (`saveTec`).
 10. Para parchear con barras invertidas (regex), usa Edit/Write o un archivo de parche: `node -e` desde bash las pierde.
 11. Probar en local: `.claude/launch.json` (servidor en el puerto 8765). El service worker sirve caché: antes de recargar,
     `navigator.serviceWorker.getRegistrations()` → `unregister()` y vacía `caches`.

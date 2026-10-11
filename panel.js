@@ -137,11 +137,7 @@ async function asignarMarcadas() {
   }).filter(Boolean);
   if (!items.length) { toast('Marca al menos una'); return; }
   const res = await asignarLote(items, 'Asignar sin asignar en ATGO');
-  if (res && res.okKeys.length) {
-    const ok = new Set(res.okKeys);
-    poolRows = poolRows.filter(x => !ok.has(tkey(x))); ok.forEach(k => delete sinElec[k]);
-    renderSin(); updateSinBadge();
-  }
+  if (res && res.okKeys.length) quitarDeSinAsignar(res.okKeys);
 }
 function sinFila(r, enBuzon) {
   const k = tkey(r), mia = esMiZonaPool(r), mot = motivoTexto(k), act = actualizado(r);
@@ -182,7 +178,15 @@ async function asignarSin(key) {
   // Misma confirmación y guardado que la asignación masiva (una sola pieza para todo)
   const op = document.getElementById('sa-op-' + key).value, fEl = document.getElementById('sa-f-' + key), f = fEl ? fEl.value : '';
   const res = await asignarLote([{ key, codOpe: op, ...(f ? { fechaVisita: f } : {}) }], 'Asignar en ATGO');
-  if (res && res.okKeys.length) { poolRows = poolRows.filter(x => tkey(x) !== key); delete sinElec[key]; renderSin(); updateSinBadge(); }
+  if (res && res.okKeys.length) quitarDeSinAsignar(res.okKeys);
+}
+// Tras asignar (desde Sin asignar o arrastrando en Planificación) desaparece al momento, sin esperar a ATGO
+function quitarDeSinAsignar(keys) {
+  const ok = new Set(keys); if (!ok.size) return;
+  poolRows = poolRows.filter(x => !ok.has(tkey(x))); ok.forEach(k => delete sinElec[k]);
+  updateSinBadge();
+  if (document.getElementById('viewSin').style.display !== 'none') renderSin();
+  if (document.getElementById('viewSem').style.display !== 'none') renderSemana();
 }
 
 // ===== Vigilancia de la sincronización =====
@@ -190,6 +194,11 @@ let syncUltima = 0, syncAvisado = false;
 function marcarSync(m) { if (m && !m.partial && m.at) { syncUltima = m.at; syncAvisado = !!m.desdeCache; renderSyncAviso(); } }   // con datos guardados no se manda aviso de Windows
 function renderSyncAviso() {
   const el = document.getElementById('syncAviso'); if (!el || (typeof caidaSeguida !== 'undefined' && caidaSeguida)) return;   // aviso de carga sospechosa a la vista
+  if (typeof syncVieja !== 'undefined' && syncVieja) {
+    el.hidden = false;
+    el.innerHTML = `⚠ La pestaña de ATGO tiene una versión antigua de la sincronización: recárgala (F5) <button class="btn sm" onclick="document.getElementById('atgoBtn').click()">Ir a ATGO</button>`;
+    return;
+  }
   const viejo = source === 'atgo' && syncUltima && Date.now() - syncUltima > SYNC_AVISO_MIN * 60000;
   el.hidden = !viejo;
   if (viejo) el.innerHTML = `⚠ ATGO sin actualizar desde las ${esc(hhmm(syncUltima))} <button class="btn sm" onclick="document.getElementById('atgoBtn').click()">Abrir ATGO</button>`;
@@ -481,7 +490,7 @@ document.addEventListener('drop', e => {
   if (!fase2Activa('*')) { toast('Activa «Planificar en ATGO» para todos en ⚙'); return; }
   const [op, f] = c.dataset.drop.split('|'), r = ticketDe(key); if (!r) return;
   if (cleanInitials(r.operario) === op && fechaIsoDe(r) === f) return;
-  asignarLote([{ key, codOpe: op, fechaVisita: f }], `Planificar Nº ${r.num}`);
+  asignarLote([{ key, codOpe: op, fechaVisita: f }], `Planificar Nº ${r.num}`).then(res => { if (res) quitarDeSinAsignar(res.okKeys); });
 }, true);
 
 // ===== Línea de tiempo del día (Mi día) =====
@@ -539,11 +548,7 @@ document.addEventListener('click', e => {
 // ===== Mapa del día (Leaflet + OpenStreetMap) =====
 // Las direcciones se convierten en coordenadas con Nominatim (OpenStreetMap), 1 por segundo, y se guardan.
 function cargarLeaflet() {
-  if (window.L) return Promise.resolve();
-  return new Promise((res, rej) => {
-    const css = document.createElement('link'); css.rel = 'stylesheet'; css.href = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css'; document.head.appendChild(css);
-    const s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js'; s.onload = res; s.onerror = rej; document.head.appendChild(s);
-  });
+  return cargarLibreria('https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js', () => window.L, 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css');
 }
 async function geocodificar(dir) {
   const k = norm(dir); if (k in geoCache) return geoCache[k];

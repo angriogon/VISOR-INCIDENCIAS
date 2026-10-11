@@ -408,7 +408,10 @@ function abrirInforme() {
   </div>`;
   m.hidden = false;
 }
-function cerrarModal() { document.getElementById('modal').hidden = true; }
+function cerrarModal() {
+  const m = document.getElementById('modal'); m.hidden = true;
+  if (m.__fin) m.__fin(false);   // confirmación pendiente: se da por cancelada
+}
 async function copiarInforme() {
   const d = datosInforme();
   try { await navigator.clipboard.write([new ClipboardItem({ 'text/html': new Blob([informeHtml(d)], { type: 'text/html' }), 'text/plain': new Blob([informeTexto(d)], { type: 'text/plain' }) })]); toast('Informe copiado · pégalo en el correo'); }

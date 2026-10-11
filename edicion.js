@@ -25,10 +25,12 @@ function edicionesDe(key) { return ediciones.filter(e => e.key === key); }
 function confirmar(html, okLabel, peligro) {
   return new Promise(res => {
     const m = document.getElementById('modal');
+    if (m.__fin) m.__fin(false);   // otra confirmación a medias: queda cancelada
     m.innerHTML = `<div class="md-box md-confirm"><div class="md-txt">${html}</div>
       <div class="acts" style="justify-content:flex-end"><button class="btn" id="mdNo">Cancelar</button><button class="btn pri${peligro ? ' warn' : ''}" id="mdSi">${esc(okLabel)}</button></div></div>`;
     m.hidden = false;
-    const fin = v => { m.hidden = true; res(v); };
+    const fin = v => { m.__fin = null; m.hidden = true; res(v); };
+    m.__fin = fin;   // si se cierra con Esc o con otra ventana, cuenta como «Cancelar» (cerrarModal)
     document.getElementById('mdNo').onclick = () => fin(false);
     document.getElementById('mdSi').onclick = () => fin(true);
     document.getElementById('mdSi').focus();

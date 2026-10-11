@@ -12,3 +12,7 @@ jobs:
         run: for f in *.js extension/*.js tests/*.js; do node --check "$f"; done
       - name: Pruebas
         run: node tests/pruebas.js
+      - name: Prueba de arranque en navegador
+        run: |
+          npm i --no-save --no-audit --no-fund playwright-core@1.47.2
+          node tests/arranque.mjs

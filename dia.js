@@ -9,14 +9,24 @@ const PARADO_ANTIGUEDAD = 15;   // días desde el registro para considerarlo par
 const ESTADOS_ESPERA = ['EN FABRICANTE', 'MATERIAL PTE. FABRICANTE', 'PTE. MOVER MATERIAL', 'ESCALADO TIER1', 'FUERA DE MANTENIMIENTO'];
 
 function lsGet(k, def) { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? def : v; } catch (e) { return def; } }
-function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { toast('No se pudo guardar en este equipo'); } }
+// Si el navegador se queda sin espacio, se libera lo prescindible (ajustes.js) y se reintenta una vez
+function lsSet(k, v) {
+  const txt = JSON.stringify(v);
+  try { localStorage.setItem(k, txt); return; } catch (e) {}
+  if (typeof liberarEspacio === 'function' && !lsSet.liberando) {
+    lsSet.liberando = true;
+    try { liberarEspacio(); localStorage.setItem(k, txt); return; } catch (e) {} finally { lsSet.liberando = false; }
+  }
+  toast('No se pudo guardar en este equipo (sin espacio)');
+  if (typeof diagLog === 'function') diagLog('No se pudo guardar ' + k);
+}
 
 let segSnap = lsGet(SNAP_KEY, { start: 0, items: {} });
 let eventos = lsGet(EVT_KEY, []);
 let notas = lsGet(NOTAS_KEY, {});
 let envios = lsGet(ENV_KEY, {});
 let avisos = { on: false, miNombre: true, escalado: true, ruta: true, nuevos: false, material: true, sla: true, ...lsGet(AVI_KEY, {}) };
-let novFiltro = 'nv', diaPending = false;
+let novFiltro = 'nv';
 
 function tkey(r) { return String(r.key || r.num); }
 function dispatcherOps() { return ZONAS.filter(z => z.dispatcher).flatMap(z => z.ops); }
@@ -200,7 +210,7 @@ function parados() {
 
 // ===== 5. Notas y seguimientos =====
 function guardarNota(key, cambios) {
-  const r = rows.find(x => tkey(x) === key) || {};
+  const r = ticketDe(key) || {};
   const n = { ...(notas[key] || {}), ...cambios, num: r.num || (notas[key] && notas[key].num) || key, sede: r.descSede || (notas[key] && notas[key].sede) || '', op: r.operario || (notas[key] && notas[key].op) || '', ts: Date.now() };
   if (!n.texto && !n.fecha && !n.cad) delete notas[key]; else notas[key] = n;
   lsSet(NOTAS_KEY, notas);
@@ -224,7 +234,7 @@ function fichaCampos(r) {
     ['Técnico', tec ? `${tec} (${r.operario})` : r.operario], ['Tipo', r.tipo], ['Referencia', r.referencia]].filter(x => x[1]);
 }
 async function copiarFicha(key) {
-  const r = rows.find(x => tkey(x) === key); if (!r) return;
+  const r = ticketDe(key); if (!r) return;
   const c = fichaCampos(r);
   const text = c.map(([k, v]) => `${k}: ${v}`).join('\n');
   const html = `<table style="font:11pt Calibri,Arial,sans-serif;border-collapse:collapse">${c.map(([k, v]) => `<tr><td style="padding:1px 14px 1px 0;color:#666">${esc(k)}</td><td style="padding:1px 0"><b>${esc(v)}</b></td></tr>`).join('')}</table>`;
@@ -275,14 +285,17 @@ function hilosTrasCarga(nuevos) {
 }
 
 // ===== Ruta de hoy: visitas enrutadas para hoy y su estado =====
-// En curso / terminada salen del hilo de ATGO ("ha iniciado el ticket" / "ha finalizado el ticket" de hoy).
-function progresoHilo(key) {
+// En curso / terminada salen del hilo de ATGO ("El usuario X ha iniciado / finalizado el ticket" de hoy).
+// Solo cuentan los mensajes del técnico asignado: el soporte remoto también "inicia" tickets sin ir a la visita.
+function progresoHilo(key, op) {
   const h = hilos[key]; if (!h) return null;
-  const hoy = isoHoy(); let last = null;
+  const hoy = isoHoy(), tec = cleanInitials(op); let last = null;
   h.items.forEach(i => {
     if (!i.ts || isoHoy(new Date(i.ts)) !== hoy) return;
-    const k = /ha finalizado el ticket/i.test(i.t) ? 'd' : /ha iniciado el ticket/i.test(i.t) ? 'c' : null;
-    if (k && (!last || i.ts > last.ts)) last = { k, ts: i.ts };
+    const m = /el usuario (\S+) ha (finalizado|iniciado) el ticket/i.exec(i.t || '');
+    if (!m || (tec && cleanInitials(m[1]) !== tec)) return;
+    const k = /^fin/i.test(m[2]) ? 'd' : 'c';
+    if (!last || i.ts > last.ts) last = { k, ts: i.ts };
   });
   return last;
 }
@@ -326,7 +339,7 @@ function rutaHoy() {
       out.push(esCierre(r.estado) ? { r, op: r.operario, st: 'd', label: 'Terminada · ' + r.estado } : { r, op: r.operario, st: 't', label: 'En trámite · ' + r.estado });
       return;
     }
-    const p = progresoHilo(k);
+    const p = progresoHilo(k, r.operario);
     const limite = horaMin(r.hastaHora || r.desdeHora);
     if (p && p.k === 'd') out.push({ r, op: r.operario, st: 't', ts: p.ts, label: 'En trámite · visita finalizada, sigue en PRESENCIAL' });
     else if (p && p.k === 'c') out.push({ r, op: r.operario, st: 'c', ts: p.ts });
@@ -477,7 +490,10 @@ function renderFicha() {
   if (!(editPend && editPend.key === key)) asPrev.forEach(([id, v]) => { const el = document.getElementById(id); if (el) el.value = v; });
   if (prev.foco && /^as/.test(prev.foco) && document.getElementById(prev.foco)) document.getElementById(prev.foco).focus();
   const ta = document.getElementById('dwNota');
-  if (ta) { ta.addEventListener('input', () => { guardarNota(key, { texto: ta.value.trim() }); }); ta.addEventListener('blur', refreshVisible); }
+  // La nota se guarda al dejar de escribir medio segundo (no en cada tecla) y siempre al salir del campo
+  let tNota = null;
+  const guardar = () => { clearTimeout(tNota); guardarNota(key, { texto: ta.value.trim() }); };
+  if (ta) { ta.addEventListener('input', () => { clearTimeout(tNota); tNota = setTimeout(guardar, 500); }); ta.addEventListener('blur', () => { guardar(); refreshVisible(); }); }
 }
 function setSeg(fecha) { guardarNota(fichaKey, { fecha, hecho: false }); renderFicha(); refreshVisible(); }
 
@@ -576,8 +592,7 @@ function ticketLi(r, extra, cls) {
 }
 function renderDia(force) {
   const root = document.getElementById('viewDia');
-  if (!force && root.contains(document.activeElement) && /^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)) { diaPending = true; return; }
-  diaPending = false;
+  if (!force && typeof ocupado === 'function' && ocupado()) { refrescoPendiente = true; return; }   // se repinta al soltar el campo (app.js)
   const ahora = new Date();
   const fecha = `${DIAS[ahora.getDay()]} ${ahora.getDate()} de ${ahora.toLocaleDateString('es-ES', { month: 'long' })}`.replace(/^./, c => c.toUpperCase());
   if (!rows.length) {
@@ -717,6 +732,6 @@ document.querySelector('main').addEventListener('click', e => {
   const el = e.target.closest('[data-key]');
   if (el && el.dataset.key) openTicket(el.dataset.key);
 });
-document.getElementById('viewDia').addEventListener('focusout', () => { if (diaPending) setTimeout(() => { if (diaPending) renderDia(); }, 200); });
+
 // El aviso de Windows pide mostrar Mi día (ver sw.js)
 if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', e => { if (e.data && e.data.type === 'show-dia') showTab('dia'); });
