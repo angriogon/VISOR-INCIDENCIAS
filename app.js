@@ -311,7 +311,7 @@ window.addEventListener('message', (e) => {
 });
 // Versión de la sincronización que espera esta app. Si la pestaña de ATGO trae otra (la cargó antes de una
 // actualización), se avisa de que hay que recargarla. Debe coincidir con SYNC_VERSION de atgo-sync.js.
-const SYNC_VERSION = '1.15.0';
+const SYNC_VERSION = '1.15.1';
 let syncVieja = false;
 // La lista de técnicos que sincroniza la pestaña de ATGO sale de aquí (ZONAS_BASE): así no puede quedar desfasada.
 // atgo-sync.js mantiene su propia lista solo como respaldo si esta no llega.

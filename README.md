@@ -125,6 +125,7 @@ Se ve en la ficha (*Duración*), en el día de Planificación («≈ 4 h 30 + 2 
 1. Descarga y descomprime `https://angriogon.github.io/VISOR-INCIDENCIAS/despacho-extension.zip`.
 2. En Edge: `edge://extensions` → activa *Modo de desarrollador* → *Cargar desempaquetada* → elige la carpeta. (En Chrome: `chrome://extensions`.)
 3. Abre ATGO desde el botón **ATGO** de Despacho. Si ATGO se abre por su cuenta, el recuadro de Despacho en ATGO pedirá pulsar ↗ para abrir la app.
+La versión **1.1.0** corrige el bloqueo de Chrome/Edge (error «violates the following Content Security Policy» en la página de errores de la extensión): ahora el script se carga desde la página de ATGO, como el favorito. Si tenías la 1.0.0, descarga el zip nuevo, sustituye los archivos de la carpeta y pulsa ⟳ *Recargar* en la tarjeta de la extensión.
 Algunos equipos de empresa no permiten extensiones: el favorito sigue funcionando igual.
 
 ## Actuar en ATGO (fase 1)

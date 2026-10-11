@@ -1,6 +1,8 @@
 // Extensión "Despacho · sincronización con ATGO".
 // Hace lo mismo que el favorito ⟳ Despacho ATGO, pero sola: cuando hay sesión iniciada en ATGO,
 // añade a la página el script de sincronización publicado en GitHub Pages. No lee ni guarda nada por su cuenta.
+// Se ejecuta en el mundo de la página ("world": "MAIN" en manifest.json), igual que el favorito: desde el mundo
+// aislado de la extensión, Chrome bloquea cargar scripts de otra web (CSP de Manifest V3).
 (function () {
   const SYNC = 'https://angriogon.github.io/VISOR-INCIDENCIAS/atgo-sync.js';
   function conSesion() {

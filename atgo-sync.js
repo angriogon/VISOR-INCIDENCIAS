@@ -21,7 +21,7 @@
   const TIMEOUT_MS = 120000;
   // Versión de este script: Despacho la compara con la suya (SYNC_VERSION en app.js) y avisa si esta pestaña
   // sigue con una versión antigua (hay que recargarla). Súbela cuando cambie este archivo.
-  const SYNC_VERSION = '1.15.0';
+  const SYNC_VERSION = '1.15.1';
 
   if (location.hostname !== 'atgo.tier1.es') { alert('Abre primero https://atgo.tier1.es e inicia sesión.'); return; }
 
@@ -210,7 +210,8 @@
 
   async function syncOnce() {
     if (running || stopped) return;
-    if (sessionExpired()) { setStatus('Sesión de ATGO caducada. Vuelve a iniciar sesión y pulsa ⟳.', true); return; }
+    // Sin sesión: se reintenta sola cada 30 s, así sigue en cuanto vuelvas a iniciar sesión en esta pestaña
+    if (sessionExpired()) { setStatus('Sesión de ATGO caducada. Inicia sesión de nuevo: la sincronización seguirá sola.', true); clearTimeout(timer); if (!stopped) timer = setTimeout(syncOnce, 30000); return; }
     running = true;
     const t0 = Date.now();
     const found = new Map();

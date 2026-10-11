@@ -1,13 +1,14 @@
 {
   "manifest_version": 3,
   "name": "Despacho · sincronización con ATGO",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Arranca sola la sincronización de Despacho al abrir ATGO, sin pulsar el favorito.",
   "content_scripts": [
     {
       "matches": ["https://atgo.tier1.es/*"],
       "js": ["atgo.js"],
-      "run_at": "document_idle"
+      "run_at": "document_idle",
+      "world": "MAIN"
     }
   ],
   "icons": { "128": "icon-128.png" }
