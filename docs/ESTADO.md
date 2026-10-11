@@ -20,6 +20,7 @@ Al terminar: "actualiza docs/ESTADO.md". Máximo ~40 líneas: lo antiguo se resu
 - Versión iPhone: `docs/propuesta-ios.md` (decidir relevo cifrado o API oficial de Tier1).
 
 ## Por validar con datos reales (el usuario prueba; Claude no escribe en ATGO)
+- 2026-10-11: el usuario probó la 1.13.0 y confirma que funciona.
 - Asignar desde Sin asignar con fecha; «Deshacer» tras asignar; arrastrar y en bloque en Planificación.
 - Duraciones: lector probado con textos reales (`tests/pruebas.js`); faltan más ejemplos de cómo escriben la duración.
 - Resumen matinal (8:00) y aviso de técnico sin actividad (11:00): solo días laborables y con avisos activados.
