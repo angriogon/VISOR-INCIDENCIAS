@@ -16,10 +16,9 @@
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-
+<a class="saltar" href="#principal">Saltar al contenido</a>
 <header>
-  <span class="brand">Despacho</span>
-  <nav class="tabs"><button class="tab active" id="tabDia" onclick="showTab('dia')" title="Mi día (1)">Mi día<i class="tbadge" id="diaBadge" hidden></i></button><button class="tab" id="tabSin" onclick="showTab('sin')" title="Sin asignar (2)">Sin asignar<i class="tbadge" id="sinBadge" hidden></i></button><button class="tab" id="tabInc" onclick="showTab('inc')" title="Incidencias (3)">Incidencias</button><button class="tab" id="tabSem" onclick="showTab('sem')" title="Planificación: semana y detalle de cada día (4)">Planificación</button></nav>
+  <nav class="tabs" aria-label="Secciones"><button class="tab active" id="tabDia" onclick="showTab('dia')" title="Mi día (1)" aria-current="page">Mi día<i class="tbadge" id="diaBadge" hidden></i></button><button class="tab" id="tabSin" onclick="showTab('sin')" title="Sin asignar (2)">Sin asignar<i class="tbadge" id="sinBadge" hidden></i></button><button class="tab" id="tabInc" onclick="showTab('inc')" title="Incidencias (3)">Incidencias</button><button class="tab" id="tabSem" onclick="showTab('sem')" title="Planificación: semana y detalle de cada día (4)">Planificación</button></nav>
   <span class="sync-dot" id="syncDot" tabindex="0" aria-label="Estado de ATGO"><i></i><span class="sync-tip"><span id="fileStatus">Sin datos</span><span id="atgoStatus"></span></span></span>
   <span class="sync-aviso" id="syncAviso" hidden></span>
   <div class="spacer"></div>
@@ -27,14 +26,14 @@
   <button class="chip perfil-chip" id="perfilBtn" onclick="menuPerfil(event)" title="Perfil: técnicos que ves (se cambian en ⚙ › Perfiles)"></button>
   <button class="iconbtn" onclick="openPalette()" title="Buscar ticket o acción (Ctrl+K)" aria-label="Buscar"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></button>
   <button class="iconbtn" id="novBtn" onclick="abrirNovedades()" title="Versión y novedades" aria-label="Versión y novedades"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/></svg><i class="nov-dot" id="novDot" hidden></i></button>
-  <button class="iconbtn" id="cfgBtn" onclick="toggleCfg(event)" title="Ajustes, perfiles y copia de seguridad" aria-label="Ajustes">⚙</button>
+  <button class="iconbtn" id="cfgBtn" onclick="toggleCfg(event)" title="Ajustes, perfiles, apariencia y accesibilidad" aria-label="Ajustes" aria-haspopup="dialog">⚙</button>
   <span hidden><button id="clearBtn">Quitar datos</button><button id="atgoBtn">ATGO</button><button id="importBtn">Importar</button></span>
-  <div class="cfg-menu" id="cfgMenu" hidden></div>
+  <div class="cfg-menu" id="cfgMenu" role="dialog" aria-label="Ajustes" hidden></div>
   <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
   <input type="file" id="backupInput" accept=".json,application/json">
 </header>
 
-<main>
+<main id="principal" tabindex="-1">
   <div id="odAviso" class="od-aviso" hidden></div>
   <div id="viewInc">
   <div class="empty" id="emptyState">
@@ -66,11 +65,11 @@
   <div id="viewSem" style="display:none;"></div>
 </main>
 
-<div id="drawer" class="drawer" hidden><div class="dw-back"></div><aside class="dw-panel" id="dwPanel" aria-label="Ficha del ticket"></aside></div>
-<div id="modal" class="modal" hidden></div>
-<div id="palette" class="palette" hidden><div class="pal-box"><input id="palInput" placeholder="Busca Nº, sede, técnico, referencia… o una acción" autocomplete="off"><ul id="palList"></ul><div class="pal-keys">↑ ↓ elegir · Enter abrir · → acciones · Esc cerrar</div></div></div>
+<div id="drawer" class="drawer" role="dialog" aria-modal="true" aria-label="Ficha del ticket" hidden><div class="dw-back"></div><aside class="dw-panel" id="dwPanel" aria-label="Ficha del ticket"></aside></div>
+<div id="modal" class="modal" role="dialog" aria-modal="true" hidden></div>
+<div id="palette" class="palette" role="dialog" aria-modal="true" aria-label="Buscar" hidden><div class="pal-box"><input id="palInput" aria-label="Buscar ticket o acción" placeholder="Busca Nº, sede, técnico, referencia… o una acción" autocomplete="off"><ul id="palList"></ul><div class="pal-keys">↑ ↓ elegir · Enter abrir · → acciones · Esc cerrar</div></div></div>
 
-<div id="toast"></div>
+<div id="toast" role="status" aria-live="polite"></div>
 <div id="updateBar"><span>Hay una versión nueva.</span><button class="btn pri" id="updateBtn">Actualizar</button></div>
 
 <script src="dia.js"></script>

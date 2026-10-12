@@ -36,11 +36,22 @@ const ZONAS_BASE = [
 // Se gestionan en la ventana de Perfiles (ajustes.js). Un técnico puede estar en varios perfiles.
 const PERFILES = ['DSP1','DSP2','DSP3','DSP4','DSP5','COORD'];
 const PERFIL_KEY = 'dispatcher_perfiles_v1';
+// Nómina (⚙ › Técnicos): altas, cambios de zona y bajas que hace el usuario, guardados en perfilCfg.nomina.
+// { OP: { z: zona ('' = sin zona), dsp: perfil si no tiene zona, n: nombre, alta: true si lo dio de alta él, baja: true } }
+// Se aplica aquí sobre ZONAS_BASE, antes de calcular nada: así las zonas, la lista matriz y las recomendaciones lo tienen en cuenta.
+const NOMINA = (() => { try{ const c = JSON.parse(localStorage.getItem(PERFIL_KEY) || 'null'); return c && c.nomina && typeof c.nomina === 'object' ? c.nomina : {}; }catch(e){ return {}; } })();
+function moverEnZonas(op, zona){
+  ZONAS_BASE.forEach(z => { if (!z.dispatcher) z.ops = z.ops.filter(x => x !== op); });
+  const z = zona && ZONAS_BASE.find(x => x.nombre === zona && !x.dispatcher); if (z) z.ops.push(op);
+}
+Object.entries(NOMINA).forEach(([op, t]) => { if (t && typeof t.z === 'string') moverEnZonas(op, t.z); });
 const BASE_OPS = ZONAS_BASE.flatMap(z => z.ops);
 const dspZona = z => z.dsp || 'DSP1';
 // Lista matriz (por defecto): cada DSP con los técnicos de sus zonas y COORD con todos. «Restablecer» vuelve a ella.
 function perfilesPorDefecto(){
   const t = Object.fromEntries(PERFILES.map(p => [p, p === 'COORD' ? BASE_OPS.slice() : ZONAS_BASE.filter(z => dspZona(z) === p).flatMap(z => z.ops)]));
+  // Técnicos de la nómina sin zona: en el DSP que se les puso (y en COORD)
+  Object.entries(NOMINA).forEach(([op, n]) => { if (n && n.z === '' && t[n.dsp]){ [n.dsp, 'COORD'].forEach(p => { if (!t[p].includes(op)) t[p].push(op); }); } });
   return t;
 }
 const PERFIL_INICIAL = perfilesPorDefecto();
@@ -59,8 +70,11 @@ let perfilCfg = (() => {
     c.conocidos = BASE_OPS.slice(); try{ localStorage.setItem(PERFIL_KEY, JSON.stringify(c)); }catch(e){}
   }
   if (!PERFILES.includes(c.activo)) c.activo = 'DSP1';
+  c.nomina = NOMINA;
   return c;
 })();
+// Técnicos de baja (⚙ › Técnicos): siguen sincronizándose (por si les quedan incidencias), pero no se proponen para asignar
+function enBaja(op){ const n = perfilCfg.nomina[cleanInitials(op)]; return !!(n && n.baja); }
 const PERFIL = perfilCfg.activo;
 // Todos los técnicos conocidos (de cualquier perfil): se puede asignar a cualquiera desde cualquier perfil
 const TODOS_OPS = [...new Set([...BASE_OPS, ...PERFILES.flatMap(p => perfilCfg.tecs[p])])];
@@ -289,6 +303,8 @@ function zonaEnDsp(nombre){ if (!filtroInc.dsp) return true; const z = ZONAS_BAS
 function zonasVisibles(){
   let z = zonaSel ? ZONAS_TEC.filter(x => x.nombre === zonaSel) : ZONAS_TEC;
   if (filtroInc.dsp){ const l = perfilCfg.tecs[filtroInc.dsp] || []; z = z.map(x => ({ ...x, ops: x.ops.filter(op => l.includes(op)) })).filter(x => x.ops.length); }
+  // De baja: solo se ven si aún tienen incidencias (para reasignarlas)
+  if (Object.keys(perfilCfg.nomina).length) z = z.map(x => ({ ...x, ops: x.ops.filter(op => !enBaja(op) || rows.some(r => r.operario === op)) })).filter(x => x.ops.length);
   return z;
 }
 function dspChipsHtml(alCambiar){
@@ -481,7 +497,7 @@ function tecRow(op, items, ruta, esDisp){
   return `<div class="tg${isCol(op) ? ' collapsed' : ''}" data-op="${esc(op)}">
     <div class="tg-h" onclick="toggleGroup('${jsq(op)}')">
       <div class="av">${esc(op)}</div>
-      <div class="tg-n"><b>${esc(op)}</b><span>${esc(nombreTecnico(ref) || zonaDe(op))}</span></div>
+      <div class="tg-n"><b>${esc(op)}${enBaja(op) ? ' <span class="baja-tag" title="De baja (⚙ › Técnicos): reasigna sus incidencias">BAJA</span>' : ''}</b><span>${esc(nombreTecnico(ref) || zonaDe(op))}</span></div>
       <div class="tg-m">
         ${esDisp ? '<span class="tg-none">Pendientes de asignar</span>'
           : tot ? `<div class="pbar"><i class="d" style="width:${pc(d)}%"></i><i class="t" style="width:${pc(t)}%"></i><i class="c" style="width:${pc(c)}%"></i></div>`
@@ -848,7 +864,7 @@ function copyText(s){
 function showTab(t){
   for (const [k, v, tab] of [['dia','viewDia','tabDia'], ['sin','viewSin','tabSin'], ['inc','viewInc','tabInc'], ['sem','viewSem','tabSem'], ['man','viewMan','tabSem']]){
     document.getElementById(v).style.display = t===k ? '' : 'none';
-    if (k !== 'man') document.getElementById(tab).classList.toggle('active', t===k || (t==='man' && k==='sem'));   // el detalle del día va dentro de Planificación
+    if (k !== 'man'){ const on = t===k || (t==='man' && k==='sem'), b = document.getElementById(tab); b.classList.toggle('active', on); if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); }   // el detalle del día va dentro de Planificación
   }
   if (location.hash !== '#'+t) history.replaceState(null, '', '#'+t);
   if (t==='dia') renderDia(true);

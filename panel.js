@@ -110,7 +110,7 @@ function recomendar(r, fecha) {
   const z = zonaPool(r), zona = ZONAS_BASE.find(x => x.nombre === z);
   if (!zona) return null;
   const f = ddmmyyyy(fecha), pob = poblacionDe(r), ms = mismaSede(r);
-  return zonaOps(z).map(op => {
+  return zonaOps(z).filter(op => !enBaja(op)).map(op => {
     const vis = rows.filter(x => esPresencial(x) && x.fVisita === f && x.operario === op && tkey(x) !== tkey(r));
     const abiertas = rows.filter(x => x.operario === op).length;
     const juntos = pob ? vis.filter(x => poblacionDe(x) === pob).length : 0;
@@ -165,7 +165,7 @@ function opcionesTecnico(rec, elegido, vacia) {
   const lab = op => { const x = recOp[op]; return x ? `${x.i === 0 ? '★ ' : ''}${op} · ${x.sede ? 'ya va a la sede' : x.carga ? plural(x.carga, 'visita') : 'libre'}${x.apoyo ? ' · apoyo' : ''}` : op; };
   const vistos = new Set();
   const grupo = (titulo, ops) => {
-    const l = ops.filter(op => !vistos.has(op)); l.forEach(op => vistos.add(op));
+    const l = ops.filter(op => !vistos.has(op) && (!enBaja(op) || op === elegido)); l.forEach(op => vistos.add(op));   // los de baja no se proponen
     const o = l.map(op => `<option value="${esc(op)}"${op === elegido ? ' selected' : ''}>${esc(lab(op))}</option>`).join('');
     return !l.length ? '' : titulo ? `<optgroup label="${esc(titulo)}">${o}</optgroup>` : o;
   };

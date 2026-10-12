@@ -31,6 +31,8 @@ Publicada en GitHub Pages: https://angriogon.github.io/VISOR-INCIDENCIAS/
   completa usa `TODOS_OPS` (todos los perfiles) o `BASE_OPS`/`ZONAS_BASE` (todas las zonas; `dsp` = perfil de la zona, sin `dsp` = DSP1), y `zonaOps(zona)` para los técnicos
   que pueden atender una zona. Los técnicos fuera de ZONAS_BASE se agrupan en una zona con el nombre de su perfil (`perfilDeOp`).
   Selector de técnico único: `opcionesTecnico` (panel.js). Ventana de perfiles: `abrirPerfiles` (ajustes.js).
+  Nómina (⚙ › Técnicos, `abrirNomina` en ajustes.js): altas, zona/DSP y bajas en `perfilCfg.nomina`; se aplica sobre `ZONAS_BASE`
+  al arrancar (`NOMINA`/`moverEnZonas` en app.js). Los de baja (`enBaja(op)`) no se proponen al asignar (recomendar, opcionesTecnico, zonasVisibles).
   A atgo-sync se manda `operarios` (perfil activo, lo que se sincroniza) y `permitidos` (todos, a quién se puede asignar).
 - **Persistencia:** `localStorage` con claves `dispatcher_<nombre>_v1`, siempre vía `lsGet`/`lsSet` (dia.js).
   Si añades datos nuevos, inclúyelos en `exportBackup`/`restoreBackup` (dia.js).
@@ -48,9 +50,9 @@ Publicada en GitHub Pages: https://angriogon.github.io/VISOR-INCIDENCIAS/
 | Archivo | Contiene |
 |---|---|
 | `index.html` | Estructura: cabecera, pestañas y contenedores de las vistas (`viewDia`, `viewSin`, `viewInc`, `viewSem`, `viewMan` = día de Planificación) |
-| `styles.css` | Estilos; al final, bloque `v1.13` (tema oscuro manual, ficha flotante, globos de estado, modo denso…) |
+| `styles.css` | Estilos; bloque `v1.13` (tema oscuro manual, ficha flotante…) y `v1.21` (colores: `--acento`/`--amber` = acento, `--warn` = avisos en naranja; compacto/amplio; `acc-*` accesibilidad; nómina) |
 | `app.js` | Configuración (`ZONAS_BASE`, perfiles, `ESTADOS`, `COLS`, `TEC_DEF`/`tecCfg`), carga Excel, `render()` (Incidencias), filtros (`filtroInc`, filtros guardados), `estadoPill`, `renderManana()` (día), WhatsApp (`abrirWa`, plantillas, `enviarTodasRutas`), `showTab()`, `applyAtgo` (con `cargaSospechosa`), recepción de mensajes de ATGO |
-| `ajustes.js` | `APP_VERSION` y `NOVEDADES`, ⚙ (`renderCfg` por secciones), perfiles, tema/densidad, atajos de teclado, menú contextual, acciones del buscador (→), asistente, diagnóstico (`diagLog`), migraciones, resumen matinal y técnico sin actividad, exportar a Excel |
+| `ajustes.js` | `APP_VERSION`, `NOVEDADES` (se ven las 5 últimas + `ANTERIORES`), ⚙ (`renderCfg` por secciones), perfiles, nómina, apariencia (color `ACENTOS`, densidad, accesibilidad `ACC_OPS`, foco en ventanas `vigilarVentana`), atajos de teclado, menú contextual, acciones del buscador (→), asistente, diagnóstico (`diagLog`), migraciones, resumen matinal y técnico sin actividad, exportar a Excel |
 | `dia.js` | Mi día (`renderDia`), novedades (`trackChanges`), avisos de Windows, ficha (`openTicket(key, tab)`/`renderFicha` con pestañas Resumen·Actuar·Historial), notas y seguimientos, hilos ATGO (`HILO_SISTEMA`), progreso de ruta (`rutaHoy`), buscador Ctrl+K, copia de seguridad |
 | `herramientas.js` | Cerradas 15 días, material, caducidad/SLA, ruta Google Maps y GLS, técnico sugerido, correos del día, informe semanal, copia en OneDrive |
 | `edicion.js` | Actuar en ATGO: comentario, cambio de estado, asignar (fase 2) con comprobación campo a campo |

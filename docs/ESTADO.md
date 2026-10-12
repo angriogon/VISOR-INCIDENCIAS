@@ -4,50 +4,20 @@ Archivo de traspaso entre sesiones. Al empezar una sesión: "lee docs/ESTADO.md 
 Al terminar: "actualiza docs/ESTADO.md". Máximo ~40 líneas: lo antiguo se resume o se borra.
 
 ## Versión actual
-- `sw.js`: despacho-v1.20.0 = `APP_VERSION` en `ajustes.js` (publicada en GitHub Pages).
-- 1.13.0: perfiles DSP1–5/COORD, mapa con todas las incidencias del técnico, duración leída del hilo (sin estimación si no se sabe),
-  fecha en Sin asignar, apoyo Cádiz→Ceuta y Málaga→Melilla, ficha flotante con pestañas, globo de estado + fecha en Incidencias,
-  ⓘ novedades, aviso 📍 misma sede al asignar y toda la batería de `docs/estudio-mejoras-windows.md`.
-- Código partido: `index.html` (estructura) + `styles.css` + `app.js` + `ajustes.js` (nuevo). Pruebas en `tests/pruebas.js` + GitHub Actions.
+- `sw.js`: despacho-v1.21.0 = `APP_VERSION` en `ajustes.js` (SYNC_VERSION 1.20.0 en atgo-sync.js y app.js).
+- Historia resumida (detalle en NOVEDADES de ajustes.js y en git): 1.13 perfiles DSP1–5/COORD, ficha flotante, duración del hilo;
+  1.14–1.15 pulido y revisión (asignarLote, SYNC_VERSION, pruebas de arranque); 1.15.1 extensión con "world": "MAIN";
+  1.16.x asignar a cualquiera, zonas DSP2–5, lista matriz y «Restablecer»; 1.17.x resumen COORD, comodines por nombre, carga en 6 paralelos;
+  1.18 filtro DSP, Sin asignar por urgencia, actualización silenciosa; 1.19 Mis cambios, sin cerrar hoy, olvidadas;
+  1.20 festivos, «Rellenar el día», contacto/material/sede en la ficha. Todas probadas por el usuario.
 - Mi día sin Parados/Sin planificar/Seguimientos/Rutina/Reincidencias (el usuario lo pidió: no volver a añadirlas).
-
-- 1.13.1: asignación masiva en Sin asignar; sincronización siempre cada 2 min (el usuario lo pidió).
-- 1.14.0 (pulido, sin funciones nuevas): no repintar con un campo en uso, límites y limpieza del almacenamiento, errores de ATGO claros
-  y respuestas tardías, asignar siempre por asignarLote, lista de técnicos enviada a ATGO, código muerto quitado (rutina…), 38 pruebas.
-- 1.15.0 (revisión de código): progreso del día solo con el técnico asignado, cola de refresco y versión de la sincronización
-  (SYNC_VERSION en atgo-sync.js y app.js), Excel/Leaflet bajo demanda, preferencias en su propia clave,
-  prueba de arranque en navegador (tests/arranque.mjs) en GitHub Actions: pasa.
-- 1.15.1: extensión 1.1.0 con "world": "MAIN" (en el mundo aislado Chrome bloqueaba atgo-sync.js por CSP de MV3);
-  validada por el usuario en Chrome. Sin sesión, atgo-sync reintenta cada 30 s.
-- 1.16.0: asignar a cualquier técnico de cualquier perfil (también Todas las zonas y buzón); DSP2–DSP5 con sus técnicos
-  (PERFIL_INICIAL, solo una vez: flag inicial1); ventana de Perfiles; atgo-sync sincroniza solo el perfil activo. SYNC_VERSION 1.16.0.
-- 1.16.1: zonas de DSP2–DSP5 en ZONAS_BASE (propiedad dsp) y provincias en PROV_ZONA (palabra completa). 48 pruebas.
-- 1.16.2: lista matriz por defecto (perfilesPorDefecto: DSP por zonas, COORD = todos); migración única matriz1 que deja
-  todos los perfiles en la matriz; «Restablecer» por perfil o todos en la ventana de Perfiles. Probada por el usuario: funciona.
-- 1.17.0: resumen por DSP para COORD, comodines por nombre (zonaComodin), «Cargando DSPx…» (payload.ops), exportar/importar
-  perfiles, informe/Excel por perfil (jornadas fusionan perfiles, vencOp), 8 consultas en paralelo si >40 técnicos, «conocidos»
-  evita re-añadir técnicos quitados. SYNC_VERSION 1.17.0. 57 pruebas.
-- 1.17.1: probado con ATGO real. Comodines: 37 de 42 con zona (sin zona: Canarias LP/T/F/LAN y XXX genérico).
-  Carga COORD (70 téc. + 42 comodines, 416 tickets): 65 s con 6 en paralelo, 78 s con 8 → se queda en 6.
-  1.17.0/1.17.1 probadas por el usuario: funcionan.
-- 1.17.2: sw.js precachea con cache:'reload' (antes podía guardar JS viejo de la caché HTTP de GitHub Pages, 10 min,
-  y avisar de recargar ATGO sin motivo); aviso de versión con dirección (syncVieja 'atgo'/'app') y «Actualizar Despacho».
-  COORD se queda con los 70 técnicos (confirmado por el usuario).
-- 1.18.0: filtro por DSP compartido (filtroInc.dsp: zonasVisibles/enDsp/zonaEnDsp/dspChipsHtml) en Incidencias, Planificación,
-  día y Sin asignar; Sin asignar por urgencia (sinListas(conDsp)); actualización silenciosa (offerUpdateSolo + aviso).
-  Probada por el usuario: funciona.
-
-- 1.19.0: Mis cambios (abrirMisCambios), Sin cerrar hoy (sinCerrarHoy, aviso cierreHora), olvidadas (panel.js: olvidada/olvidoBadge;
-  aviso revisarOlvidadas). Revisión: conocidos se guarda al crearse, restaurar copia no vuelve a la matriz, selector corto en Sin asignar
-  (completarSelect), caducidad en caché, arranque con COORD/#sin rompía (funciones de ajustes.js usadas antes de cargarse).
-  Pruebas de arranque con COORD, perfil vacío y cada pestaña al abrir. Probada por el usuario: funciona.
-
-- 1.20.0: festivos (festivo/festivosNacionales en app.js, tecCfg.festivos, ⚙ › Festivos), «Rellenar el día» (panel.js rellenarDia),
-  ficha con contacto (telefono en mapTicket, SYNC 1.20.0), material + GLS y historial de sede (dia.js); CSS sin uso quitado (46 reglas).
-  La copia en OneDrive ya incluía los perfiles (no hubo que tocarla). Probada por el usuario: funciona.
+- 1.21.0: nómina (⚙ › Técnicos: altas, zona/DSP, bajas en perfilCfg.nomina, aplicada sobre ZONAS_BASE al arrancar),
+  color de acento (ACENTOS; --warn separa los avisos), Compacto/Normal/Amplio, accesibilidad (Modo accesible + ACC_OPS,
+  saltar al contenido, foco en ventanas, aria-label automático), cabecera sin «Despacho» y pestañas en mayúsculas,
+  novedades con las 5 últimas + «Anteriores». Estudio de crear tickets: docs/estudio-alta-tickets.md (viable: POST /incidencias/alta). 63 pruebas.
 
 ## En curso
-- (vacío)
+- Crear tickets desde Despacho: espera la lista de campos y valores por defecto del usuario (ver docs/estudio-alta-tickets.md).
 
 ## Descartado por ahora (el usuario lo deja para el futuro)
 - Avisos de Windows por DSP en COORD, informe semanal por DSP desde COORD, carga semanal por DSP en COORD,

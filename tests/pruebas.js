@@ -84,7 +84,7 @@ vm.runInContext([
   extraer(dia, 'function tkey('), extraer(dia, 'const ESTADOS_CIERRE'), extraer(dia, 'function esCierre('),
   extraer(herr, 'const PROV_ZONA'), extraer(herr, 'const PROV_RE'), extraer(herr, 'function zonaTicket('), extraer(herr, 'function poblacionDe('),
   extraer(panel, 'const POOL_ZONA'), extraer(herr, 'function zonaDeTexto('), extraer(panel, 'function zonaComodin('), extraer(panel, 'function zonaPool('), extraer(panel, 'function sedeKey('), extraer(panel, 'function mismaSede('), extraer(panel, 'function recomendar('), extraer(panel, 'function conflictos('), extraer(panel, 'function fmtMin('),
-  "let rows = [], poolOpsDesc = {}, duracionFija = {}; const JORNADA_MIN = 480; const tecCfg = {}; function cargaMin() { return 0; } function estimarMin(r) { return duracionFija[r.key] || null; }"
+  "let rows = [], poolOpsDesc = {}, duracionFija = {}; const JORNADA_MIN = 480; const tecCfg = {}; function cargaMin() { return 0; } function estimarMin(r) { return duracionFija[r.key] || null; } let bajasPrueba = []; function enBaja(op) { return bajasPrueba.includes(op); }"
 ].join('\n'), cr);
 const T = (key, op, sede, extra) => ({ key, num: key.replace(/\//g, ''), operario: op, estado: 'PRESENCIAL', descSede: sede, descCliente: 'CARREFOUR', provincia: 'CEUTA', poblacion: 'CEUTA', fVisita: '', ...(extra || {}) });
 vm.runInContext('rows = ' + JSON.stringify([T('1/00/1', 'EACL', '4416-Ceuta-Hiper'), T('1/00/2', 'JIFC', 'Otra sede')]), cr);
@@ -131,8 +131,8 @@ const bloquePerfiles = app.slice(app.indexOf('const PERFILES'), app.indexOf('con
 function perfilesCon(guardado) {
   const almacen = guardado ? { dispatcher_perfiles_v1: JSON.stringify(guardado) } : {};
   const c = { localStorage: { getItem: k => almacen[k] ?? null, setItem: (k, v) => { almacen[k] = String(v); } } }; vm.createContext(c);
-  vm.runInContext(extraer(app, 'const ZONAS_BASE') + '\n' + bloquePerfiles + '\nthis.cfg = perfilCfg; this.def = perfilesPorDefecto();', c);
-  return { cfg: c.cfg, def: c.def, guardado: almacen.dispatcher_perfiles_v1 && JSON.parse(almacen.dispatcher_perfiles_v1) };
+  vm.runInContext(extraer(app, 'const ZONAS_BASE') + '\n' + bloquePerfiles + '\nthis.cfg = perfilCfg; this.def = perfilesPorDefecto(); this.zb = ZONAS_BASE;', c);
+  return { cfg: c.cfg, def: c.def, zb: c.zb, guardado: almacen.dispatcher_perfiles_v1 && JSON.parse(almacen.dispatcher_perfiles_v1) };
 }
 const cuenta = t => Object.fromEntries(Object.entries(t).map(([p, l]) => [p, l.length]));
 const nuevo = perfilesCon(null);
@@ -149,11 +149,23 @@ const so = { esc: s => String(s), plural: (n, w) => n + ' ' + w + (n === 1 ? '' 
 vm.runInContext(extraer(panel, 'function opcionesTecnico(') + `
   const PERFILES = ['DSP1','DSP2','COORD'], PERFIL = 'DSP1', TECNICOS = ['DSG','ACAB'], TODOS_OPS = ['AMRG','DSG','ACAB','RUFB','GAS'];
   const perfilCfg = { tecs: { DSP1: ['AMRG','DSG','ACAB'], DSP2: ['RUFB','GAS'], COORD: TODOS_OPS } };
-  function dispatcherOps() { return ['AMRG']; }`, so);
+  function dispatcherOps() { return ['AMRG']; } let bajasPrueba = []; function enBaja(op) { return bajasPrueba.includes(op); }`, so);
 const selHtml = so.opcionesTecnico([{ op: 'ACAB', carga: 0 }], 'RUFB', false);
 const valores = [...selHtml.matchAll(/value="([^"]*)"/g)].map(m => m[1]);
 igual('selector: todos los técnicos de todos los perfiles, una vez cada uno', valores.slice().sort(), ['ACAB', 'AMRG', 'DSG', 'GAS', 'RUFB']);
 igual('selector: el recomendado primero y el elegido marcado', [valores[0], /value="RUFB" selected/.test(selHtml), /optgroup label="Técnicos de DSP2"/.test(selHtml)], ['ACAB', true, true]);
+
+// ---- Nómina: altas, cambios de zona y bajas ----
+const conAlta = perfilesCon({ ...propio, tecs: nuevo.def, conocidos: nuevo.def.COORD, nomina: { NUEVO9: { z: 'MURCIA', alta: true } } });
+igual('nómina: un alta con zona entra en su zona, su DSP y COORD', [conAlta.zb.find(z => z.nombre === 'MURCIA').ops.includes('NUEVO9'), conAlta.cfg.tecs.DSP2.includes('NUEVO9'), conAlta.cfg.tecs.COORD.includes('NUEVO9'), conAlta.def.DSP2.includes('NUEVO9')], [true, true, true, true]);
+const conMovido = perfilesCon({ ...propio, tecs: nuevo.def, conocidos: nuevo.def.COORD, nomina: { DSG: { z: '', dsp: 'DSP3' }, LGV: { z: 'MÁLAGA' } } });
+igual('nómina: cambiar de zona o dejarlo sin zona cambia la lista matriz', [conMovido.def.DSP1.includes('DSG'), conMovido.def.DSP3.includes('DSG'), conMovido.zb.find(z => z.nombre === 'MÁLAGA').ops.includes('LGV'), conMovido.zb.find(z => z.nombre === 'GRANADA').ops.includes('LGV'), conMovido.def.COORD.length], [false, true, true, false, 70]);
+vm.runInContext("bajasPrueba = ['EACL']", cr);
+igual('nómina: un técnico de baja no se recomienda', cr.recomendar(pool, new Date(2026, 9, 13, 12)).some(x => x.op === 'EACL'), false);
+vm.runInContext("bajasPrueba = []", cr);
+vm.runInContext("bajasPrueba = ['GAS', 'RUFB']", so);
+const selBaja = [...so.opcionesTecnico([], 'RUFB', false).matchAll(/value="([^"]*)"/g)].map(m => m[1]);
+igual('nómina: el de baja no sale en el selector (salvo si ya es el elegido)', [selBaja.includes('GAS'), selBaja.includes('RUFB')], [false, true]);
 
 // ---- Coherencia de configuración ----
 const vSyncA = (leer('atgo-sync.js').match(/SYNC_VERSION = '([\d.]+)'/) || [])[1], vSyncP = (app.match(/SYNC_VERSION = '([\d.]+)'/) || [])[1];
