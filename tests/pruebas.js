@@ -168,6 +168,7 @@ const shell = leer('sw.js'), html = leer('index.html');
 [...html.matchAll(/<script src="([a-z-]+\.js)"/g)].map(m => m[1]).forEach(js => igual('SHELL incluye ' + js, shell.includes("'./" + js + "'"), true));
 const vSw = (shell.match(/despacho-v([\d.]+)/) || [])[1], vApp = (leer('ajustes.js').match(/APP_VERSION = '([\d.]+)'/) || [])[1];
 igual('APP_VERSION (ajustes.js) = VERSION (sw.js)', vApp, vSw);
+igual('sw.js guarda los archivos pidiéndolos al servidor (no a la caché del navegador)', /cache:\s*'reload'/.test(shell), true);
 
 console.log(`${ok} correctas, ${ko} fallidas`);
 process.exit(ko ? 1 : 0);

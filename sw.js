@@ -1,6 +1,6 @@
 // Service worker del Panel de Despacho.
 // Sube VERSION cada vez que publiques cambios para que la app instalada se actualice.
-const VERSION = 'despacho-v1.17.1';
+const VERSION = 'despacho-v1.17.2';
 const SHELL = [
   './',
   './index.html',
@@ -22,7 +22,9 @@ const XLSX_URL = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.m
 self.addEventListener('install', (event) => {
   event.waitUntil((async () => {
     const cache = await caches.open(VERSION);
-    await cache.addAll(SHELL);
+    // cache: 'reload' = pedirlos al servidor, no a la caché del navegador (GitHub Pages la guarda 10 min):
+    // si no, una versión nueva podía guardarse con archivos de la anterior.
+    await cache.addAll(SHELL.map(u => new Request(u, { cache: 'reload' })));
     // La librería de Excel se guarda para poder importar sin conexión.
     try { await cache.add(new Request(XLSX_URL, { mode: 'cors' })); } catch (e) { /* se reintenta al usarla */ }
   })());

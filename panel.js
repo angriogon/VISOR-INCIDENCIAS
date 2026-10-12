@@ -237,7 +237,9 @@ function renderSyncAviso() {
   el.className = 'sync-aviso';
   if (typeof syncVieja !== 'undefined' && syncVieja) {
     el.hidden = false;
-    el.innerHTML = `⚠ La pestaña de ATGO tiene una versión antigua de la sincronización: recárgala (F5) <button class="btn sm" onclick="document.getElementById('atgoBtn').click()">Ir a ATGO</button>`;
+    el.innerHTML = syncVieja === 'app'
+      ? `⚠ Despacho no está actualizado (la pestaña de ATGO ya tiene la versión nueva) <button class="btn sm" onclick="actualizarDespacho()">Actualizar Despacho</button>`
+      : `⚠ La pestaña de ATGO tiene una versión antigua de la sincronización: recárgala (F5) <button class="btn sm" onclick="document.getElementById('atgoBtn').click()">Ir a ATGO</button>`;
     return;
   }
   const viejo = source === 'atgo' && syncUltima && Date.now() - syncUltima > SYNC_AVISO_MIN * 60000;

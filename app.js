@@ -344,7 +344,7 @@ window.addEventListener('message', (e) => {
   atgoSource = e.source;   // pestaña de ATGO que sincroniza: a ella se le piden los hilos
   if (m.type === 'atgo-data'){
     recibirCapacidades(m); configurarAtgo(e.source);
-    if (!m.partial){ ultimaCarga = { s: m.seconds, ops: Array.isArray(m.ops) ? m.ops.length : null, at: m.at }; syncVieja = m.v !== SYNC_VERSION; if (perfilEsperando && (mismaLista(m.ops) || !m.ops)) perfilListo(); else renderSyncAviso(); }   // sin "ops" = sincronización antigua: manda su aviso de recargar
+    if (!m.partial){ ultimaCarga = { s: m.seconds, ops: Array.isArray(m.ops) ? m.ops.length : null, at: m.at }; syncVieja = m.v === SYNC_VERSION ? false : (!m.v || cmpVer(m.v, SYNC_VERSION) < 0) ? 'atgo' : 'app'; if (perfilEsperando && (mismaLista(m.ops) || !m.ops)) perfilListo(); else renderSyncAviso(); }   // sin "ops" = sincronización antigua: manda su aviso de recargar
     if (!m.partial && ocupado() && (!atgoEnCola || Date.now() - atgoEnColaDesde < 4 * 60000)){ if (!atgoEnCola) atgoEnColaDesde = Date.now(); atgoEnCola = m; return; }
     atgoEnCola = null; aplicarDatosAtgo(m);
   }
@@ -357,7 +357,14 @@ window.addEventListener('message', (e) => {
 // Versión de la sincronización que espera esta app. Si la pestaña de ATGO trae otra (la cargó antes de una
 // actualización), se avisa de que hay que recargarla. Debe coincidir con SYNC_VERSION de atgo-sync.js.
 const SYNC_VERSION = '1.17.1';
-let syncVieja = false;
+let syncVieja = false;   // 'atgo': la pestaña de ATGO es más antigua · 'app': Despacho es más antiguo · false: iguales
+function cmpVer(a, b){ const x = String(a || '0').split('.').map(Number), y = String(b || '0').split('.').map(Number); for (let i = 0; i < 3; i++){ if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) - (y[i] || 0); } return 0; }
+// Borra la copia guardada de Despacho y recarga desde el servidor (notas, perfiles y ajustes no se tocan)
+async function actualizarDespacho(){
+  try{ for (const k of await caches.keys()) await caches.delete(k); }catch(e){}
+  try{ const regs = await navigator.serviceWorker.getRegistrations(); for (const r of regs) await r.unregister(); }catch(e){}
+  location.reload();
+}
 let ultimaCarga = null;   // duración de la última carga de ATGO (se ve en ⚙ › General)
 // Tras cambiar de perfil (o si los datos guardados son de otro perfil) se avisa «Cargando DSPx…» hasta que
 // llega una carga de ATGO hecha con los técnicos de este perfil (la sincronización manda su lista en "ops").
