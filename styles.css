@@ -618,3 +618,7 @@
   .pf-tec button:hover{color:#d9614f; background:var(--panel);}
   .pf-aplicar{display:flex; justify-content:space-between; align-items:center; gap:10px; border-top:1px solid var(--line); padding-top:10px; font-size:12.5px; color:var(--ink-dim);}
   @media (max-width:700px){ .pf-grid{grid-template-columns:1fr;} .pf-lista{grid-auto-flow:column; overflow:auto;} }
+  .pf-lista button span i{font-style:normal; color:var(--amber);}
+  .pf-rest{margin-top:8px; background:none !important; border:1px dashed var(--line) !important; color:var(--ink-dim) !important; font-size:12px; text-align:center !important; display:block !important;}
+  .pf-rest:hover{border-color:var(--amber) !important; color:var(--amber) !important;}
+  .pf-cab h3 small{display:block; margin-top:2px;}

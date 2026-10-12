@@ -38,15 +38,20 @@ const PERFILES = ['DSP1','DSP2','DSP3','DSP4','DSP5','COORD'];
 const PERFIL_KEY = 'dispatcher_perfiles_v1';
 const BASE_OPS = ZONAS_BASE.flatMap(z => z.ops);
 const dspZona = z => z.dsp || 'DSP1';
-const PERFIL_INICIAL = Object.fromEntries(PERFILES.filter(p => p !== 'COORD').map(p => [p, ZONAS_BASE.filter(z => dspZona(z) === p).flatMap(z => z.ops)]));
+// Lista matriz (por defecto): cada DSP con los técnicos de sus zonas y COORD con todos. «Restablecer» vuelve a ella.
+function perfilesPorDefecto(){
+  const t = Object.fromEntries(PERFILES.map(p => [p, p === 'COORD' ? BASE_OPS.slice() : ZONAS_BASE.filter(z => dspZona(z) === p).flatMap(z => z.ops)]));
+  return t;
+}
+const PERFIL_INICIAL = perfilesPorDefecto();
 let perfilCfg = (() => {
   let c = null; try{ c = JSON.parse(localStorage.getItem(PERFIL_KEY) || 'null'); }catch(e){}
   if (!c || !c.tecs) c = { activo:'DSP1', tecs:{} };
+  // 1.16.2: todos los perfiles pasan una vez a la lista matriz (lo pidió el usuario); después mandan sus cambios
+  if (!c.matriz1){ c.tecs = perfilesPorDefecto(); c.matriz1 = true; try{ localStorage.setItem(PERFIL_KEY, JSON.stringify(c)); }catch(e){} }
   PERFILES.forEach(p => { if (!Array.isArray(c.tecs[p])) c.tecs[p] = (PERFIL_INICIAL[p] || []).slice(); });
   // Técnicos nuevos en ZONAS_BASE que aún no están en ningún perfil: van al perfil de su zona
-  ZONAS_BASE.forEach(z => z.ops.forEach(op => { if (!PERFILES.some(p => c.tecs[p].includes(op))) c.tecs[dspZona(z)].push(op); }));
-  // Listas iniciales de DSP2–DSP5 (una sola vez: después mandan los cambios que hagas en Perfiles)
-  if (!c.inicial1){ Object.entries(PERFIL_INICIAL).forEach(([p, l]) => l.forEach(op => { if (!c.tecs[p].includes(op)) c.tecs[p].push(op); })); c.inicial1 = true; try{ localStorage.setItem(PERFIL_KEY, JSON.stringify(c)); }catch(e){} }
+  ZONAS_BASE.forEach(z => z.ops.forEach(op => { if (!PERFILES.some(p => p !== 'COORD' && c.tecs[p].includes(op))) c.tecs[dspZona(z)].push(op); }));
   if (!PERFILES.includes(c.activo)) c.activo = 'DSP1';
   return c;
 })();

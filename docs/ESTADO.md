@@ -4,7 +4,7 @@ Archivo de traspaso entre sesiones. Al empezar una sesión: "lee docs/ESTADO.md 
 Al terminar: "actualiza docs/ESTADO.md". Máximo ~40 líneas: lo antiguo se resume o se borra.
 
 ## Versión actual
-- `sw.js`: despacho-v1.16.1 = `APP_VERSION` en `ajustes.js` (publicada en GitHub Pages).
+- `sw.js`: despacho-v1.16.2 = `APP_VERSION` en `ajustes.js` (publicada en GitHub Pages).
 - 1.13.0: perfiles DSP1–5/COORD, mapa con todas las incidencias del técnico, duración leída del hilo (sin estimación si no se sabe),
   fecha en Sin asignar, apoyo Cádiz→Ceuta y Málaga→Melilla, ficha flotante con pestañas, globo de estado + fecha en Incidencias,
   ⓘ novedades, aviso 📍 misma sede al asignar y toda la batería de `docs/estudio-mejoras-windows.md`.
@@ -22,6 +22,8 @@ Al terminar: "actualiza docs/ESTADO.md". Máximo ~40 líneas: lo antiguo se resu
 - 1.16.0: asignar a cualquier técnico de cualquier perfil (también Todas las zonas y buzón); DSP2–DSP5 con sus técnicos
   (PERFIL_INICIAL, solo una vez: flag inicial1); ventana de Perfiles; atgo-sync sincroniza solo el perfil activo. SYNC_VERSION 1.16.0.
 - 1.16.1: zonas de DSP2–DSP5 en ZONAS_BASE (propiedad dsp) y provincias en PROV_ZONA (palabra completa). 48 pruebas.
+- 1.16.2: lista matriz por defecto (perfilesPorDefecto: DSP por zonas, COORD = todos); migración única matriz1 que deja
+  todos los perfiles en la matriz; «Restablecer» por perfil o todos en la ventana de Perfiles.
 
 ## En curso
 - (vacío)

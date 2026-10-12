@@ -3,8 +3,9 @@
 // asistente de inicio, diagnóstico, resumen matinal, aviso de técnico sin actividad y exportar a Excel.
 // Usa utilidades de app.js, dia.js, herramientas.js, edicion.js y panel.js solo en tiempo de llamada.
 
-const APP_VERSION = '1.16.1';   // súbela a la vez que VERSION en sw.js
+const APP_VERSION = '1.16.2';   // súbela a la vez que VERSION en sw.js
 const NOVEDADES = [
+  { v: '1.16.2', f: '2026-10-12', l: ['Cada DSP queda con su lista matriz de técnicos por zonas; COORD con todos.', 'Perfiles: «Restablecer» (todos o el perfil abierto) vuelve a la lista matriz. Los perfiles cambiados se marcan como «modificado».'] },
   { v: '1.16.1', f: '2026-10-12', l: ['Zonas de DSP2 (Murcia, Alicante, Valencia/Castellón, Cataluña), DSP3 (Madrid, Ciudad Real), DSP4 (Castilla y León, Aragón, Galicia, Asturias/Cantabria, Norte) y DSP5 (Baleares, Portugal).', 'En esas zonas, Sin asignar ya recomienda técnico y «Mi zona» funciona como en Andalucía.'] },
   { v: '1.16.0', f: '2026-10-12', l: ['Se puede asignar cualquier técnico de cualquier perfil a cualquier incidencia, también en «Todas las zonas» y en el buzón.', 'Técnicos de DSP2, DSP3, DSP4 y DSP5 dados de alta.', 'Nueva ventana de Perfiles: añadir técnicos por código (o varios a la vez), por zonas o copiándolos de otro perfil, y quitarlos con ×.'] },
   { v: '1.15.1', f: '2026-10-11', l: ['Extensión 1.1.0: corregido el bloqueo de Chrome/Edge que impedía sincronizar. Hay que volver a cargarla.', 'Si caduca la sesión de ATGO, la sincronización sigue sola al volver a iniciarla.'] },
@@ -52,6 +53,7 @@ function setPerfil(p) { if (p === PERFIL) return; perfilCfg.activo = p; guardarP
 let perfilesCambiados = false, perfSel = null, perfBusca = '';
 function perfCambio(p) { guardarPerfiles(); if (p === PERFIL) perfilesCambiados = true; renderPerfiles(); }
 // Nombre del técnico si aparece en alguna incidencia cargada ("APELLIDOS, NOMBRE" → "Nombre Apellidos")
+function zonaBaseDe(op) { const z = ZONAS_BASE.find(x => x.ops.includes(op)); return z && !z.dispatcher ? z.nombre : ''; }
 function nombresTecnicos() {
   const m = {}; [...rows, ...poolRows].forEach(r => { const op = cleanInitials(r.operario); if (!m[op] && r.desOperario && !/^XXX/.test(op)) m[op] = nombreTecnico(r); });
   return m;
@@ -70,6 +72,17 @@ async function perfVaciar(p) {
   if (!await confirmar(`<b>¿Quitar todos los técnicos de ${esc(p)}?</b><p>El perfil se queda vacío. Los técnicos siguen en los demás perfiles.</p>`, 'Vaciar')) { abrirPerfiles(p); return; }
   perfilCfg.tecs[p] = []; guardarPerfiles(); if (p === PERFIL) perfilesCambiados = true; abrirPerfiles(p);
 }
+// Lista matriz: la que diste para cada DSP (ZONAS_BASE) y COORD con todos. Restablecer vuelve a ella.
+function perfDifiere(p) { return perfilCfg.tecs[p].slice().sort().join() !== perfilesPorDefecto()[p].slice().sort().join(); }
+async function perfRestablecer(p) {
+  const todos = !p, def = perfilesPorDefecto();
+  const ok = await confirmar(`<b>${todos ? 'Restablecer todos los perfiles' : 'Restablecer ' + esc(p)}</b><p>${todos ? 'Cada perfil' : esc(p)} vuelve a la lista matriz: los técnicos de sus zonas${todos || p === 'COORD' ? ' (COORD, con todos)' : ''}. Se pierden los cambios que hayas hecho${todos ? ' en los perfiles' : ''}.</p>`, 'Restablecer');
+  if (ok) {
+    (todos ? PERFILES : [p]).forEach(x => { perfilCfg.tecs[x] = def[x].slice(); if (x === PERFIL) perfilesCambiados = true; });
+    guardarPerfiles(); toast(todos ? 'Perfiles restablecidos' : p + ' restablecido');
+  }
+  abrirPerfiles(p || perfSel);
+}
 function abrirPerfiles(p) {
   perfSel = PERFILES.includes(p) ? p : perfSel || PERFIL;
   const cfg = document.getElementById('cfgMenu'); if (cfg) cfg.hidden = true;
@@ -85,7 +98,7 @@ function renderPerfiles() {
   const grupos = ZONAS_BASE.map(z => ({ t: z.nombre, ops: z.ops.filter(op => l.includes(op)) })).filter(g => g.ops.length);
   const otros = l.filter(op => !BASE_OPS.includes(op));
   if (otros.length) grupos.push({ t: 'Otros técnicos', ops: otros });
-  const enOtros = op => PERFILES.filter(x => x !== p && perfilCfg.tecs[x].includes(op));
+  const enOtros = op => PERFILES.filter(x => x !== p && x !== 'COORD' && perfilCfg.tecs[x].includes(op));   // COORD los tiene a todos: no se indica
   const chip = op => `<span class="pf-tec" title="${esc([nom[op], enOtros(op).length ? 'También en ' + enOtros(op).join(', ') : ''].filter(Boolean).join(' · '))}"><b>${esc(op)}</b>${nom[op] ? `<small>${esc(nom[op])}</small>` : ''}${enOtros(op).length ? `<i>${esc(enOtros(op).join(' '))}</i>` : ''}<button onclick="perfQuitar('${p}','${jsq(op)}')" aria-label="Quitar ${esc(op)}" title="Quitar de ${p}">×</button></span>`;
   const sugeridos = TODOS_OPS.filter(op => !l.includes(op));
   // Zonas que aún no están completas: las de este perfil como botones; las de otros perfiles, en un desplegable
@@ -95,10 +108,12 @@ function renderPerfiles() {
     <div class="dw-head"><div><div class="dw-num" style="color:var(--ink)">Perfiles y técnicos</div><div class="dw-sub">Cada perfil ve solo sus técnicos. Un técnico puede estar en varios. Se puede asignar a cualquiera desde cualquier perfil.</div></div>
       <button class="iconbtn" onclick="cerrarModal()" aria-label="Cerrar">✕</button></div>
     <div class="pf-grid">
-      <nav class="pf-lista">${PERFILES.map(x => `<button class="${x === p ? 'on' : ''}" onclick="perfSel='${x}';renderPerfiles()"><b>${x}</b><span>${plural(perfilCfg.tecs[x].length, 'técnico')}</span>${x === PERFIL ? '<em>en uso</em>' : ''}</button>`).join('')}</nav>
+      <nav class="pf-lista">${PERFILES.map(x => `<button class="${x === p ? 'on' : ''}" onclick="perfSel='${x}';renderPerfiles()"><b>${x}</b><span>${plural(perfilCfg.tecs[x].length, 'técnico')}${perfDifiere(x) ? ' · <i>modificado</i>' : ''}</span>${x === PERFIL ? '<em>en uso</em>' : ''}</button>`).join('')}
+        <button class="pf-rest" onclick="perfRestablecer()" title="Todos los perfiles vuelven a la lista matriz">↺ Restablecer todos por defecto</button></nav>
       <section class="pf-det">
-        <div class="pf-cab"><h3>${p} <small>${plural(l.length, 'técnico')}</small></h3>
-          ${p === PERFIL ? '<span class="pf-uso">En uso en este equipo</span>' : `<button class="btn sm" onclick="setPerfil('${p}')">Usar este perfil</button>`}</div>
+        <div class="pf-cab"><h3>${p} <small>${plural(l.length, 'técnico')} · ${esc([...new Set(l.map(op => zonaBaseDe(op)).filter(Boolean))].join(', ') || 'sin zonas')}</small></h3>
+          <span class="acts">${perfDifiere(p) ? `<button class="btn sm ghost" onclick="perfRestablecer('${p}')" title="Vuelve a la lista matriz de ${p}">↺ Restablecer ${p}</button>` : '<span class="pf-uso" style="color:var(--ink-faint)">Lista por defecto</span>'}
+          ${p === PERFIL ? '<span class="pf-uso">En uso en este equipo</span>' : `<button class="btn sm" onclick="setPerfil('${p}')">Usar este perfil</button>`}</span></div>
         <div class="pf-add">
           <input id="pfIn" list="pfLista" placeholder="Añadir técnicos: código o varios separados por comas (RUFB, GAS…)" value="${esc(perfBusca)}" oninput="perfBusca=this.value" onkeydown="if(event.key==='Enter')perfAnadir('${p}',this.value)">
           <datalist id="pfLista">${sugeridos.map(op => `<option value="${esc(op)}">${esc(nom[op] || zonaDe(op))}</option>`).join('')}</datalist>
