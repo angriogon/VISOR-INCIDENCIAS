@@ -23,7 +23,7 @@ Al terminar: "actualiza docs/ESTADO.md". Máximo ~40 líneas: lo antiguo se resu
   (PERFIL_INICIAL, solo una vez: flag inicial1); ventana de Perfiles; atgo-sync sincroniza solo el perfil activo. SYNC_VERSION 1.16.0.
 - 1.16.1: zonas de DSP2–DSP5 en ZONAS_BASE (propiedad dsp) y provincias en PROV_ZONA (palabra completa). 48 pruebas.
 - 1.16.2: lista matriz por defecto (perfilesPorDefecto: DSP por zonas, COORD = todos); migración única matriz1 que deja
-  todos los perfiles en la matriz; «Restablecer» por perfil o todos en la ventana de Perfiles.
+  todos los perfiles en la matriz; «Restablecer» por perfil o todos en la ventana de Perfiles. Probada por el usuario: funciona.
 
 ## En curso
 - (vacío)
