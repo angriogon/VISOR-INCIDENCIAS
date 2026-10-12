@@ -509,6 +509,8 @@ const PAL_ACCIONES = [
   { t: 'Atajos de teclado', k: 'teclas ayuda', run: () => abrirAtajos() },
   { t: 'Novedades de la versión', k: 'version cambios', run: () => abrirNovedades() },
   { t: 'Copiar resumen del día', k: 'informe responsable', run: () => copiarResumenJornada() },
+  { t: 'Mis cambios en ATGO de hoy', k: 'ediciones historial comentarios asignaciones', run: () => abrirMisCambios('hoy') },
+  { t: 'Visitas de hoy sin cerrar', k: 'cierre finalizar pendientes', run: () => abrirSinCerrar() },
   { t: 'Informe semanal', k: 'semana responsable cumplimiento', run: () => abrirInforme() },
   { t: 'Marcar novedades como vistas', k: 'leido', run: () => { marcarVistos(); refreshVisible(); toast('Novedades marcadas como vistas'); } },
   { t: 'Ver tickets a mi nombre', k: 'dispatcher amrg', run: () => { zonaSel = 'DISPATCHER'; showTab('inc'); } },
@@ -620,10 +622,10 @@ function renderDia(force) {
   root.innerHTML = `
     <div class="dia-top">
       <h1>${esc(fecha)}</h1>
-      <div class="acts"><button class="btn sm" onclick="openPalette()" title="Buscar ticket o acción">Buscar <kbd>Ctrl K</kbd></button><button class="btn sm" onclick="copiarResumenJornada()" title="Texto listo para pegar a tu responsable">Copiar resumen del día</button><button class="btn sm" onclick="abrirInforme()">Informe semanal</button><button class="btn sm ghost" onclick="plegarTodo(true)" title="Plegar todas las secciones">Plegar</button><button class="btn sm ghost" onclick="plegarTodo(false)" title="Desplegar todas las secciones">Desplegar</button></div>
+      <div class="acts">${typeof botonesDiaHtml === 'function' ? botonesDiaHtml() : ''}<button class="btn sm" onclick="openPalette()" title="Buscar ticket o acción">Buscar <kbd>Ctrl K</kbd></button><button class="btn sm" onclick="copiarResumenJornada()" title="Texto listo para pegar a tu responsable">Copiar resumen del día</button><button class="btn sm" onclick="abrirInforme()">Informe semanal</button><button class="btn sm ghost" onclick="plegarTodo(true)" title="Plegar todas las secciones">Plegar</button><button class="btn sm ghost" onclick="plegarTodo(false)" title="Desplegar todas las secciones">Desplegar</button></div>
     </div>
     <div class="tiles">${tiles.map(t => `<button class="tile${t.hot ? ' hot' : ''}${!t.n || t.n === '0/0' ? ' zero' : ''}" data-go="${t.go}"><b>${esc(String(t.n))}</b><span>${esc(t.l)}</span><small>${esc(t.s)}</small></button>`).join('')}</div>
-    ${PERFIL === 'COORD' ? resumenCoordHtml() : ''}
+    ${PERFIL === 'COORD' && typeof resumenCoordHtml === 'function' ? resumenCoordHtml() : ''}
     <div class="dia-grid">
       <div class="dcol">
       <section class="dsec" id="secNov">
@@ -683,7 +685,7 @@ function restoreBackup(file) {
       if (d.tecnicos && typeof d.tecnicos === 'object') { tecCfg = { ...tecCfg, ...d.tecnicos, tel: { ...tecCfg.tel, ...(d.tecnicos.tel || {}) } }; saveTec(); hechos.push('teléfonos'); }
       if (d.cerradas && typeof d.cerradas === 'object') { cerradas = { ...d.cerradas, ...cerradas }; podarCerradas(); hechos.push('cerradas'); }
       if (d.jornadas && typeof d.jornadas === 'object') { jornadas = { ...d.jornadas, ...jornadas }; lsSet(JORN_KEY, jornadas); }
-      if (d.perfiles && d.perfiles.tecs) { try { localStorage.setItem(PERFIL_KEY, JSON.stringify({ ...d.perfiles, activo: PERFIL })); hechos.push('perfiles (se aplican al recargar)'); } catch (e) {} }
+      if (d.perfiles && d.perfiles.tecs) { try { localStorage.setItem(PERFIL_KEY, JSON.stringify({ ...d.perfiles, activo: PERFIL, matriz1: true, conocidos: Array.isArray(d.perfiles.conocidos) ? d.perfiles.conocidos : BASE_OPS })); hechos.push('perfiles (se aplican al recargar)'); } catch (e) {} }   // matriz1: una copia antigua no vuelve a la lista matriz al recargar
       if (Array.isArray(d.filtros)) { filtrosGuardados = d.filtros; try { localStorage.setItem(FILTROS_KEY, JSON.stringify(d.filtros)); } catch (e) {} }
       if (Array.isArray(d.plantillas)) {
         const m = new Map((lsGet('dispatcher_plantillas_v2', []) || []).map(x => [x.id, x])); d.plantillas.forEach(x => x && m.set(x.id, x));

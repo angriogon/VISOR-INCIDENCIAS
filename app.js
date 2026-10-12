@@ -52,7 +52,7 @@ let perfilCfg = (() => {
   PERFILES.forEach(p => { if (!Array.isArray(c.tecs[p])) c.tecs[p] = (PERFIL_INICIAL[p] || []).slice(); });
   // Técnicos que se añadan a ZONAS_BASE en el futuro: entran solos en el perfil de su zona (y en COORD).
   // "conocidos" guarda los que ya existían, para no volver a meter a los que quitaste tú.
-  if (!Array.isArray(c.conocidos)) c.conocidos = BASE_OPS.slice();
+  if (!Array.isArray(c.conocidos)){ c.conocidos = BASE_OPS.slice(); try{ localStorage.setItem(PERFIL_KEY, JSON.stringify(c)); }catch(e){} }   // se guarda ya: si no, un técnico nuevo en el código nunca entraría
   const nuevos = BASE_OPS.filter(op => !c.conocidos.includes(op));
   if (nuevos.length){
     ZONAS_BASE.forEach(z => z.ops.filter(op => nuevos.includes(op)).forEach(op => { [dspZona(z), 'COORD'].forEach(p => { if (!c.tecs[p].includes(op)) c.tecs[p].push(op); }); }));

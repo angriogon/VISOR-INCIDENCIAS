@@ -64,7 +64,7 @@ try {
     out.enCurso = rutaHoy().find(x => x.r.key === '2026/00/1').st;
     toggleCfg(); for (const t of ['gen', 'avi', 'wa', 'dat']) { cfgTab = t; renderCfg(); await paso(50); } document.getElementById('cfgMenu').hidden = true;
     abrirPerfiles('DSP2'); await paso(50); out.perfilDSP2 = document.querySelectorAll('#perfBox .pf-tec').length; perfSel = 'DSP5'; renderPerfiles(); out.perfilDSP5 = document.querySelectorAll('#perfBox .pf-tec').length; cerrarModal();
-    showTab('sin'); sinFiltro = 'todas'; renderSin(); out.selectorTodos = document.querySelectorAll('#viewSin select option').length;
+    showTab('sin'); sinFiltro = 'todas'; renderSin(); const s0 = document.querySelector('#viewSin select'); out.selectorCorto = s0.options.length < 10; completarSelect(s0); out.selectorTodos = s0.options.length;
     showTab('sin'); sinMarcarTodas(true); out.marcadas = sinMarcadas().length;
     abrirNovedades(); cerrarModal(); abrirAtajos(); cerrarModal();
     openPalette(); document.getElementById('palInput').value = 'ceuta'; palRender(); out.buscador = palItems.length > 0; closePalette();
@@ -76,13 +76,55 @@ try {
     poolRows = [{ ...base, key: '2026/00/91', fRegistroISO: '2026-01-01T10:00:00Z' }, { ...base, key: '2026/00/92', fRegistroISO: '2026-09-01T10:00:00Z' }, { ...base, key: '2026/00/93', fRegistroISO: '2026-10-01T10:00:00Z' }];
     guardarNota('2026/00/93', { cad: '2026-12-20T10:00' });
     out.ordenSin = sinListas(true).pend.map(r => r.key.slice(-2)).join(',');
+    // Mis cambios, sin cerrar y olvidadas (la de enero lleva meses sin técnico)
+    registrarEdicion({ key: '2026/00/1', num: '202600001', accion: 'comentario', detalle: 'Prueba', ok: true });
+    abrirMisCambios('hoy'); out.misCambios = document.querySelectorAll('#modal table.camb tbody tr').length; cerrarModal();
+    abrirSinCerrar(); out.sinCerrar = document.querySelectorAll('#modal .sc-it').length; cerrarModal();
+    out.olvidada = olvidada(poolRows.find(r => r.key === '2026/00/91'));
+    showTab('dia'); out.botonMisCambios = /Mis cambios · 1/.test(document.getElementById('viewDia').innerText);
     out.errores = diagLista().map(d => d.msg);
     return out;
   }, payload);
-  const esperado = { zonasDsp1: true, zonasDsp2: 0, ordenSin: '93,91,92', coord: 5, filtroDsp: 'DSP1', perfilDSP2: 16, perfilDSP5: 5, selectorTodos: 70, filas: 6, sinAsignar: 1, avisoVersion: 'atgo', enCurso: 'c', marcadas: 1, buscador: true, duracion: true };
+  const esperado = { misCambios: 1, sinCerrar: 1, olvidada: true, botonMisCambios: true, zonasDsp1: true, zonasDsp2: 0, ordenSin: '93,91,92', coord: 5, filtroDsp: 'DSP1', perfilDSP2: 16, perfilDSP5: 5, selectorCorto: true, selectorTodos: 70, filas: 6, sinAsignar: 1, avisoVersion: 'atgo', enCurso: 'c', marcadas: 1, buscador: true, duracion: true };
   for (const [k, v] of Object.entries(esperado)) if (r[k] !== v) errores.push(`${k}: esperado ${JSON.stringify(v)}, obtenido ${JSON.stringify(r[k])}`);
   for (const t of ['dia', 'sin', 'inc', 'sem', 'man']) if (!r['vista_' + t]) errores.push('La vista ' + t + ' está vacía');
   r.errores.forEach(e => errores.push('Diagnóstico: ' + e));
+
+  // Casos límite: COORD (todos los técnicos, filtro por DSP) y un perfil vacío. Deben abrir todas las vistas sin errores.
+  const escenario = async (nombre, perfiles) => {
+    const c2 = await navegador.newContext({ serviceWorkers: 'block', viewport: { width: 1366, height: 768 } });
+    await c2.addInitScript(([p, h, pf]) => {
+      if (sessionStorage.getItem('prep')) return; sessionStorage.setItem('prep', '1');
+      localStorage.clear();
+      localStorage.setItem('dispatcher_atgo_v1', JSON.stringify(p)); localStorage.setItem('dispatcher_hilos_v1', JSON.stringify(h));
+      localStorage.setItem('dispatcher_bienvenida_v1', '1'); localStorage.setItem('dispatcher_perfiles_v1', JSON.stringify(pf));
+    }, [payload, hilos, perfiles]);
+    const pg = await c2.newPage();
+    pg.on('pageerror', e => errores.push(`${nombre} · error de página: ${e.message}`));
+    await pg.goto(url + '#dia'); await pg.waitForTimeout(1200);
+    const x = await pg.evaluate(async () => {
+      const paso = ms => new Promise(r => setTimeout(r, ms)), o = { perfil: PERFIL, dsps: dspsDelPerfil().length };
+      for (const t of ['dia', 'sin', 'inc', 'sem', 'man']) { showTab(t); await paso(100); }
+      for (const d of dspsDelPerfil()) { filtroInc.dsp = d; showTab('sem'); showTab('sin'); showTab('inc'); await paso(30); }
+      filtroInc.dsp = ''; abrirPerfiles(); cerrarModal(); abrirMisCambios(); cerrarModal(); abrirSinCerrar(); cerrarModal();
+      o.coordTarjetas = document.querySelectorAll('.coord-card').length; showTab('dia'); o.coordTarjetas = document.querySelectorAll('.coord-card').length;
+      o.semVacia = /no tiene técnicos/.test((showTab('sem'), document.getElementById('viewSem').innerText));
+      o.errores = diagLista().map(d => d.msg); return o;
+    });
+    await c2.close();
+    x.errores.forEach(e => errores.push(`${nombre} · diagnóstico: ${e}`));
+    return x;
+  };
+  const coord = await escenario('COORD', { activo: 'COORD', matriz1: true, tecs: {} });
+  if (coord.perfil !== 'COORD' || coord.dsps !== 5 || coord.coordTarjetas !== 5) errores.push('COORD: ' + JSON.stringify(coord));
+  const vacio = await escenario('Perfil vacío', { activo: 'DSP5', matriz1: true, tecs: { DSP1: [], DSP2: [], DSP3: [], DSP4: [], DSP5: [], COORD: [] } });
+  if (vacio.perfil !== 'DSP5' || !vacio.semVacia) errores.push('Perfil vacío: ' + JSON.stringify(vacio));
+  // Abrir la app directamente en cada pestaña (al arrancar, algunas funciones de ajustes.js aún no existen)
+  for (const h of ['#sin', '#inc', '#sem', '#man']) {
+    const pg = await ctx.newPage();
+    pg.on('pageerror', e => errores.push(`Arranque en ${h} · error de página: ${e.message}`));
+    await pg.goto(url + h); await pg.waitForTimeout(900); await pg.close();
+  }
 } catch (e) {
   errores.push('No se pudo ejecutar la prueba: ' + e.message);
 } finally {

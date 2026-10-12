@@ -143,6 +143,22 @@ function sinMarcarTodas(si) {
 }
 // Opciones del selector de técnico (igual en Sin asignar y en la ficha). Se puede elegir a cualquiera:
 // recomendados de su zona primero (★ el mejor), después tus técnicos y, en grupos, los de los demás perfiles.
+// En listas largas (Sin asignar) el selector se pinta solo con los recomendados y el elegido, y se completa
+// con todos los técnicos al abrirlo (completarSelect): con 100 filas × 70 técnicos, el repintado era pesado.
+function opcionesCortas(rec, elegido, vacia) {
+  const l = [...new Set([...(rec || []).map(x => x.op), ...(elegido ? [elegido] : [])])];
+  const recOp = Object.fromEntries((rec || []).map((x, i) => [x.op, { ...x, i }]));
+  const lab = op => { const x = recOp[op]; return x ? `${x.i === 0 ? '★ ' : ''}${op} · ${x.sede ? 'ya va a la sede' : x.carga ? plural(x.carga, 'visita') : 'libre'}${x.apoyo ? ' · apoyo' : ''}` : op; };
+  return (vacia ? `<option value=""${elegido ? '' : ' selected'}>${esc(typeof vacia === 'string' ? vacia : 'Elige técnico…')}</option>` : '') +
+    l.map(op => `<option value="${esc(op)}"${op === elegido ? ' selected' : ''}>${esc(lab(op))}</option>`).join('') + '<option value="" disabled>— más técnicos al abrir —</option>';
+}
+function completarSelect(sel) {
+  if (!sel || sel.dataset.lleno) return;
+  const k = sel.dataset.k, r = ticketDe(k); if (!r) return;
+  const hoy = new Date(); hoy.setHours(12, 0, 0, 0);
+  const rec = recomendar(r, hoy) || [], v = sel.value;
+  sel.innerHTML = opcionesTecnico(rec, v, !rec.length); sel.value = v; sel.dataset.lleno = '1';
+}
 function opcionesTecnico(rec, elegido, vacia) {
   rec = rec || [];
   const recOp = Object.fromEntries(rec.map((x, i) => [x.op, { ...x, i }]));
@@ -183,13 +199,13 @@ function sinFila(r, enBuzon) {
   const rec = recomendar(r, hoy) || [];   // zona conocida: recomendados primero; si no, "Elige técnico…"
   const lugar = [r.poblacion, r.provincia].filter(Boolean).join(', ') || r.domicilio || '';
   const e = sinElec[k] || {};
-  return `<div class="sa-row${mia ? '' : ' otra'}${e.on && rec ? ' marcada' : ''}" data-key="${esc(k)}" title="${esc(mot || '')}">
+  return `<div class="sa-row${mia ? '' : ' otra'}${e.on ? ' marcada' : ''}${olvidada(r) ? ' olvidada' : ''}" data-key="${esc(k)}" title="${esc(mot || '')}">
     <span class="sa-num"><input type="checkbox" class="sa-ck" id="sa-ck-${esc(k)}" ${e.on ? 'checked' : ''} onchange="if(this.checked&&!document.getElementById('sa-op-${jsq(k)}').value){this.checked=false;toast('Elige primero el técnico');return}sinSet('${jsq(k)}','on',this.checked);this.closest('.sa-row').classList.toggle('marcada',this.checked)" aria-label="Marcar para asignar">${numHtml(r)}</span>
     <span class="sa-zona${mia ? ' mia' : ''}">${esc(zonaPool(r))}</span>
     <span class="sa-tx"><b>${esc(r.descSede || '—')}</b> · ${esc(r.descCliente || '')} · ${esc(lugar)}${mot ? ` · <i>${esc(mot.slice(0, 90))}</i>` : ''}</span>
-    <span class="sa-badges">${cadBadge(r)}${reincBadge(r)}</span>
+    <span class="sa-badges">${olvidoBadge(r)}${cadBadge(r)}${reincBadge(r)}</span>
     <span class="sa-act">${act ? esc(cuando(act)) : ''}</span>
-    <span class="sa-acc">${sedeAvisoHtml(r)}<select id="sa-op-${esc(k)}" onchange="sinSet('${jsq(k)}','op',this.value)" title="Cualquier técnico de cualquier perfil. Primero los recomendados de su zona (misma sede o menos visitas hoy)">${opcionesTecnico(rec, e.op || '', !rec.length)}</select>
+    <span class="sa-acc">${sedeAvisoHtml(r)}<select id="sa-op-${esc(k)}" data-k="${esc(k)}" onfocus="completarSelect(this)" onmousedown="completarSelect(this)" onchange="sinSet('${jsq(k)}','op',this.value)" title="Cualquier técnico de cualquier perfil. Primero los recomendados de su zona (misma sede o menos visitas hoy)">${opcionesCortas(rec, e.op || '', !rec.length)}</select>
       <input type="date" id="sa-f-${esc(k)}" value="${esc(e.f || '')}" onchange="sinSet('${jsq(k)}','f',this.value)" title="Fecha de visita (opcional)">
       <button class="btn sm pri" onclick="asignarSin('${jsq(k)}')">Asignar</button>
       <button class="iconbtn sm" onclick="archivar('${jsq(k)}', ${enBuzon ? 'false' : 'true'})" title="${enBuzon ? 'Recuperar a pendientes' : 'Archivar en el buzón'}" aria-label="${enBuzon ? 'Recuperar' : 'Archivar'}">${enBuzon ? '↩' : '⤓'}</button></span>
@@ -226,6 +242,17 @@ function quitarDeSinAsignar(keys) {
   updateSinBadge();
   if (document.getElementById('viewSin').style.display !== 'none') renderSin();
   if (document.getElementById('viewSem').style.display !== 'none') renderSemana();
+}
+
+// ===== Sin asignar olvidadas: de tu zona y con más de X horas sin técnico (aviso en ajustes.js) =====
+const OLVIDO_KEY = 'dispatcher_olvidos_v1';
+function horasOlvido() { return Math.max(1, Number(tecCfg.olvidoHoras) || 4); }
+function horasSinAsignar(r) { const d = registro(r); return d ? (Date.now() - d.getTime()) / 3600000 : 0; }
+function olvidada(r) { return esMiZonaPool(r) && !buzon[tkey(r)] && horasSinAsignar(r) >= horasOlvido(); }
+function olvidoBadge(r) {
+  if (!olvidada(r)) return '';
+  const h = horasSinAsignar(r), t = h >= 48 ? Math.floor(h / 24) + ' d' : Math.floor(h) + ' h';
+  return `<span class="olv" title="Lleva ${esc(t)} sin técnico (aviso a partir de ${horasOlvido()} h)">⏰ ${esc(t)}</span>`;
 }
 
 // ===== Vigilancia de la sincronización =====

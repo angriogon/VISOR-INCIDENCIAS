@@ -91,8 +91,15 @@ function fechasEnTexto(t, refTs) {
   }
   return out.sort((a, b) => a.idx - b.idx);
 }
+// Se recuerda el resultado hasta que cambie el hilo: Sin asignar ordena por caducidad en cada repintado
+let cadCache = {};
 function caducidadHilo(key) {
   const h = hilos[key]; if (!h) return null;
+  const c = cadCache[key]; if (c && c.h === h) return c.v;
+  const v = caducidadHiloCalc(h);
+  cadCache[key] = { h, v }; return v;
+}
+function caducidadHiloCalc(h) {
   let best = null;
   h.items.slice().sort((a, b) => a.ts - b.ts).forEach(i => {
     if (!CAD_RE.test(i.t)) return;

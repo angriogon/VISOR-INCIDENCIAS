@@ -3,8 +3,9 @@
 // asistente de inicio, diagnóstico, resumen matinal, aviso de técnico sin actividad y exportar a Excel.
 // Usa utilidades de app.js, dia.js, herramientas.js, edicion.js y panel.js solo en tiempo de llamada.
 
-const APP_VERSION = '1.18.0';   // súbela a la vez que VERSION en sw.js
+const APP_VERSION = '1.19.0';   // súbela a la vez que VERSION en sw.js
 const NOVEDADES = [
+  { v: '1.19.0', f: '2026-10-12', l: ['«Mis cambios» en Mi día: todo lo que has hecho hoy (o en 7 días) en ATGO desde Despacho, con su resultado.', 'Aviso de visitas de hoy sin cerrar a las 19:00 (configurable) y «Recordar» por WhatsApp a cada técnico.', 'Sin asignar: las de tu zona con más de 4 h sin técnico se marcan ⏰ y avisan (configurable).', 'Correcciones de la revisión: arranque con COORD o abriendo directamente otra pestaña, perfiles al restaurar copias, Sin asignar más ligero.'] },
   { v: '1.18.0', f: '2026-10-12', l: ['Filtro por DSP (Todos · DSP1…DSP5) en Planificación, el día y Sin asignar, igual que en Incidencias, cuando el perfil tiene varios DSP (COORD).', 'Sin asignar ordenado por urgencia: primero las que caducan antes y, después, las más antiguas.', 'Actualización silenciosa: las versiones nuevas se instalan solas cuando no estás haciendo nada.'] },
   { v: '1.17.2', f: '2026-10-12', l: ['Corregido: al actualizar, Despacho podía quedarse con archivos de la versión anterior (y avisar de recargar ATGO sin motivo).', 'El aviso de versión dice quién está desactualizado y «Actualizar Despacho» lo arregla en un clic.'] },
   { v: '1.17.1', f: '2026-10-12', l: ['Comodines de Galicia y Guipúzcoa reconocidos (probado con la lista real de ATGO: 37 de 42; los demás son de Canarias o genéricos).', 'Carga medida con ATGO: COORD tarda ~65 s; DSP1, ~20 s.'] },
@@ -221,6 +222,8 @@ function renderCfg() {
       <div class="cfg-h">Resúmenes y avisos del día</div>
       <div class="cfg-row"><label><input type="checkbox" ${tecCfg.resumenOn !== false ? 'checked' : ''} onchange="setPref('resumenOn',this.checked)"> Resumen matinal a las</label><input type="time" value="${esc(tecCfg.resumenHora || '08:00')}" onchange="setPref('resumenHora',this.value)"></div>
       <div class="cfg-row"><label><input type="checkbox" ${tecCfg.inactOn !== false ? 'checked' : ''} onchange="setPref('inactOn',this.checked)"> Avisar si un técnico no ha iniciado nada a las</label><input type="time" value="${esc(tecCfg.inactHora || '11:00')}" onchange="setPref('inactHora',this.value)"></div>
+      <div class="cfg-row"><label><input type="checkbox" ${tecCfg.cierreOn !== false ? 'checked' : ''} onchange="setPref('cierreOn',this.checked)"> Avisar de visitas de hoy sin cerrar a las</label><input type="time" value="${esc(horaCierre())}" onchange="setPref('cierreHora',this.value)"></div>
+      <div class="cfg-row"><label>Sin asignar de tu zona: avisar si llevan más de</label><span><input type="number" min="1" max="72" value="${horasOlvido()}" onchange="setPref('olvidoHoras',Math.max(1,Number(this.value)||4))" style="width:56px"> h</span></div>
       <div class="cfg-h">Planificar en ATGO (técnico y visita)</div>
       <div class="cfg-t">${tecCfg.fase2 !== 'prueba' ? 'Activo en todos los tickets (validado).' : 'Limitado al ticket de prueba 2026/00/97784.'}</div>
       <div class="acts"><button class="btn sm ghost" onclick="tecCfg.fase2=tecCfg.fase2==='prueba'?'todos':'prueba';saveTec();renderCfg();if(fichaKey)renderFicha()">${tecCfg.fase2 !== 'prueba' ? 'Limitar al ticket de prueba' : 'Activar para todos los tickets'}</button></div>`;
@@ -405,6 +408,78 @@ function palAcciones(it) {
   return true;
 }
 
+// ---- Mis cambios en ATGO (todo lo hecho desde Despacho, con su resultado) ----
+let misCambiosRango = 'hoy';
+function misCambios(rango) {
+  const desde = (rango || misCambiosRango) === 'hoy' ? new Date().setHours(0, 0, 0, 0) : Date.now() - 7 * 86400000;
+  return ediciones.filter(e => e.ts >= desde);
+}
+function abrirMisCambios(rango) {
+  if (rango) misCambiosRango = rango;
+  const l = misCambios(), mal = l.filter(e => !e.ok).length;
+  const ACC = { comentario: 'Comentario', estado: 'Estado', asignar: 'Planificación' };
+  const m = document.getElementById('modal');
+  m.innerHTML = `<div class="md-box md-camb"><div class="dw-head"><div><div class="dw-num" style="color:var(--ink)">Mis cambios en ATGO</div>
+      <div class="dw-sub">${l.length ? `${plural(l.length, 'cambio')} · ${l.length - mal} comprobado${l.length - mal === 1 ? '' : 's'}${mal ? ` · <b style="color:#d9614f">${mal} sin aplicar</b>` : ''}` : 'Ninguno'}</div></div>
+      <div class="acts"><span class="seg mini">${[['hoy', 'Hoy'], ['7d', '7 días']].map(([v, t]) => `<button class="segb${misCambiosRango === v ? ' on' : ''}" onclick="abrirMisCambios('${v}')">${t}</button>`).join('')}</span>
+      <button class="iconbtn" onclick="cerrarModal()" aria-label="Cerrar">✕</button></div></div>
+    ${l.length ? `<table class="inf camb"><thead><tr><th>Hora</th><th>Nº</th><th>Cambio</th><th>Resultado</th></tr></thead><tbody>${l.map(e => `<tr class="${e.ok ? '' : 'ko'}">
+      <td class="mono">${esc(misCambiosRango === 'hoy' ? hhmm(e.ts) : cuando(e.ts))}</td>
+      <td><a href="#" onclick="cerrarModal();openTicket('${jsq(e.key)}','his');return false" class="mono">${esc(String(e.num || e.key).slice(-5))}</a></td>
+      <td><b>${esc(ACC[e.accion] || e.accion)}</b> · ${esc(String(e.detalle || '').slice(0, 140))}</td>
+      <td>${e.ok ? '<span class="ok">✓ comprobado</span>' : `<span class="mal">✕ ${esc(e.error || 'no aplicado')}</span>`}</td></tr>`).join('')}</tbody></table>`
+      : `<div class="dempty">${misCambiosRango === 'hoy' ? 'Hoy no has cambiado nada en ATGO desde Despacho.' : 'Sin cambios en los últimos 7 días.'}</div>`}
+  </div>`;
+  m.hidden = false;
+}
+
+// ---- Visitas de hoy sin cerrar (aviso al final del día) ----
+// Visitas enrutadas para hoy que siguen en PRESENCIAL sin "finalizado" del técnico (pendientes o en curso).
+function sinCerrarHoy() { return rutaHoy().filter(x => TECNICOS.includes(cleanInitials(x.op)) && !x.salio && (x.st === 'p' || x.st === 'c')); }
+function horaCierre() { return tecCfg.cierreHora || '19:00'; }
+function abrirSinCerrar() {
+  const l = sinCerrarHoy(), porOp = {};
+  l.forEach(x => (porOp[x.op] = porOp[x.op] || []).push(x));
+  const ops = Object.keys(porOp).sort((a, b) => opIndex(a) - opIndex(b));
+  const m = document.getElementById('modal');
+  m.innerHTML = `<div class="md-box md-camb"><div class="dw-head"><div><div class="dw-num" style="color:var(--ink)">Visitas de hoy sin cerrar</div>
+      <div class="dw-sub">${l.length ? `${plural(l.length, 'visita')} sigue${l.length === 1 ? '' : 'n'} en PRESENCIAL sin «finalizado» del técnico` : 'Todas las visitas de hoy están cerradas o en trámite.'}</div></div>
+      <button class="iconbtn" onclick="cerrarModal()" aria-label="Cerrar">✕</button></div>
+    ${ops.map(op => `<div class="sc-tec"><div class="sc-h"><b>${esc(op)}</b><span>${plural(porOp[op].length, 'visita')}</span>
+        <button class="btn sm wa" onclick="recordarCierre('${jsq(op)}')" title="Un WhatsApp con todas sus visitas sin cerrar">Recordar a ${esc(op)}</button></div>
+      ${porOp[op].map(x => `<div class="sc-it"><span class="mono">${esc(x.r.desdeHora || '--:--')}</span><a href="#" class="mono" onclick="cerrarModal();openTicket('${jsq(tkey(x.r))}');return false">${esc(String(x.r.num).slice(-5))}</a><span>${esc(x.r.descSede || '')}</span><em>${x.st === 'c' ? 'en curso' : 'sin iniciar'}</em></div>`).join('')}</div>`).join('')}
+  </div>`;
+  m.hidden = false;
+}
+// Un solo WhatsApp por técnico con todas sus visitas sin cerrar (plantilla "Recordar finalizar" si es una)
+function recordarCierre(op) {
+  const l = sinCerrarHoy().filter(x => x.op === op); if (!l.length) return;
+  const nombre = nombrePila(l[0].r) || op;
+  const msg = l.length === 1 ? waTexto('recordatorio', l[0].r)
+    : `Hola ${nombre}, recuerda finalizar en ATGO las visitas de hoy:\n${l.map(x => `· Nº ${x.r.num} (${x.r.descSede || ''})`).join('\n')}\n¡Gracias!`;
+  abrirWa(op, msg);
+}
+
+// ---- Sin asignar olvidadas: de tu zona y con más de X horas sin técnico ----
+// (OLVIDO_KEY, olvidada y olvidoBadge están en panel.js: Sin asignar los usa al pintar, incluso al arrancar)
+function revisarOlvidadas() {
+  if (!poolCargado || avisos.sinAsignar === false) return;
+  const av = lsGet(OLVIDO_KEY, {}), vivos = new Set(poolRows.map(tkey));
+  Object.keys(av).forEach(k => { if (!vivos.has(k)) delete av[k]; });   // las que ya se asignaron se olvidan
+  const nuevas = poolRows.filter(r => olvidada(r) && !av[tkey(r)]);
+  if (nuevas.length) {
+    nuevas.forEach(r => { av[tkey(r)] = Date.now(); });
+    notificarLista(nuevas.map(r => ({ num: r.num, op: zonaPool(r), a: `Sin asignar desde hace ${Math.floor(horasSinAsignar(r))} h · ${r.descSede || ''}` })));
+  }
+  lsSet(OLVIDO_KEY, av);
+}
+// Botones de Mi día: mis cambios de hoy y, a partir de la hora de cierre, las visitas sin cerrar
+function botonesDiaHtml() {
+  const c = misCambios('hoy'), mal = c.filter(e => !e.ok).length, sc = horaPasada(horaCierre()) && tecCfg.cierreOn !== false ? sinCerrarHoy().length : 0;
+  return `<button class="btn sm${mal ? ' warn' : ''}" onclick="abrirMisCambios('hoy')" title="Todo lo que has hecho hoy en ATGO desde Despacho, con su resultado">Mis cambios${c.length ? ' · ' + c.length : ''}${mal ? ' (' + mal + ' ✕)' : ''}</button>`
+    + (sc ? `<button class="btn sm warn" onclick="abrirSinCerrar()" title="Visitas de hoy que siguen en PRESENCIAL sin «finalizado» del técnico">Sin cerrar hoy · ${sc}</button>` : '');
+}
+
 // ---- Resumen matinal y técnico sin actividad (se revisa cada minuto) ----
 const DIA_AVISOS_KEY = 'dispatcher_avisos_dia_v1';
 function horaPasada(hhmm) { const [h, m] = String(hhmm || '').split(':').map(Number); const d = new Date(); return d.getHours() * 60 + d.getMinutes() >= h * 60 + (m || 0); }
@@ -422,6 +497,11 @@ function revisarAvisosDia() {
     notificarLista([{ num: '—', op: 'Resumen', a: `${plural(ruta.length, 'visita')} hoy · ${plural(sin, 'sin asignar')} en tu zona · ${plural(cad, 'caducidad')} en 24 h o vencida${cad === 1 ? '' : 's'}` },
       { num: '—', op: 'Rutas', a: Object.entries(porTec).sort((a, b) => opIndex(a[0]) - opIndex(b[0])).map(([o, n]) => o + ' ' + n).join(' · ') || 'Sin visitas enrutadas' }]);
   }
+  if (tecCfg.cierreOn !== false && !hecho.cierre && horaPasada(horaCierre())) {
+    hecho.cierre = true;
+    const l = sinCerrarHoy();
+    if (l.length) { const ops = [...new Set(l.map(x => x.op))]; notificarLista([{ num: '—', op: 'Cierre del día', a: `${plural(l.length, 'visita')} de hoy sin cerrar · ${ops.join(', ')}. Ábrelo en Mi día › «Sin cerrar hoy».` }]); }
+  }
   if (tecCfg.inactOn !== false && horaPasada(tecCfg.inactHora || '11:00')) {
     const ruta = rutaHoy().filter(x => TECNICOS.includes(cleanInitials(x.op)));
     const ops = [...new Set(ruta.map(x => x.op))].filter(op => !hecho.inact.includes(op) && ruta.filter(x => x.op === op).every(x => x.st === 'p'));
@@ -429,7 +509,7 @@ function revisarAvisosDia() {
   }
   lsSet(DIA_AVISOS_KEY, hecho);
 }
-setInterval(() => { try { revisarAvisosDia(); } catch (e) { diagLog('Avisos del día: ' + e.message); } }, 60000);
+setInterval(() => { try { revisarAvisosDia(); } catch (e) { diagLog('Avisos del día: ' + e.message); } try { revisarOlvidadas(); } catch (e) { diagLog('Olvidadas: ' + e.message); } }, 60000);
 
 // ---- Exportar a Excel ----
 async function exportarExcel(que) {
@@ -456,6 +536,8 @@ async function exportarExcel(que) {
 // ---- Arranque (cuando ya están cargados todos los scripts) ----
 window.addEventListener('DOMContentLoaded', () => {
   aplicarApariencia(); updatePerfilBtn(); marcarNovedades();
+  // Mi día se pintó antes de cargar este archivo (sin «Mis cambios» ni el resumen de COORD): se repinta
+  if (document.getElementById('viewDia').style.display !== 'none') renderDia(true);
   // Tras una actualización silenciosa (app.js), un aviso discreto con la versión nueva
   try { if (sessionStorage.getItem('despacho_actualizado')) { sessionStorage.removeItem('despacho_actualizado'); setTimeout(() => toast(`Despacho se ha actualizado a la versión ${APP_VERSION} · novedades en ⓘ`), 1200); } } catch (e) {}
   try { revisarEspacio(); } catch (e) {}

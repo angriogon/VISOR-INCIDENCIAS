@@ -4,7 +4,7 @@ Archivo de traspaso entre sesiones. Al empezar una sesión: "lee docs/ESTADO.md 
 Al terminar: "actualiza docs/ESTADO.md". Máximo ~40 líneas: lo antiguo se resume o se borra.
 
 ## Versión actual
-- `sw.js`: despacho-v1.18.0 = `APP_VERSION` en `ajustes.js` (publicada en GitHub Pages).
+- `sw.js`: despacho-v1.19.0 = `APP_VERSION` en `ajustes.js` (publicada en GitHub Pages).
 - 1.13.0: perfiles DSP1–5/COORD, mapa con todas las incidencias del técnico, duración leída del hilo (sin estimación si no se sabe),
   fecha en Sin asignar, apoyo Cádiz→Ceuta y Málaga→Melilla, ficha flotante con pestañas, globo de estado + fecha en Incidencias,
   ⓘ novedades, aviso 📍 misma sede al asignar y toda la batería de `docs/estudio-mejoras-windows.md`.
@@ -37,10 +37,20 @@ Al terminar: "actualiza docs/ESTADO.md". Máximo ~40 líneas: lo antiguo se resu
   día y Sin asignar; Sin asignar por urgencia (sinListas(conDsp)); actualización silenciosa (offerUpdateSolo + aviso).
   Probada por el usuario: funciona.
 
+- 1.19.0: Mis cambios (abrirMisCambios), Sin cerrar hoy (sinCerrarHoy, aviso cierreHora), olvidadas (panel.js: olvidada/olvidoBadge;
+  aviso revisarOlvidadas). Revisión: conocidos se guarda al crearse, restaurar copia no vuelve a la matriz, selector corto en Sin asignar
+  (completarSelect), caducidad en caché, arranque con COORD/#sin rompía (funciones de ajustes.js usadas antes de cargarse).
+  Pruebas de arranque con COORD, perfil vacío y cada pestaña al abrir.
+
 ## En curso
 - (vacío)
 
+## Descartado por ahora (el usuario lo deja para el futuro)
+- Avisos de Windows por DSP en COORD, informe semanal por DSP desde COORD, carga semanal por DSP en COORD,
+  plantillas de comentario por cliente.
+
 ## Pendiente / no hecho de la batería
+- Recogida GLS de las zonas nuevas y Canarias: esperan datos del usuario.
 - 3.1 repintar solo lo que cambia y 3.5 cálculos en un worker: no hechos (poco valor hoy, mucho riesgo). 1.8 coherencia visual: solo en lo tocado.
 - Supervisor con varios equipos reales: `docs/planteamiento-supervisor-y-perfiles.md` (los perfiles locales ya existen).
 - Versión iPhone: `docs/propuesta-ios.md` (decidir relevo cifrado o API oficial de Tier1).

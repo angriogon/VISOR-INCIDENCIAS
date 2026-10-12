@@ -214,6 +214,9 @@ tickets nuevos o reasignados a tu nombre, escalados a TIER1, cambios en las ruta
 - **Filtro por DSP** (Todos · DSP1…DSP5): con perfiles de varios DSP, como COORD, en Incidencias, Planificación (semana y día) y Sin asignar. Es el mismo filtro en todas.
 - **Sin asignar** se ordena por urgencia: primero las que caducan antes y, después, las más antiguas.
 - **Actualizaciones**: las versiones nuevas se instalan solas cuando no estás haciendo nada (ni escribiendo, ni con la ficha o una ventana abiertas); al terminar sale un aviso con la versión.
+- **Mis cambios** (botón en Mi día): todo lo que has hecho en ATGO desde Despacho hoy o en 7 días (comentarios, estados, planificaciones) con su resultado ✓/✕ y enlace a la ficha.
+- **Sin cerrar hoy**: a partir de las 19:00 (⚙ › General) aviso y botón en Mi día con las visitas de hoy que siguen en PRESENCIAL sin «finalizado»; «Recordar» manda un WhatsApp al técnico con todas.
+- **Sin asignar olvidadas**: las de tu zona con más de 4 h sin técnico (⚙ › General) se marcan ⏰ en rojo y avisan una vez.
 - **COORD**: en Mi día sale un **resumen por DSP** (visitas de hoy hechas/total, retrasos, sin asignar de sus zonas, caducidades y escalados). Al pulsar una tarjeta se abre Incidencias con solo ese DSP (chip «Solo DSPx» para quitarlo).
 - **Exportar/Importar perfiles** (abajo en la ventana de Perfiles): un archivo solo con los técnicos de cada perfil, para pasarlo a otro dispatcher.
 - Excel, informe semanal e histórico llevan el nombre y los técnicos del **perfil activo**. ⚙ › General muestra cuánto tardó la última carga y ⚙ › Datos los comodines «PENDIENTE ASIGNAR» que no se asocian a ninguna zona.

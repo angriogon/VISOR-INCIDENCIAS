@@ -635,3 +635,14 @@
   .cc-prog{display:grid; grid-template-columns:1fr auto; gap:8px; align-items:center; font-size:12px; color:var(--ink-dim);}
   .cc-kpi{display:flex; flex-wrap:wrap; gap:4px 10px; font-size:11.5px; color:var(--ink-faint);}
   .cc-kpi .w{color:#d9614f; font-weight:600;} .cc-kpi .a{color:var(--amber); font-weight:600;}
+  /* Mis cambios, sin cerrar y olvidadas */
+  .md-camb{width:min(860px,100%);}
+  table.camb td{vertical-align:top;} table.camb tr.ko td{background:color-mix(in srgb, #d9614f 7%, transparent);}
+  table.camb .ok{color:var(--done-tx); white-space:nowrap;} table.camb .mal{color:#d9614f;}
+  .sc-tec{border-top:1px solid var(--line); padding-top:8px; display:grid; gap:4px;}
+  .sc-h{display:flex; gap:10px; align-items:center;} .sc-h span{color:var(--ink-faint); font-size:12px;} .sc-h .btn{margin-left:auto;}
+  .sc-it{display:grid; grid-template-columns:52px 60px minmax(0,1fr) auto; gap:8px; font-size:12.5px; padding-left:8px;}
+  .sc-it span:nth-child(3){overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--ink-dim);} .sc-it em{font-style:normal; font-size:11px; color:var(--amber);}
+  .olv{font-size:10.5px; font-weight:700; color:#d9614f; background:color-mix(in srgb, #d9614f 12%, transparent); border-radius:999px; padding:0 6px; white-space:nowrap;}
+  .sa-row.olvidada{border-left-color:#d9614f;}
+  .btn.warn:not(.pri){border-color:#d9614f; color:#d9614f;}   /* sin tocar el botón rojo de confirmar (.btn.pri.warn) */
