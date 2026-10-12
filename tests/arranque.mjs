@@ -62,14 +62,16 @@ try {
     out.duracion = document.getElementById('dwPanel').innerText.includes('Historial');
     closeTicket();
     out.enCurso = rutaHoy().find(x => x.r.key === '2026/00/1').st;
-    toggleCfg(); for (const t of ['gen', 'avi', 'perf', 'wa', 'dat']) { cfgTab = t; renderCfg(); await paso(50); } document.getElementById('cfgMenu').hidden = true;
+    toggleCfg(); for (const t of ['gen', 'avi', 'wa', 'dat']) { cfgTab = t; renderCfg(); await paso(50); } document.getElementById('cfgMenu').hidden = true;
+    abrirPerfiles('DSP2'); await paso(50); out.perfilDSP2 = document.querySelectorAll('#perfBox .pf-tec').length; perfSel = 'DSP5'; renderPerfiles(); out.perfilDSP5 = document.querySelectorAll('#perfBox .pf-tec').length; cerrarModal();
+    showTab('sin'); sinFiltro = 'todas'; renderSin(); out.selectorTodos = document.querySelectorAll('#viewSin select option').length;
     showTab('sin'); sinMarcarTodas(true); out.marcadas = sinMarcadas().length;
     abrirNovedades(); cerrarModal(); abrirAtajos(); cerrarModal();
     openPalette(); document.getElementById('palInput').value = 'ceuta'; palRender(); out.buscador = palItems.length > 0; closePalette();
     out.errores = diagLista().map(d => d.msg);
     return out;
   }, payload);
-  const esperado = { filas: 6, sinAsignar: 1, avisoVersion: true, enCurso: 'c', marcadas: 1, buscador: true, duracion: true };
+  const esperado = { perfilDSP2: 16, perfilDSP5: 5, selectorTodos: 70, filas: 6, sinAsignar: 1, avisoVersion: true, enCurso: 'c', marcadas: 1, buscador: true, duracion: true };
   for (const [k, v] of Object.entries(esperado)) if (r[k] !== v) errores.push(`${k}: esperado ${JSON.stringify(v)}, obtenido ${JSON.stringify(r[k])}`);
   for (const t of ['dia', 'sin', 'inc', 'sem', 'man']) if (!r['vista_' + t]) errores.push('La vista ' + t + ' está vacía');
   r.errores.forEach(e => errores.push('Diagnóstico: ' + e));

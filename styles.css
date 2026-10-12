@@ -591,3 +591,30 @@
   .sa-todas{display:flex; gap:6px; align-items:center; color:var(--ink); font-weight:600; cursor:pointer;}
   .sa-ck{margin:0 8px 0 0; vertical-align:-2px; cursor:pointer;}
   .sa-row.marcada{background:var(--teal-dim);}
+  /* Ventana de perfiles */
+  .md-perf{width:min(1040px,100%); max-height:88vh; display:grid; grid-template-rows:auto minmax(0,1fr) auto;}
+  .pf-grid{display:grid; grid-template-columns:190px minmax(0,1fr); gap:16px; min-height:0;}
+  .pf-lista{display:grid; gap:4px; align-content:start;}
+  .pf-lista button{display:grid; grid-template-columns:1fr auto; gap:0 6px; text-align:left; background:var(--panel2); border:1px solid transparent; border-radius:9px; padding:8px 10px; font:inherit; color:var(--ink); cursor:pointer;}
+  .pf-lista button span{grid-column:1; font-size:11.5px; color:var(--ink-dim);}
+  .pf-lista button em{grid-column:2; grid-row:1 / span 2; align-self:center; font-style:normal; font-size:10.5px; color:var(--teal); background:var(--teal-dim); border-radius:999px; padding:1px 7px;}
+  .pf-lista button.on{border-color:var(--amber); background:var(--amber-dim);}
+  .pf-det{display:grid; gap:10px; align-content:start; min-height:0; overflow:auto; padding-right:4px;}
+  .pf-cab{display:flex; justify-content:space-between; align-items:center; gap:10px;}
+  .pf-cab h3{margin:0; font-size:17px;} .pf-cab h3 small{font-size:12px; color:var(--ink-faint); font-weight:500;}
+  .pf-uso{font-size:11.5px; color:var(--teal); font-weight:600;}
+  .pf-add{display:flex; gap:6px;}
+  .pf-add input{flex:1; font:inherit; font-size:13px; padding:7px 10px; border:1px solid var(--line); border-radius:8px; background:var(--bg); color:var(--ink);}
+  .pf-add input:focus{outline:none; border-color:var(--amber);}
+  .pf-rapido{display:flex; gap:6px; flex-wrap:wrap; align-items:center; font-size:11.5px; color:var(--ink-dim);}
+  .pf-rapido select{font:inherit; font-size:11.5px; padding:3px 6px; border:1px solid var(--line); border-radius:999px; background:var(--panel); color:var(--ink);}
+  .pf-vaciar{color:#d9614f;}
+  .pf-tecs{display:grid; gap:12px;}
+  .pf-gt{font-weight:700; font-size:10.5px; letter-spacing:.4px; text-transform:uppercase; color:var(--ink-faint); margin-bottom:5px;} .pf-gt small{font-weight:500;}
+  .pf-chips{display:flex; flex-wrap:wrap; gap:6px;}
+  .pf-tec{display:inline-flex; align-items:center; gap:6px; background:var(--panel2); border:1px solid var(--line); border-radius:8px; padding:3px 4px 3px 9px; font-size:12px;}
+  .pf-tec b{font-family:'IBM Plex Mono',monospace;} .pf-tec small{color:var(--ink-dim);} .pf-tec i{font-style:normal; font-size:10px; color:var(--ink-faint);}
+  .pf-tec button{border:none; background:none; color:var(--ink-faint); font-size:15px; line-height:1; cursor:pointer; padding:0 4px; border-radius:5px;}
+  .pf-tec button:hover{color:#d9614f; background:var(--panel);}
+  .pf-aplicar{display:flex; justify-content:space-between; align-items:center; gap:10px; border-top:1px solid var(--line); padding-top:10px; font-size:12.5px; color:var(--ink-dim);}
+  @media (max-width:700px){ .pf-grid{grid-template-columns:1fr;} .pf-lista{grid-auto-flow:column; overflow:auto;} }

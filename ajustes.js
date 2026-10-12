@@ -3,8 +3,9 @@
 // asistente de inicio, diagnóstico, resumen matinal, aviso de técnico sin actividad y exportar a Excel.
 // Usa utilidades de app.js, dia.js, herramientas.js, edicion.js y panel.js solo en tiempo de llamada.
 
-const APP_VERSION = '1.15.1';   // súbela a la vez que VERSION en sw.js
+const APP_VERSION = '1.16.0';   // súbela a la vez que VERSION en sw.js
 const NOVEDADES = [
+  { v: '1.16.0', f: '2026-10-12', l: ['Se puede asignar cualquier técnico de cualquier perfil a cualquier incidencia, también en «Todas las zonas» y en el buzón.', 'Técnicos de DSP2, DSP3, DSP4 y DSP5 dados de alta.', 'Nueva ventana de Perfiles: añadir técnicos por código (o varios a la vez), por zonas o copiándolos de otro perfil, y quitarlos con ×.'] },
   { v: '1.15.1', f: '2026-10-11', l: ['Extensión 1.1.0: corregido el bloqueo de Chrome/Edge que impedía sincronizar. Hay que volver a cargarla.', 'Si caduca la sesión de ATGO, la sincronización sigue sola al volver a iniciarla.'] },
   { v: '1.15.0', f: '2026-10-11', l: ['Progreso del día corregido: «en curso» y «terminada» solo cuentan si lo marca el técnico asignado, no el soporte remoto.', 'Tras guardar en ATGO la lista se actualiza enseguida, aunque coincida con una carga.', 'Aviso si la pestaña de ATGO tiene una sincronización antigua y hay que recargarla.', 'Arranque más rápido: el módulo de Excel se carga solo al importar o exportar.', 'Correcciones: Esc en una confirmación cancela, quitar datos refresca todo, notas y copiar ficha en tickets sin asignar.'] },
   { v: '1.14.0', f: '2026-10-11', l: ['Más estable: la actualización de ATGO ya no borra lo que estás escribiendo ni te mueve la página.', 'Errores de ATGO más claros (sesión caducada, sin respuesta) y aviso si un cambio se confirmó tarde.', 'Limpieza automática de lo guardado en el equipo para que nunca se llene.', 'Mismo selector de técnico y misma confirmación al asignar desde cualquier sitio.', 'La lista de técnicos que sincroniza ATGO sale de Despacho.', '«Quitar datos» pasa a ⚙ › Datos (con confirmación).'] },
@@ -43,28 +44,77 @@ function abrirNovedades() {
 }
 function marcarNovedades() { let v = null; try { v = localStorage.getItem(NOV_KEY); } catch (e) {} const d = document.getElementById('novDot'); if (d) d.hidden = v === APP_VERSION; }
 
-// ---- Perfiles ----
+// ---- Perfiles: ventana para gestionar los técnicos de cada DSP ----
 function guardarPerfiles() { try { localStorage.setItem(PERFIL_KEY, JSON.stringify(perfilCfg)); } catch (e) { toast('No se pudo guardar en este equipo'); } }
 // Al cambiar de perfil se reinicia la foto de seguimiento: así no salen como «nuevos» ni «salieron» los tickets del otro perfil
 function setPerfil(p) { if (p === PERFIL) return; perfilCfg.activo = p; guardarPerfiles(); lsSet(SNAP_KEY, { start: 0, items: {} }); location.reload(); }
-let perfilesCambiados = false;
-function togglePerfilTec(p, op, si) {
-  const l = perfilCfg.tecs[p]; const i = l.indexOf(op);
-  if (si && i < 0) l.push(op); if (!si && i >= 0) l.splice(i, 1);
-  guardarPerfiles(); perfilesCambiados = perfilesCambiados || p === PERFIL; renderCfg();
+let perfilesCambiados = false, perfSel = null, perfBusca = '';
+function perfCambio(p) { guardarPerfiles(); if (p === PERFIL) perfilesCambiados = true; renderPerfiles(); }
+// Nombre del técnico si aparece en alguna incidencia cargada ("APELLIDOS, NOMBRE" → "Nombre Apellidos")
+function nombresTecnicos() {
+  const m = {}; [...rows, ...poolRows].forEach(r => { const op = cleanInitials(r.operario); if (!m[op] && r.desOperario && !/^XXX/.test(op)) m[op] = nombreTecnico(r); });
+  return m;
 }
-function perfilTodos(p, si) { perfilCfg.tecs[p] = si ? TODOS_OPS.slice() : []; guardarPerfiles(); perfilesCambiados = perfilesCambiados || p === PERFIL; renderCfg(); }
-function perfilesHtml() {
-  return `<div class="cfg-t">Cada perfil ve solo sus técnicos (incidencias, planificación, sin asignar de sus zonas, avisos…). Un técnico puede estar en varios perfiles.</div>
-    <div class="seg mini perf-act">${PERFILES.map(p => `<button class="segb${p === PERFIL ? ' on' : ''}" onclick="setPerfil('${p}')" title="Usar este perfil en este equipo">${p} <small>${perfilCfg.tecs[p].length}</small></button>`).join('')}</div>
-    <div class="perf-tab"><table><thead><tr><th></th>${PERFILES.map(p => `<th${p === PERFIL ? ' class="on"' : ''}>${p}</th>`).join('')}</tr></thead><tbody>
-    ${ZONAS_BASE.map(z => `<tr class="pz"><td>${esc(z.nombre)}</td>${PERFILES.map(() => '<td></td>').join('')}</tr>` + z.ops.map(op => `<tr><td>${esc(op)}</td>${PERFILES.map(p => `<td><input type="checkbox" ${perfilCfg.tecs[p].includes(op) ? 'checked' : ''} onchange="togglePerfilTec('${p}','${op}',this.checked)" aria-label="${op} en ${p}"></td>`).join('')}</tr>`).join('')).join('')}
-    <tr class="pz"><td></td>${PERFILES.map(p => `<td><button class="chip sm" onclick="perfilTodos('${p}',${perfilCfg.tecs[p].length !== TODOS_OPS.length})">${perfilCfg.tecs[p].length === TODOS_OPS.length ? 'Ninguno' : 'Todos'}</button></td>`).join('')}</tr>
-    </tbody></table></div>
-    ${perfilesCambiados ? '<div class="acts"><button class="btn sm pri" onclick="lsSet(SNAP_KEY,{start:0,items:{}});location.reload()">Aplicar cambios (recarga)</button></div>' : ''}`;
+// Añade uno o varios códigos (separados por comas, espacios o saltos de línea), conocidos o nuevos
+function perfAnadir(p, texto) {
+  const l = perfilCfg.tecs[p], nuevos = String(texto || '').toUpperCase().split(/[\s,;]+/).map(s => s.replace(/[^A-Z0-9]/g, '')).filter(s => s.length >= 2 && s.length <= 12 && !/^XXX/.test(s));
+  const add = nuevos.filter(op => !l.includes(op)); if (!add.length) { toast(nuevos.length ? 'Ya estaban en ' + p : 'Escribe el código del técnico (p. ej. RUFB)'); return; }
+  l.push(...add); perfBusca = ''; perfCambio(p); toast(`${plural(add.length, 'técnico')} añadido${add.length === 1 ? '' : 's'} a ${p}`);
 }
-function updatePerfilBtn() { const b = document.getElementById('perfilBtn'); if (b) { b.textContent = PERFIL; b.title = `Perfil ${PERFIL}: ${plural(OPERARIOS.length, 'técnico')}. Pulsa para cambiar.`; } }
-function menuPerfil(ev) { cfgTab = 'perf'; const m = document.getElementById('cfgMenu'); if (m.hidden) toggleCfg(ev); else { renderCfg(); if (ev) ev.stopPropagation(); } }
+function perfQuitar(p, op) { perfilCfg.tecs[p] = perfilCfg.tecs[p].filter(x => x !== op); perfCambio(p); }
+function perfZona(p, nombre) { const z = ZONAS_BASE.find(x => x.nombre === nombre); if (z) perfAnadir(p, z.ops.join(' ')); }
+function perfCopiar(p, desde) { if (desde && perfilCfg.tecs[desde]) perfAnadir(p, perfilCfg.tecs[desde].join(' ')); }
+function perfTodos(p) { perfAnadir(p, TODOS_OPS.join(' ')); }
+async function perfVaciar(p) {
+  if (!await confirmar(`<b>¿Quitar todos los técnicos de ${esc(p)}?</b><p>El perfil se queda vacío. Los técnicos siguen en los demás perfiles.</p>`, 'Vaciar')) { abrirPerfiles(p); return; }
+  perfilCfg.tecs[p] = []; guardarPerfiles(); if (p === PERFIL) perfilesCambiados = true; abrirPerfiles(p);
+}
+function abrirPerfiles(p) {
+  perfSel = PERFILES.includes(p) ? p : perfSel || PERFIL;
+  const cfg = document.getElementById('cfgMenu'); if (cfg) cfg.hidden = true;
+  const m = document.getElementById('modal');
+  m.innerHTML = '<div class="md-box md-perf" id="perfBox"></div>';
+  m.hidden = false;
+  renderPerfiles();
+}
+function renderPerfiles() {
+  const box = document.getElementById('perfBox'); if (!box) return;
+  const p = perfSel, l = perfilCfg.tecs[p], nom = nombresTecnicos();
+  // Agrupados: zonas de Andalucía/Extremadura y, aparte, el resto por el perfil donde se dieron de alta
+  const grupos = ZONAS_BASE.map(z => ({ t: z.nombre, ops: z.ops.filter(op => l.includes(op)) })).filter(g => g.ops.length);
+  const otros = l.filter(op => !BASE_OPS.includes(op));
+  if (otros.length) grupos.push({ t: 'Otros técnicos', ops: otros });
+  const enOtros = op => PERFILES.filter(x => x !== p && perfilCfg.tecs[x].includes(op));
+  const chip = op => `<span class="pf-tec" title="${esc([nom[op], enOtros(op).length ? 'También en ' + enOtros(op).join(', ') : ''].filter(Boolean).join(' · '))}"><b>${esc(op)}</b>${nom[op] ? `<small>${esc(nom[op])}</small>` : ''}${enOtros(op).length ? `<i>${esc(enOtros(op).join(' '))}</i>` : ''}<button onclick="perfQuitar('${p}','${jsq(op)}')" aria-label="Quitar ${esc(op)}" title="Quitar de ${p}">×</button></span>`;
+  const sugeridos = TODOS_OPS.filter(op => !l.includes(op));
+  const zonasQuedan = ZONAS_BASE.filter(z => z.ops.some(op => !l.includes(op)));
+  box.innerHTML = `
+    <div class="dw-head"><div><div class="dw-num" style="color:var(--ink)">Perfiles y técnicos</div><div class="dw-sub">Cada perfil ve solo sus técnicos. Un técnico puede estar en varios. Se puede asignar a cualquiera desde cualquier perfil.</div></div>
+      <button class="iconbtn" onclick="cerrarModal()" aria-label="Cerrar">✕</button></div>
+    <div class="pf-grid">
+      <nav class="pf-lista">${PERFILES.map(x => `<button class="${x === p ? 'on' : ''}" onclick="perfSel='${x}';renderPerfiles()"><b>${x}</b><span>${plural(perfilCfg.tecs[x].length, 'técnico')}</span>${x === PERFIL ? '<em>en uso</em>' : ''}</button>`).join('')}</nav>
+      <section class="pf-det">
+        <div class="pf-cab"><h3>${p} <small>${plural(l.length, 'técnico')}</small></h3>
+          ${p === PERFIL ? '<span class="pf-uso">En uso en este equipo</span>' : `<button class="btn sm" onclick="setPerfil('${p}')">Usar este perfil</button>`}</div>
+        <div class="pf-add">
+          <input id="pfIn" list="pfLista" placeholder="Añadir técnicos: código o varios separados por comas (RUFB, GAS…)" value="${esc(perfBusca)}" oninput="perfBusca=this.value" onkeydown="if(event.key==='Enter')perfAnadir('${p}',this.value)">
+          <datalist id="pfLista">${sugeridos.map(op => `<option value="${esc(op)}">${esc(nom[op] || zonaDe(op))}</option>`).join('')}</datalist>
+          <button class="btn sm pri" onclick="perfAnadir('${p}',document.getElementById('pfIn').value)">Añadir</button>
+        </div>
+        <div class="pf-rapido">
+          ${zonasQuedan.length ? `<span>Añadir zona:</span>${zonasQuedan.map(z => `<button class="chip sm" onclick="perfZona('${p}','${jsq(z.nombre)}')">${esc(z.nombre)}</button>`).join('')}` : ''}
+          <select onchange="perfCopiar('${p}',this.value)"><option value="">Copiar técnicos de…</option>${PERFILES.filter(x => x !== p && perfilCfg.tecs[x].length).map(x => `<option value="${x}">${x} (${perfilCfg.tecs[x].length})</option>`).join('')}</select>
+          ${sugeridos.length ? `<button class="chip sm" onclick="perfTodos('${p}')" title="Añade todos los técnicos de todos los perfiles">Todos</button>` : ''}
+          ${l.length ? `<button class="chip sm pf-vaciar" onclick="perfVaciar('${p}')">Vaciar</button>` : ''}
+        </div>
+        <div class="pf-tecs">${grupos.length ? grupos.map(g => `<div class="pf-g"><div class="pf-gt">${esc(g.t)} <small>${g.ops.length}</small></div><div class="pf-chips">${g.ops.map(chip).join('')}</div></div>`).join('') : '<div class="dempty">Sin técnicos. Añádelos arriba escribiendo su código, por zonas o copiándolos de otro perfil.</div>'}</div>
+      </section>
+    </div>
+    ${perfilesCambiados ? `<div class="pf-aplicar"><span>Has cambiado los técnicos del perfil en uso (${PERFIL}).</span><button class="btn sm pri" onclick="lsSet(SNAP_KEY,{start:0,items:{}});location.reload()">Aplicar cambios (recarga)</button></div>` : ''}`;
+  const i = document.getElementById('pfIn'); if (i && perfBusca) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); }
+}
+function updatePerfilBtn() { const b = document.getElementById('perfilBtn'); if (b) { b.textContent = PERFIL; b.title = `Perfil ${PERFIL}: ${plural(OPERARIOS.length, 'técnico')}. Pulsa para gestionar los perfiles.`; } }
+function menuPerfil(ev) { if (ev) ev.stopPropagation(); abrirPerfiles(PERFIL); }
 
 // ---- Apariencia ----
 function aplicarApariencia() {
@@ -108,7 +158,7 @@ function renderCfg() {
       : perm === 'denied' ? '<div class="cfg-t">Windows tiene bloqueados los avisos de esta app. Actívalos en el candado de la barra de direcciones → Notificaciones.</div>'
       : `<div class="cfg-t">Te avisa aunque estés en otra ventana. Necesita la pestaña de ATGO abierta.</div><button class="btn sm pri" onclick="activarAvisos()">Activar avisos</button>`}`;
   } else if (cfgTab === 'perf') {
-    h = `<div class="cfg-h">Perfiles · ahora ${esc(PERFIL)}</div>${perfilesHtml()}`;
+    h = `<div class="cfg-h">Perfiles · ahora ${esc(PERFIL)}</div><div class="acts"><button class="btn sm pri" onclick="abrirPerfiles()">Gestionar perfiles y técnicos</button></div>`;
   } else if (cfgTab === 'wa') {
     h = `<div class="cfg-h">Plantillas de WhatsApp (desde la ficha › Actuar)</div>
       <div class="cfg-t">Campos: {nombre} {num} {sede} {fecha} {hora} {cliente} {direccion}</div>
@@ -130,7 +180,7 @@ function renderCfg() {
       <div class="cfg-t">Versión ${esc(APP_VERSION)} · ${plural(diagLista().length, 'error')} registrado${diagLista().length === 1 ? '' : 's'}.</div>
       <div class="acts"><button class="btn sm" onclick="copiarDiagnostico()">Copiar diagnóstico</button>${diagLista().length ? '<button class="btn sm ghost" onclick="lsSet(DIAG_KEY,[]);renderCfg()">Vaciar</button>' : ''}</div>`;
   }
-  m.innerHTML = `<div class="cfg-tabs">${tabs.map(([t, l]) => `<button class="${cfgTab === t ? 'on' : ''}" onclick="event.stopPropagation();cfgTab='${t}';renderCfg()">${l}</button>`).join('')}</div><div class="cfg-body">${h}</div>`;
+  m.innerHTML = `<div class="cfg-tabs">${tabs.map(([t, l]) => `<button class="${cfgTab === t ? 'on' : ''}" onclick="event.stopPropagation();${t === 'perf' ? 'abrirPerfiles()' : `cfgTab='${t}';renderCfg()`}">${l}</button>`).join('')}</div><div class="cfg-body">${h}</div>`;
 }
 document.addEventListener('click', e => { const m = document.getElementById('cfgMenu'); if (m && !m.hidden && !m.contains(e.target) && e.target.id !== 'cfgBtn' && e.target.id !== 'perfilBtn' && document.body.contains(e.target)) m.hidden = true; });
 

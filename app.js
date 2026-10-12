@@ -15,21 +15,41 @@ const ZONAS_BASE = [
   { nombre:'EXTREMADURA',    ops:['MLOR'] }
 ];
 // Perfiles: cada dispatcher (DSP1…DSP5) y el coordinador (COORD) ven solo sus técnicos.
-// DSP1 (el perfil de siempre) empieza con todos; el resto se rellena en ⚙ › Perfiles.
+// DSP1 (el perfil de siempre) empieza con los de Andalucía/Extremadura; DSP2–DSP5 con su lista inicial (PERFIL_INICIAL).
+// Se gestionan en la ventana de Perfiles (ajustes.js). Un técnico puede estar en varios perfiles.
 const PERFILES = ['DSP1','DSP2','DSP3','DSP4','DSP5','COORD'];
 const PERFIL_KEY = 'dispatcher_perfiles_v1';
-const TODOS_OPS = ZONAS_BASE.flatMap(z => z.ops);
+const BASE_OPS = ZONAS_BASE.flatMap(z => z.ops);
+const PERFIL_INICIAL = {
+  DSP2: ['RUFB','GAS','JLAR','DOB','FMDT','AHC','EMPC','JPV','JHT','MRME','JMLZ','JGIM','ALA','AGR','JJCH','OALC'],
+  DSP3: ['ADGG','AGUR','JCY','ASAR','ALV','IRP','JMIO','LOM','JICN','ANAR'],
+  DSP4: ['JCCT','MREE','AGOR','JLMG','CVA','ZETA','JRAM','JMPL','JSF','PRG','CMDF','MACR','LABEL','ABEC','CBUP','OAM','JRMO','JAIS'],
+  DSP5: ['GOMILA','FASG','JMV','TIKKA','TICASGEST']
+};
 let perfilCfg = (() => {
   let c = null; try{ c = JSON.parse(localStorage.getItem(PERFIL_KEY) || 'null'); }catch(e){}
   if (!c || !c.tecs) c = { activo:'DSP1', tecs:{} };
-  PERFILES.forEach(p => { if (!Array.isArray(c.tecs[p])) c.tecs[p] = p === 'DSP1' ? TODOS_OPS.slice() : []; });
+  PERFILES.forEach(p => { if (!Array.isArray(c.tecs[p])) c.tecs[p] = p === 'DSP1' ? BASE_OPS.slice() : []; });
   // Técnicos nuevos en ZONAS_BASE que aún no están en ningún perfil: van a DSP1
-  TODOS_OPS.forEach(op => { if (!PERFILES.some(p => c.tecs[p].includes(op))) c.tecs.DSP1.push(op); });
+  BASE_OPS.forEach(op => { if (!PERFILES.some(p => c.tecs[p].includes(op))) c.tecs.DSP1.push(op); });
+  // Listas iniciales de DSP2–DSP5 (una sola vez: después mandan los cambios que hagas en Perfiles)
+  if (!c.inicial1){ Object.entries(PERFIL_INICIAL).forEach(([p, l]) => l.forEach(op => { if (!c.tecs[p].includes(op)) c.tecs[p].push(op); })); c.inicial1 = true; try{ localStorage.setItem(PERFIL_KEY, JSON.stringify(c)); }catch(e){} }
   if (!PERFILES.includes(c.activo)) c.activo = 'DSP1';
   return c;
 })();
 const PERFIL = perfilCfg.activo;
-const ZONAS = ZONAS_BASE.map(z => ({ ...z, ops: z.ops.filter(op => perfilCfg.tecs[PERFIL].includes(op)) })).filter(z => z.ops.length);
+// Todos los técnicos conocidos (de cualquier perfil): se puede asignar a cualquiera desde cualquier perfil
+const TODOS_OPS = [...new Set([...BASE_OPS, ...PERFILES.flatMap(p => perfilCfg.tecs[p])])];
+// Perfil "dueño" de un técnico que no está en ZONAS_BASE (para agruparlo): el primer DSP que lo tiene
+function perfilDeOp(op){ return PERFILES.filter(p => p !== 'COORD').find(p => perfilCfg.tecs[p].includes(op)) || 'OTROS'; }
+// Zonas del perfil activo: las de ZONAS_BASE con sus técnicos y, para los demás, un grupo por perfil (p. ej. "DSP2")
+const ZONAS = (() => {
+  const mios = perfilCfg.tecs[PERFIL];
+  const base = ZONAS_BASE.map(z => ({ ...z, ops: z.ops.filter(op => mios.includes(op)) })).filter(z => z.ops.length);
+  const extra = {};
+  mios.filter(op => !BASE_OPS.includes(op)).forEach(op => { const g = perfilDeOp(op); (extra[g] = extra[g] || []).push(op); });
+  return [...base, ...Object.entries(extra).map(([nombre, ops]) => ({ nombre, ops, extra: true }))];
+})();
 function zonaOps(nombre){ const z = ZONAS_BASE.find(x => x.nombre === nombre); return z ? [...z.ops, ...(z.apoyo || [])] : []; }
 const ZONAS_TEC = ZONAS.filter(z => !z.dispatcher);
 const TECNICOS = ZONAS_TEC.flatMap(z => z.ops);
@@ -180,7 +200,7 @@ function loadData(dataRows, filename){
 
 // ===== Zonas =====
 let zonaSel = null;   // nombre de zona o null = todas (compartido por Incidencias y Mañana)
-function zonaDe(op){ const i = cleanInitials(op); const z = ZONAS.find(z => z.ops.includes(i)) || ZONAS_BASE.find(z => z.ops.includes(i)); return z ? z.nombre : 'SIN ZONA'; }
+function zonaDe(op){ const i = cleanInitials(op); const z = ZONAS.find(z => z.ops.includes(i)) || ZONAS_BASE.find(z => z.ops.includes(i)); return z ? z.nombre : TODOS_OPS.includes(i) ? perfilDeOp(i) : 'SIN ZONA'; }
 function opIndex(op){ const i = OPERARIOS.indexOf(cleanInitials(op)); return i === -1 ? 999 : i; }
 function enZona(r){ return !zonaSel || zonaDe(r.operario) === zonaSel; }
 // Agrupa filas por zona (en el orden de ZONAS) y, dentro, por técnico.
@@ -311,7 +331,7 @@ window.addEventListener('message', (e) => {
 });
 // Versión de la sincronización que espera esta app. Si la pestaña de ATGO trae otra (la cargó antes de una
 // actualización), se avisa de que hay que recargarla. Debe coincidir con SYNC_VERSION de atgo-sync.js.
-const SYNC_VERSION = '1.15.1';
+const SYNC_VERSION = '1.16.0';
 let syncVieja = false;
 // La lista de técnicos que sincroniza la pestaña de ATGO sale de aquí (ZONAS_BASE): así no puede quedar desfasada.
 // atgo-sync.js mantiene su propia lista solo como respaldo si esta no llega.
@@ -319,7 +339,8 @@ let atgoConfigurada = null;
 function configurarAtgo(src){
   if (!src || atgoConfigurada === src) return;
   atgoConfigurada = src;
-  try{ src.postMessage({ type:'despacho-config', operarios: TODOS_OPS }, ATGO_ORIGIN); }catch(e){}
+  // operarios: los que se sincronizan (los del perfil activo). permitidos: a quién se puede asignar (todos los perfiles)
+  try{ src.postMessage({ type:'despacho-config', operarios: OPERARIOS, permitidos: TODOS_OPS }, ATGO_ORIGIN); }catch(e){}
 }
 // Si esta ventana la abrió ATGO (con el marcador), avisamos de que estamos listos.
 if (window.opener){ try{ window.opener.postMessage({type:'despacho-ready'}, ATGO_ORIGIN); }catch(e){} }

@@ -21,7 +21,7 @@
   const TIMEOUT_MS = 120000;
   // Versión de este script: Despacho la compara con la suya (SYNC_VERSION en app.js) y avisa si esta pestaña
   // sigue con una versión antigua (hay que recargarla). Súbela cuando cambie este archivo.
-  const SYNC_VERSION = '1.15.1';
+  const SYNC_VERSION = '1.16.0';
 
   if (location.hostname !== 'atgo.tier1.es') { alert('Abre primero https://atgo.tier1.es e inicia sesión.'); return; }
 
@@ -39,6 +39,7 @@
   let timer = null;
   let stopped = false;
   let otraVez = false;   // se pidió actualizar mientras había una carga en marcha: se repite al acabar
+  let permitidos = [];   // técnicos de todos los perfiles de Despacho (se puede asignar a cualquiera de ellos)
   let gen = 0;           // cada carga tiene su número; si una falla, sus consultas pendientes se abandonan
 
   // ===== Indicador flotante dentro de ATGO =====
@@ -86,8 +87,11 @@
     } else if (e.data.type === 'despacho-refresh') {
       refreshNow();
     } else if (e.data.type === 'despacho-config' && Array.isArray(e.data.operarios)) {
-      const l = [...new Set(e.data.operarios.map(x => String(x).trim().toUpperCase()).filter(x => /^[A-Z0-9]{2,8}$/.test(x)))];
-      if (l.length && l.length <= 80 && l.slice().sort().join() !== OPERARIOS.slice().sort().join()) { OPERARIOS = l; refreshNow(); }
+      // operarios: los que se sincronizan (perfil activo). permitidos: a quién se puede asignar (técnicos de todos los perfiles)
+      const limpia = a => [...new Set((Array.isArray(a) ? a : []).map(x => String(x).trim().toUpperCase()).filter(x => /^[A-Z0-9]{2,12}$/.test(x)))];
+      const l = limpia(e.data.operarios), p = limpia(e.data.permitidos);
+      if (p.length && p.length <= 400) permitidos = p;
+      if (l.length && l.length <= 200 && l.slice().sort().join() !== OPERARIOS.slice().sort().join()) { OPERARIOS = l; refreshNow(); }
     } else if (e.data.type === 'despacho-hilo' && Array.isArray(e.data.keys)) {
       enviarHilos(e.data.keys, e.source);
     } else if (e.data.type === 'despacho-editar' && e.data.id) {
@@ -339,7 +343,7 @@
         // Fase 2: técnico y fecha/hora de visita. ATGO guarda la ficha completa, así que se reenvía tal cual
         // está (leída justo antes) cambiando solo esos campos, y después se comprueba campo a campo.
         const camb = {};
-        if (m.codOpe != null) { const op = String(m.codOpe).trim().toUpperCase(); if (!OPERARIOS.includes(op) && !(poolOps && poolOps[op])) throw new Error('técnico no válido'); camb.codOpe = op; }
+        if (m.codOpe != null) { const op = String(m.codOpe).trim().toUpperCase(); if (!OPERARIOS.includes(op) && !permitidos.includes(op) && !(poolOps && poolOps[op])) throw new Error('técnico no válido'); camb.codOpe = op; }
         if (m.fechaVisita != null) { if (!/^\d{4}-\d{2}-\d{2}$/.test(m.fechaVisita)) throw new Error('fecha no válida'); camb.fechaVisita = m.fechaVisita; }
         for (const [k, n] of [['horaInicioVisita', 'horaInicio'], ['horaFinVisita', 'horaFin']]) {
           if (m[n] != null) { if (m[n] !== '' && !/^\d{2}:\d{2}$/.test(m[n])) throw new Error('hora no válida'); camb[k] = m[n] || null; }

@@ -28,7 +28,10 @@ Publicada en GitHub Pages: https://angriogon.github.io/VISOR-INCIDENCIAS/
   Cada ticket se identifica con `tkey(r)`.
 - **Perfiles:** `ZONAS_BASE` (todas las zonas, con `apoyo`) → `ZONAS` = solo los técnicos del perfil activo
   (`PERFIL`, `perfilCfg` en `dispatcher_perfiles_v1`). `OPERARIOS`/`TECNICOS` salen de `ZONAS`; para la lista
-  completa usa `TODOS_OPS` o `ZONAS_BASE`, y `zonaOps(zona)` para los técnicos que pueden atender una zona.
+  completa usa `TODOS_OPS` (todos los perfiles) o `BASE_OPS`/`ZONAS_BASE` (Andalucía/Extremadura), y `zonaOps(zona)` para los técnicos
+  que pueden atender una zona. Los técnicos fuera de ZONAS_BASE se agrupan en una zona con el nombre de su perfil (`perfilDeOp`).
+  Selector de técnico único: `opcionesTecnico` (panel.js). Ventana de perfiles: `abrirPerfiles` (ajustes.js).
+  A atgo-sync se manda `operarios` (perfil activo, lo que se sincroniza) y `permitidos` (todos, a quién se puede asignar).
 - **Persistencia:** `localStorage` con claves `dispatcher_<nombre>_v1`, siempre vía `lsGet`/`lsSet` (dia.js).
   Si añades datos nuevos, inclúyelos en `exportBackup`/`restoreBackup` (dia.js).
   El handle de OneDrive va en IndexedDB (`IDB`, herramientas.js).

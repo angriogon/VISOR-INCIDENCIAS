@@ -112,15 +112,43 @@ function recomendar(r, fecha) {
 let sinElec = {};
 function sinSet(k, campo, v) {
   const e = sinElec[k] = sinElec[k] || {};
-  e[campo] = v; if (campo !== 'on') e.on = true;   // elegir técnico o fecha marca la fila
-  const ck = document.getElementById('sa-ck-' + k); if (ck) ck.checked = !!e.on;
+  e[campo] = v;
+  // Elegir técnico o fecha marca la fila, siempre que tenga técnico
+  if (campo !== 'on') { const sel = document.getElementById('sa-op-' + k); e.on = !!(e.op || (sel && sel.value)); }
+  const ck = document.getElementById('sa-ck-' + k); if (ck) { ck.checked = !!e.on; const row = ck.closest('.sa-row'); if (row) row.classList.toggle('marcada', !!e.on); }
   renderSinBarra();
 }
-function sinAsignables() { return sinVista === 'pend' ? (sinFiltro === 'mia' ? sinListas().mias : sinListas().pend).filter(esMiZonaPool) : []; }
+// Todas las de la lista visible se pueden asignar, de cualquier zona y a cualquier técnico de cualquier perfil
+function sinAsignables() { const L = sinListas(); return sinVista === 'buzon' ? L.buzon : sinFiltro === 'mia' ? L.mias : L.pend; }
 function sinMarcadas() { return sinAsignables().filter(r => sinElec[tkey(r)] && sinElec[tkey(r)].on); }
 function sinMarcarTodas(si) {
-  sinAsignables().forEach(r => { const k = tkey(r); sinElec[k] = { ...(sinElec[k] || {}), on: si }; });
+  let sinTec = 0;
+  sinAsignables().forEach(r => {
+    const k = tkey(r), sel = document.getElementById('sa-op-' + k), op = (sinElec[k] || {}).op || (sel && sel.value);
+    if (si && !op) { sinTec++; return; }   // sin técnico elegido (zona sin recomendación): no se marca
+    sinElec[k] = { ...(sinElec[k] || {}), on: si };
+  });
   renderSin();
+  if (sinTec) toast(`${plural(sinTec, 'incidencia')} sin marcar: elige su técnico primero`);
+}
+// Opciones del selector de técnico (igual en Sin asignar y en la ficha). Se puede elegir a cualquiera:
+// recomendados de su zona primero (★ el mejor), después tus técnicos y, en grupos, los de los demás perfiles.
+function opcionesTecnico(rec, elegido, vacia) {
+  rec = rec || [];
+  const recOp = Object.fromEntries(rec.map((x, i) => [x.op, { ...x, i }]));
+  const lab = op => { const x = recOp[op]; return x ? `${x.i === 0 ? '★ ' : ''}${op} · ${x.sede ? 'ya va a la sede' : x.carga ? plural(x.carga, 'visita') : 'libre'}${x.apoyo ? ' · apoyo' : ''}` : op; };
+  const vistos = new Set();
+  const grupo = (titulo, ops) => {
+    const l = ops.filter(op => !vistos.has(op)); l.forEach(op => vistos.add(op));
+    const o = l.map(op => `<option value="${esc(op)}"${op === elegido ? ' selected' : ''}>${esc(lab(op))}</option>`).join('');
+    return !l.length ? '' : titulo ? `<optgroup label="${esc(titulo)}">${o}</optgroup>` : o;
+  };
+  let h = vacia ? `<option value=""${elegido ? '' : ' selected'}>${esc(typeof vacia === 'string' ? vacia : 'Elige técnico…')}</option>` : '';
+  h += grupo(rec.length ? 'Recomendados de su zona' : '', rec.map(x => x.op));
+  h += grupo(`Mis técnicos (${PERFIL})`, [...dispatcherOps(), ...TECNICOS]);
+  PERFILES.filter(p => p !== PERFIL && p !== 'COORD').forEach(p => { h += grupo('Técnicos de ' + p, perfilCfg.tecs[p]); });
+  h += grupo('Otros', TODOS_OPS);
+  return h;
 }
 function renderSinBarra() {
   const b = document.getElementById('saBarra'); if (!b) return;
@@ -142,18 +170,18 @@ async function asignarMarcadas() {
 function sinFila(r, enBuzon) {
   const k = tkey(r), mia = esMiZonaPool(r), mot = motivoTexto(k), act = actualizado(r);
   const hoy = new Date(); hoy.setHours(12, 0, 0, 0);
-  const rec = mia && !enBuzon ? recomendar(r, hoy) : null;
+  const rec = recomendar(r, hoy) || [];   // zona conocida: recomendados primero; si no, "Elige técnico…"
   const lugar = [r.poblacion, r.provincia].filter(Boolean).join(', ') || r.domicilio || '';
   const e = sinElec[k] || {};
   return `<div class="sa-row${mia ? '' : ' otra'}${e.on && rec ? ' marcada' : ''}" data-key="${esc(k)}" title="${esc(mot || '')}">
-    <span class="sa-num">${rec && rec.length ? `<input type="checkbox" class="sa-ck" id="sa-ck-${esc(k)}" ${e.on ? 'checked' : ''} onchange="sinSet('${jsq(k)}','on',this.checked);this.closest('.sa-row').classList.toggle('marcada',this.checked)" aria-label="Marcar para asignar">` : ''}${numHtml(r)}</span>
+    <span class="sa-num"><input type="checkbox" class="sa-ck" id="sa-ck-${esc(k)}" ${e.on ? 'checked' : ''} onchange="if(this.checked&&!document.getElementById('sa-op-${jsq(k)}').value){this.checked=false;toast('Elige primero el técnico');return}sinSet('${jsq(k)}','on',this.checked);this.closest('.sa-row').classList.toggle('marcada',this.checked)" aria-label="Marcar para asignar">${numHtml(r)}</span>
     <span class="sa-zona${mia ? ' mia' : ''}">${esc(zonaPool(r))}</span>
     <span class="sa-tx"><b>${esc(r.descSede || '—')}</b> · ${esc(r.descCliente || '')} · ${esc(lugar)}${mot ? ` · <i>${esc(mot.slice(0, 90))}</i>` : ''}</span>
     <span class="sa-badges">${cadBadge(r)}${reincBadge(r)}</span>
     <span class="sa-act">${act ? esc(cuando(act)) : ''}</span>
-    <span class="sa-acc">${rec && rec.length ? `${sedeAvisoHtml(r)}<select id="sa-op-${esc(k)}" onchange="sinSet('${jsq(k)}','op',this.value);this.closest('.sa-row').classList.add('marcada')" title="Técnicos de la zona: el primero es el recomendado (misma sede o menos visitas hoy)">${rec.map((x, i) => `<option value="${esc(x.op)}"${e.op === x.op ? ' selected' : ''}>${i === 0 ? '★ ' : ''}${esc(x.op)} · ${x.sede ? 'ya va a la sede' : x.carga ? x.carga + ' hoy' : 'libre'}${x.apoyo ? ' · apoyo' : ''}</option>`).join('')}</select>
-      <input type="date" id="sa-f-${esc(k)}" value="${esc(e.f || '')}" onchange="sinSet('${jsq(k)}','f',this.value);this.closest('.sa-row').classList.add('marcada')" title="Fecha de visita (opcional)">
-      <button class="btn sm pri" onclick="asignarSin('${jsq(k)}')">Asignar</button>` : ''}
+    <span class="sa-acc">${sedeAvisoHtml(r)}<select id="sa-op-${esc(k)}" onchange="sinSet('${jsq(k)}','op',this.value)" title="Cualquier técnico de cualquier perfil. Primero los recomendados de su zona (misma sede o menos visitas hoy)">${opcionesTecnico(rec, e.op || '', !rec.length)}</select>
+      <input type="date" id="sa-f-${esc(k)}" value="${esc(e.f || '')}" onchange="sinSet('${jsq(k)}','f',this.value)" title="Fecha de visita (opcional)">
+      <button class="btn sm pri" onclick="asignarSin('${jsq(k)}')">Asignar</button>
       <button class="iconbtn sm" onclick="archivar('${jsq(k)}', ${enBuzon ? 'false' : 'true'})" title="${enBuzon ? 'Recuperar a pendientes' : 'Archivar en el buzón'}" aria-label="${enBuzon ? 'Recuperar' : 'Archivar'}">${enBuzon ? '↩' : '⤓'}</button></span>
   </div>`;
 }
@@ -177,6 +205,7 @@ async function asignarSin(key) {
   const r = ticketDe(key); if (!r) return;
   // Misma confirmación y guardado que la asignación masiva (una sola pieza para todo)
   const op = document.getElementById('sa-op-' + key).value, fEl = document.getElementById('sa-f-' + key), f = fEl ? fEl.value : '';
+  if (!op) { toast('Elige el técnico'); return; }
   const res = await asignarLote([{ key, codOpe: op, ...(f ? { fechaVisita: f } : {}) }], 'Asignar en ATGO');
   if (res && res.okKeys.length) quitarDeSinAsignar(res.okKeys);
 }

@@ -180,20 +180,18 @@ function difHtml(dif) {
 }
 function asignarHtml(key, r, pend) {
   if (!fase2Activa(key)) return '';
-  // Mismo orden y etiquetas que en Sin asignar: los de su zona (y apoyo) por recomendación (★ el primero),
-  // después el resto de tus técnicos y, aparte, los de otros perfiles
-  const rec = recomendar(r, nextWorkday()) || [], recOp = Object.fromEntries(rec.map((x, i) => [x.op, { ...x, i }]));
-  const mios = [...new Set([...rec.map(x => x.op), ...dispatcherOps(), ...TECNICOS])];
-  const otros = TODOS_OPS.filter(op => !mios.includes(op));
+  // Mismo selector que en Sin asignar (opcionesTecnico, panel.js): cualquier técnico de cualquier perfil,
+  // con los recomendados de su zona primero. Si el actual es un comodín "PENDIENTE ASIGNAR", sale como primera opción.
+  const rec = recomendar(r, nextWorkday()) || [];
   const actual = cleanInitials(r.operario);
-  const opt = op => { const x = recOp[op]; return `<option value="${esc(op)}"${op === actual ? ' selected' : ''}>${x && x.i === 0 ? '★ ' : ''}${esc(op)} · ${x ? (x.sede ? 'ya va a la sede' : x.carga ? x.carga + ' el próx. laborable' : 'libre') + (x.apoyo ? ' · apoyo' : '') : esc(zonaDe(op))}</option>`; };
+  const opciones = opcionesTecnico(rec, actual, TODOS_OPS.includes(actual) ? false : `Sin técnico (${actual || '—'})`);
   const ult = edicionesDe(key).find(e => e.accion === 'asignar');
   const sug = sugerirTecnico(r, nextWorkday()), best = sug && sug.lista[0] && sug.lista[0].op !== actual ? sug.lista[0].op : '';
   return `<div class="ed-asig">
     <div class="dw-h" style="margin-top:6px">Planificar en ATGO ${key === FASE2_PRUEBA && tecCfg.fase2 === 'prueba' ? '<small>en prueba: solo este ticket</small>' : ''}</div>
     ${best && !pend ? `<div class="acts"><button class="btn sm pri" onclick="preAsignar('${jsq(best)}');asignarAtgo()" title="Técnico recomendado: ${esc(sug.lista[0].sede ? 'ya tiene otra incidencia en esta sede' : 'menos carga el próximo laborable')}">Asignar a ★ ${esc(best)}</button>${sedeAvisoHtml(r, actual)}</div>` : sedeAvisoHtml(r, actual)}
     <div class="ed-grid">
-      <label>Técnico<select id="asOp"${pend ? ' disabled' : ''} onchange="const a=document.getElementById('asSede');if(a)a.innerHTML=sedeAvisoHtml(ticketDe(fichaKey),this.value)">${mios.map(opt).join('')}${otros.length ? `<optgroup label="Otros técnicos">${otros.map(opt).join('')}</optgroup>` : ''}</select><span id="asSede"></span></label>
+      <label>Técnico<select id="asOp"${pend ? ' disabled' : ''} onchange="const a=document.getElementById('asSede');if(a)a.innerHTML=sedeAvisoHtml(ticketDe(fichaKey),this.value)">${opciones}</select><span id="asSede"></span></label>
       <label>Fecha de visita <i>(opcional)</i><input type="date" id="asFecha" value="${esc(fechaIsoDe(r))}"${pend ? ' disabled' : ''}></label>
       <label>Desde <i>(opcional)</i><input type="time" id="asH1" value="${esc(r.desdeHora || '')}"${pend ? ' disabled' : ''}></label>
       <label>Hasta <i>(opcional)</i><input type="time" id="asH2" value="${esc(r.hastaHora || '')}"${pend ? ' disabled' : ''}></label>
