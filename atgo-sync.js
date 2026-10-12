@@ -23,7 +23,7 @@
   const TIMEOUT_MS = 120000;
   // Versión de este script: Despacho la compara con la suya (SYNC_VERSION en app.js) y avisa si esta pestaña
   // sigue con una versión antigua (hay que recargarla). Súbela cuando cambie este archivo.
-  const SYNC_VERSION = '1.17.1';
+  const SYNC_VERSION = '1.20.0';
 
   if (location.hostname !== 'atgo.tier1.es') { alert('Abre primero https://atgo.tier1.es e inicia sesión.'); return; }
 
@@ -200,7 +200,8 @@
       hastaHora: t.horaFinVisita || '',
       fRegistro: hhmm(t.fechaRegistro),
       fRegistroISO: t.fechaRegistro || '',
-      email: t.email || '',
+      email: t.email && t.email !== 'NULL' ? t.email : '',
+      telefono: t.telefono && t.telefono !== 'NULL' ? String(t.telefono) : '',
       poblacion: t.poblacion && t.poblacion !== 'NULL' ? t.poblacion : '',
       provincia: t.provincia && t.provincia !== 'NULL' ? t.provincia : '',
       descSede: t.sedeDescripcion || '',

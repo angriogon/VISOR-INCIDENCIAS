@@ -3,8 +3,9 @@
 // asistente de inicio, diagnóstico, resumen matinal, aviso de técnico sin actividad y exportar a Excel.
 // Usa utilidades de app.js, dia.js, herramientas.js, edicion.js y panel.js solo en tiempo de llamada.
 
-const APP_VERSION = '1.19.0';   // súbela a la vez que VERSION en sw.js
+const APP_VERSION = '1.20.0';   // súbela a la vez que VERSION en sw.js
 const NOVEDADES = [
+  { v: '1.20.0', f: '2026-10-12', l: ['Festivos: los nacionales ya cuentan (próximo laborable, Planificación, avisos) y puedes añadir los de cada zona en ⚙ › Festivos.', 'Planificación › detalle de un técnico y día › «Rellenar el día»: propone sus incidencias sin fecha, vencidas y las sin asignar de su zona.', 'Ficha: teléfono y correo del contacto, material con su último comentario y seguimiento GLS, e historial de la sede.', 'Limpieza de estilos sin uso.'] },
   { v: '1.19.0', f: '2026-10-12', l: ['«Mis cambios» en Mi día: todo lo que has hecho hoy (o en 7 días) en ATGO desde Despacho, con su resultado.', 'Aviso de visitas de hoy sin cerrar a las 19:00 (configurable) y «Recordar» por WhatsApp a cada técnico.', 'Sin asignar: las de tu zona con más de 4 h sin técnico se marcan ⏰ y avisan (configurable).', 'Correcciones de la revisión: arranque con COORD o abriendo directamente otra pestaña, perfiles al restaurar copias, Sin asignar más ligero.'] },
   { v: '1.18.0', f: '2026-10-12', l: ['Filtro por DSP (Todos · DSP1…DSP5) en Planificación, el día y Sin asignar, igual que en Incidencias, cuando el perfil tiene varios DSP (COORD).', 'Sin asignar ordenado por urgencia: primero las que caducan antes y, después, las más antiguas.', 'Actualización silenciosa: las versiones nuevas se instalan solas cuando no estás haciendo nada.'] },
   { v: '1.17.2', f: '2026-10-12', l: ['Corregido: al actualizar, Despacho podía quedarse con archivos de la versión anterior (y avisar de recargar ATGO sin motivo).', 'El aviso de versión dice quién está desactualizado y «Actualizar Despacho» lo arregla en un clic.'] },
@@ -209,7 +210,7 @@ function toggleCfg(ev) {
 }
 function renderCfg() {
   const m = document.getElementById('cfgMenu'); if (!m || m.hidden) return;
-  const tabs = [['gen', 'General'], ['avi', 'Avisos'], ['perf', 'Perfiles'], ['wa', 'WhatsApp'], ['dat', 'Datos']];
+  const tabs = [['gen', 'General'], ['avi', 'Avisos'], ['perf', 'Perfiles'], ['fes', 'Festivos'], ['wa', 'WhatsApp'], ['dat', 'Datos']];
   let h = '';
   if (cfgTab === 'gen') {
     h = `<div class="cfg-h">Conexión</div>
@@ -238,6 +239,14 @@ function renderCfg() {
       : `<div class="cfg-t">Te avisa aunque estés en otra ventana. Necesita la pestaña de ATGO abierta.</div><button class="btn sm pri" onclick="activarAvisos()">Activar avisos</button>`}`;
   } else if (cfgTab === 'perf') {
     h = `<div class="cfg-h">Perfiles · ahora ${esc(PERFIL)}</div><div class="acts"><button class="btn sm pri" onclick="abrirPerfiles()">Gestionar perfiles y técnicos</button></div>`;
+  } else if (cfgTab === 'fes') {
+    const y = new Date().getFullYear(), hoy = isoHoy();
+    const prox = [...festivosNacionales(y), ...festivosNacionales(y + 1)].filter(x => x[0] >= hoy).slice(0, 4);
+    const loc = (tecCfg.festivos || []).slice().sort((a, b) => a.f < b.f ? -1 : 1);
+    h = `<div class="cfg-h">Festivos</div>
+      <div class="cfg-t">Los nacionales ya están (próximos: ${esc(prox.map(x => x[1] + ' ' + x[0].slice(8) + '/' + x[0].slice(5, 7)).join(', '))}). Añade los autonómicos y locales: los de todas las zonas cuentan para el «próximo laborable»; los de una zona marcan sus casillas en Planificación.</div>
+      <div class="fes-add"><input type="date" id="fesF"><select id="fesZ"><option value="">Todas las zonas</option>${ZONAS_BASE.filter(z => !z.dispatcher).map(z => `<option>${esc(z.nombre)}</option>`).join('')}</select><input id="fesN" placeholder="Nombre (opcional)"><button class="btn sm pri" onclick="event.stopPropagation();anadirFestivo()">Añadir</button></div>
+      ${loc.length ? `<ul class="fes-l">${loc.map(x => `<li${x.f < hoy ? ' class="pasado"' : ''}><span class="mono">${esc(x.f.split('-').reverse().join('/'))}</span><b>${esc(x.n || 'Festivo')}</b><small>${esc(x.z || 'Todas las zonas')}</small><button class="iconbtn sm" onclick="event.stopPropagation();quitarFestivo('${x.f}','${jsq(x.z || '')}')" aria-label="Quitar">×</button></li>`).join('')}</ul>` : '<div class="cfg-t">Aún no has añadido festivos locales.</div>'}`;
   } else if (cfgTab === 'wa') {
     h = `<div class="cfg-h">Plantillas de WhatsApp (desde la ficha › Actuar)</div>
       <div class="cfg-t">Campos: {nombre} {num} {sede} {fecha} {hora} {cliente} {direccion}</div>
@@ -263,6 +272,16 @@ function renderCfg() {
   m.innerHTML = `<div class="cfg-tabs">${tabs.map(([t, l]) => `<button class="${cfgTab === t ? 'on' : ''}" onclick="event.stopPropagation();${t === 'perf' ? 'abrirPerfiles()' : `cfgTab='${t}';renderCfg()`}">${l}</button>`).join('')}</div><div class="cfg-body">${h}</div>`;
 }
 document.addEventListener('click', e => { const m = document.getElementById('cfgMenu'); if (m && !m.hidden && !m.contains(e.target) && e.target.id !== 'cfgBtn' && e.target.id !== 'perfilBtn' && document.body.contains(e.target)) m.hidden = true; });
+
+// ---- Festivos locales (⚙ › Festivos) ----
+function anadirFestivo() {
+  const f = document.getElementById('fesF').value, z = document.getElementById('fesZ').value, n = document.getElementById('fesN').value.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(f)) { toast('Elige la fecha'); return; }
+  const l = (tecCfg.festivos || []).filter(x => !(x.f === f && (x.z || '') === z));
+  l.push({ f, z, n }); tecCfg.festivos = l; saveTec(); renderCfg(); refreshVisible();
+  toast('Festivo añadido');
+}
+function quitarFestivo(f, z) { tecCfg.festivos = (tecCfg.festivos || []).filter(x => !(x.f === f && (x.z || '') === z)); saveTec(); renderCfg(); refreshVisible(); }
 
 // ---- Diagnóstico: registro local de errores ----
 function diagLista() { return lsGet(DIAG_KEY, []) || []; }
@@ -487,7 +506,7 @@ function revisarAvisosDia() {
   if (!rows.length || source !== 'atgo') return;
   const hoy = isoHoy(), hecho = lsGet(DIA_AVISOS_KEY, {});
   if (hecho.dia !== hoy) { hecho.dia = hoy; hecho.resumen = false; hecho.inact = []; }
-  const d = new Date(); if (!(d.getDay() % 6)) return;   // fines de semana, nada
+  const d = new Date(); if (!(d.getDay() % 6) || festivo(d)) return;   // fines de semana y festivos, nada
   if (tecCfg.resumenOn !== false && !hecho.resumen && horaPasada(tecCfg.resumenHora || '08:00')) {
     hecho.resumen = true;
     const sin = sinListas().mias.length;

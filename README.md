@@ -214,6 +214,9 @@ tickets nuevos o reasignados a tu nombre, escalados a TIER1, cambios en las ruta
 - **Filtro por DSP** (Todos · DSP1…DSP5): con perfiles de varios DSP, como COORD, en Incidencias, Planificación (semana y día) y Sin asignar. Es el mismo filtro en todas.
 - **Sin asignar** se ordena por urgencia: primero las que caducan antes y, después, las más antiguas.
 - **Actualizaciones**: las versiones nuevas se instalan solas cuando no estás haciendo nada (ni escribiendo, ni con la ficha o una ventana abiertas); al terminar sale un aviso con la versión.
+- **Festivos**: los nacionales (incluido Viernes Santo) ya cuentan para el «próximo laborable», Planificación y los avisos del día. Los autonómicos y locales se añaden en ⚙ › Festivos, para todas las zonas o para una.
+- **Rellenar el día** (Planificación › clic en una casilla de técnico y día): propone sus incidencias sin fecha o vencidas y las sin asignar de su zona, primero las de poblaciones a las que ya va ese día y después por urgencia; marca hasta 6 visitas y las guarda en bloque.
+- **Ficha**: teléfono y correo del contacto (clic para llamar o escribir), sección **Material** con el último comentario del envío y el enlace de seguimiento GLS si está en el hilo, y **Esta sede** con las demás incidencias de esa sede (abiertas y cerradas en 15 días).
 - **Mis cambios** (botón en Mi día): todo lo que has hecho en ATGO desde Despacho hoy o en 7 días (comentarios, estados, planificaciones) con su resultado ✓/✕ y enlace a la ficha.
 - **Sin cerrar hoy**: a partir de las 19:00 (⚙ › General) aviso y botón en Mi día con las visitas de hoy que siguen en PRESENCIAL sin «finalizado»; «Recordar» manda un WhatsApp al técnico con todas.
 - **Sin asignar olvidadas**: las de tu zona con más de 4 h sin técnico (⚙ › General) se marcan ⏰ en rojo y avisan una vez.

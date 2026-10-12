@@ -373,7 +373,7 @@ window.addEventListener('message', (e) => {
 });
 // Versión de la sincronización que espera esta app. Si la pestaña de ATGO trae otra (la cargó antes de una
 // actualización), se avisa de que hay que recargarla. Debe coincidir con SYNC_VERSION de atgo-sync.js.
-const SYNC_VERSION = '1.17.1';
+const SYNC_VERSION = '1.20.0';
 let syncVieja = false;   // 'atgo': la pestaña de ATGO es más antigua · 'app': Despacho es más antiguo · false: iguales
 function cmpVer(a, b){ const x = String(a || '0').split('.').map(Number), y = String(b || '0').split('.').map(Number); for (let i = 0; i < 3; i++){ if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) - (y[i] || 0); } return 0; }
 // Borra la copia guardada de Despacho y recarga desde el servidor (notas, perfiles y ajustes no se tocan)
@@ -590,7 +590,30 @@ function saveTec(){
 const DIAS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 function ddmmyyyy(d){ return String(d.getDate()).padStart(2,'0') + '/' + String(d.getMonth()+1).padStart(2,'0') + '/' + d.getFullYear(); }
 // Siguiente día laborable (viernes y sábado → lunes).
-function nextWorkday(from){ const d = new Date(from || Date.now()); d.setHours(12,0,0,0); do { d.setDate(d.getDate()+1); } while (d.getDay()===0 || d.getDay()===6); return d; }
+// ===== Festivos =====
+// Nacionales (fijos y Viernes Santo, calculado) y los que añadas en ⚙ › Festivos, para todas las zonas o para una.
+// El "próximo laborable" se salta los fines de semana y los festivos de todas las zonas.
+function pascua(y){
+  const a = y % 19, b = Math.floor(y / 100), c = y % 100, d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30, i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451);
+  return new Date(y, Math.floor((h + l - 7 * m + 114) / 31) - 1, ((h + l - 7 * m + 114) % 31) + 1, 12);
+}
+const festCache = {};
+function festivosNacionales(y){
+  if (festCache[y]) return festCache[y];
+  const vs = pascua(y); vs.setDate(vs.getDate() - 2);
+  const f = (m, d, n) => [y + '-' + String(m).padStart(2, '0') + '-' + String(d).padStart(2, '0'), n];
+  return festCache[y] = [f(1, 1, 'Año Nuevo'), f(1, 6, 'Reyes'), [isoHoy(vs), 'Viernes Santo'], f(5, 1, 'Fiesta del Trabajo'), f(8, 15, 'Asunción'),
+    f(10, 12, 'Fiesta Nacional'), f(11, 1, 'Todos los Santos'), f(12, 6, 'Constitución'), f(12, 8, 'Inmaculada'), f(12, 25, 'Navidad')];
+}
+// Nombre del festivo de ese día (para una zona concreta, o solo los de todas las zonas si no se indica), o ''
+function festivo(d, zona){
+  const iso = isoHoy(d), nac = festivosNacionales(d.getFullYear()).find(x => x[0] === iso);
+  if (nac) return nac[1];
+  const loc = ((typeof tecCfg !== 'undefined' && tecCfg.festivos) || []).find(x => x.f === iso && (!x.z || x.z === zona));
+  return loc ? (loc.n || 'Festivo') + (loc.z ? ' (' + loc.z + ')' : '') : '';
+}
+function nextWorkday(from){ const d = new Date(from || Date.now()); d.setHours(12,0,0,0); do { d.setDate(d.getDate()+1); } while (d.getDay()===0 || d.getDay()===6 || festivo(d)); return d; }
 let manDate = nextWorkday();
 let manPhones = false;
 function diaLargo(d){ return DIAS[d.getDay()] + ' ' + ddmmyyyy(d).slice(0,5); }
@@ -635,7 +658,7 @@ function renderManana(){
       <div id="manBody" style="display:grid;gap:10px"></div>
     </div>`;
   }
-  document.getElementById('manDay').textContent = diaLargo(manDate).replace(/^./, c => c.toUpperCase()) + '/' + manDate.getFullYear();
+  document.getElementById('manDay').textContent = diaLargo(manDate).replace(/^./, c => c.toUpperCase()) + '/' + manDate.getFullYear() + (festivo(manDate) ? ' · festivo: ' + festivo(manDate) : '');
   const body = document.getElementById('manBody');
   if (!rows.length){
     body.innerHTML = '<div class="empty"><h2>Sin incidencias cargadas</h2><div>Abre ATGO (⚙ › General › Abrir ATGO) y deja su pestaña abierta, o importa un Excel desde ⚙ › General.</div></div>';

@@ -4,7 +4,7 @@ Archivo de traspaso entre sesiones. Al empezar una sesión: "lee docs/ESTADO.md 
 Al terminar: "actualiza docs/ESTADO.md". Máximo ~40 líneas: lo antiguo se resume o se borra.
 
 ## Versión actual
-- `sw.js`: despacho-v1.19.0 = `APP_VERSION` en `ajustes.js` (publicada en GitHub Pages).
+- `sw.js`: despacho-v1.20.0 = `APP_VERSION` en `ajustes.js` (publicada en GitHub Pages).
 - 1.13.0: perfiles DSP1–5/COORD, mapa con todas las incidencias del técnico, duración leída del hilo (sin estimación si no se sabe),
   fecha en Sin asignar, apoyo Cádiz→Ceuta y Málaga→Melilla, ficha flotante con pestañas, globo de estado + fecha en Incidencias,
   ⓘ novedades, aviso 📍 misma sede al asignar y toda la batería de `docs/estudio-mejoras-windows.md`.
@@ -41,6 +41,10 @@ Al terminar: "actualiza docs/ESTADO.md". Máximo ~40 líneas: lo antiguo se resu
   aviso revisarOlvidadas). Revisión: conocidos se guarda al crearse, restaurar copia no vuelve a la matriz, selector corto en Sin asignar
   (completarSelect), caducidad en caché, arranque con COORD/#sin rompía (funciones de ajustes.js usadas antes de cargarse).
   Pruebas de arranque con COORD, perfil vacío y cada pestaña al abrir. Probada por el usuario: funciona.
+
+- 1.20.0: festivos (festivo/festivosNacionales en app.js, tecCfg.festivos, ⚙ › Festivos), «Rellenar el día» (panel.js rellenarDia),
+  ficha con contacto (telefono en mapTicket, SYNC 1.20.0), material + GLS y historial de sede (dia.js); CSS sin uso quitado (46 reglas).
+  La copia en OneDrive ya incluía los perfiles (no hubo que tocarla).
 
 ## En curso
 - (vacío)

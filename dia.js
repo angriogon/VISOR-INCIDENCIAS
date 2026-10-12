@@ -461,12 +461,14 @@ function renderFicha() {
       <div class="dw-col">${sugerenciaHtml(r)}${waFichaHtml(r)}</div></div>`;
   } else if (fichaTab === 'his') {
     cuerpo = `<div class="dw-cols"><div class="dw-col">${hiloHtml(key, 'todo')}</div>
-      <div class="dw-col"><div class="dw-sec"><div class="dw-h">Cambios vistos por Despacho</div>
+      <div class="dw-col">${historialSedeHtml(key, r || cz)}<div class="dw-sec"><div class="dw-h">Cambios vistos por Despacho</div>
       ${hist.length ? `<ul class="dw-hist">${hist.map(e => `<li><span>${esc(cuando(e.ts))}</span>${esc(evTexto(e))}</li>`).join('')}</ul>` : `<div class="dw-empty">Sin cambios registrados${segSnap.start ? ' desde el ' + new Date(segSnap.start).toLocaleDateString('es-ES') : ''}.</div>`}
       </div></div></div>`;
   } else {
     cuerpo = `<div class="dw-cols"><div class="dw-col">
         <dl class="dw-data">${campos.map(([k, v]) => `${k ? `<dt>${esc(k)}</dt>` : ''}<dd${k ? '' : ' class="full"'}>${esc(v)}</dd>`).join('')}</dl>
+        ${contactoHtml(r)}${(() => { const n = sedeOtras(key, r || cz).length; return n ? `<button class="dw-more" onclick="fichaIr('his')">Esta sede tiene ${plural(n, 'incidencia')} más (abiertas o cerradas en 15 días) →</button>` : ''; })()}
+        ${materialHtml(key, r)}
         ${caducidadFichaHtml(key, r)}
       </div><div class="dw-col">${hiloHtml(key)}${notaHtml}</div></div>`;
   }
@@ -494,6 +496,37 @@ function renderFicha() {
   let tNota = null;
   const guardar = () => { clearTimeout(tNota); guardarNota(key, { texto: ta.value.trim() }); };
   if (ta) { ta.addEventListener('input', () => { clearTimeout(tNota); tNota = setTimeout(guardar, 500); }); ta.addEventListener('blur', () => { guardar(); refreshVisible(); }); }
+}
+// ---- Contacto del ticket: teléfono y correo, con clic para llamar o escribir ----
+function contactoHtml(r) {
+  if (!r) return '';
+  const tel = String(r.telefono || '').replace(/[^\d+]/g, ''), mail = String(r.email || '').trim();
+  const okMail = /^[^\s@<>"']+@[^\s@<>"']+\.[a-z]{2,}$/i.test(mail);
+  if (tel.length < 6 && !okMail) return '';
+  return `<div class="dw-contacto">${tel.length >= 6 ? `<a class="btn sm" href="tel:${esc(tel)}" title="Llamar">📞 ${esc(r.telefono)}</a>` : ''}${okMail ? `<a class="btn sm" href="mailto:${esc(mail)}" title="Escribir">✉ ${esc(mail)}</a>` : ''}</div>`;
+}
+// ---- Material: último comentario sobre el envío y el seguimiento de GLS si aparece en el hilo ----
+function materialHtml(key, r) {
+  if (!r || !esMaterial(r.estado)) return '';
+  const h = hilos[key], items = h ? h.items.slice().sort((a, b) => b.ts - a.ts) : [];
+  const com = items.find(i => /material|env[ií]|gls|pieza|recambio|stock|almac[eé]n|fabricante|repar/i.test(i.t || ''));
+  let gls = null; for (const i of items) { const m = /https:\/\/[^\s"'<>]*gls[^\s"'<>]*/i.exec(i.t || ''); if (m) { gls = m[0]; break; } }
+  return `<div class="dw-sec"><div class="dw-h">Material <small>${esc(r.estado)}</small></div>
+    ${com ? `<div class="dw-txt last">${esc(com.t.slice(0, 400))}</div><div class="dw-empty">${esc(nombreCorto(com.n, com.u))} · ${esc(cuando(com.ts))}</div>` : '<div class="dw-empty">El hilo no dice nada del envío todavía.</div>'}
+    ${gls ? `<a class="btn sm" href="${esc(gls)}" target="_blank" rel="noopener">Seguimiento GLS ↗</a>` : ''}</div>`;
+}
+// ---- Historial de la sede: las demás incidencias de esa sede (abiertas y cerradas en 15 días) ----
+function sedeOtras(key, r) {
+  if (!r || !(r.descSede || r.sede)) return [];
+  const k = sedeKey(r), vistos = new Set([key]), out = [];
+  [...rows, ...poolRows].forEach(x => { const t = tkey(x); if (!vistos.has(t) && sedeKey(x) === k) { vistos.add(t); out.push({ key: t, num: x.num, estado: x.estado, op: x.operario, f: x.fVisita ? 'visita ' + x.fVisita : 'sin fecha', abierta: true }); } });
+  Object.values(cerradas).forEach(c => { if (!vistos.has(c.key) && sedeKey(c) === k) { vistos.add(c.key); out.push({ key: c.key, num: c.num, estado: c.estado, op: c.op, f: 'cerrada ' + cuando(c.ts), abierta: false }); } });
+  return out;
+}
+function historialSedeHtml(key, r) {
+  const l = sedeOtras(key, r); if (!l.length) return '';
+  return `<div class="dw-sec"><div class="dw-h">Esta sede <small>${plural(l.length, 'incidencia')} más</small></div>
+    <ul class="dw-sede">${l.map(x => `<li${x.abierta ? '' : ' class="cerr"'} data-key="${esc(x.key)}" onclick="openTicket('${jsq(x.key)}')"><span class="mono">${esc(String(x.num).slice(-5))}</span>${estadoPill(x.estado)}<span>${esc(x.op || '')}</span><small>${esc(x.f)}</small></li>`).join('')}</ul></div>`;
 }
 function setSeg(fecha) { guardarNota(fichaKey, { fecha, hecho: false }); renderFicha(); refreshVisible(); }
 

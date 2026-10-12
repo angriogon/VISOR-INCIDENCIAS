@@ -524,12 +524,13 @@ function renderSemana() {
       </aside>
       <div class="sem-main">
         <div class="sem-grid">
-          <div class="sg-row sg-head"><div></div>${dias.map(d => `<div class="sg-dia${isoHoy(d) === isoHoy() ? ' hoy' : ''}" onclick="verDia('${isoHoy(d)}')" title="Ver el día: técnicos, rutas, WhatsApp y correos">${esc(fmtD(d))} ›</div>`).join('')}</div>
+          <div class="sg-row sg-head"><div></div>${dias.map(d => { const fe = festivo(d); return `<div class="sg-dia${isoHoy(d) === isoHoy() ? ' hoy' : ''}${fe ? ' fest' : ''}" onclick="verDia('${isoHoy(d)}')" title="${esc(fe ? 'Festivo: ' + fe : 'Ver el día: técnicos, rutas, WhatsApp y correos')}">${esc(fmtD(d))}${fe ? ' · festivo' : ' ›'}</div>`; }).join('')}</div>
           ${zonas.map(z => `<div class="sg-zona">${esc(z.nombre)}</div>` + z.ops.map(op => `<div class="sg-row"><div class="sg-op">${esc(op)}</div>${dias.map(d => {
             const f = ddmmyyyy(d), n = rows.filter(x => esPresencial(x) && x.fVisita === f && x.operario === op).length;
             const ci = cargaInfo(op, f), m = ci.min, conf = confDia[isoHoy(d)].filter(c => c.op === op), id = op + '|' + isoHoy(d);
             const durTx = m ? '≈ ' + fmtMin(m) + (ci.sin ? ' + ' + ci.sin + ' sin estimar' : '') : 'duración sin estimar';
-            return `<div class="sg-cell ${nivelCarga(m, n)}${semDet === id ? ' on' : ''}" data-drop="${esc(id)}" onclick="semDet=semDet==='${jsq(id)}'?null:'${jsq(id)}';renderSemana()" title="${esc((n ? plural(n, 'visita') + ' · ' + durTx : 'Libre') + (conf.length ? '\n⚠ ' + conf.map(c => c.texto).join('\n⚠ ') : ''))}">
+            const fe = festivo(d, z.nombre);
+            return `<div class="sg-cell ${nivelCarga(m, n)}${semDet === id ? ' on' : ''}${fe ? ' fest' : ''}" data-drop="${esc(id)}" onclick="semDet=semDet==='${jsq(id)}'?null:'${jsq(id)}';renderSemana()" title="${esc((fe ? 'Festivo: ' + fe + '\n' : '') + (n ? plural(n, 'visita') + ' · ' + durTx : 'Libre') + (conf.length ? '\n⚠ ' + conf.map(c => c.texto).join('\n⚠ ') : ''))}">
               ${n ? `<b>${n}</b>${m ? `<small>${esc(fmtMin(m))}${ci.sin ? '+' : ''}</small>` : ''}` : '<span class="lib">·</span>'}${conf.length ? '<i class="cf">⚠</i>' : ''}</div>`;
           }).join('')}</div>`).join('')).join('')}
         </div>
@@ -539,6 +540,42 @@ function renderSemana() {
     </div>`;
   document.getElementById('semChips').appendChild(zoneChips(() => { semDet = null; renderSemana(); }, Object.fromEntries(ZONAS_TEC.map(z => [z.nombre, rows.filter(r => zonaDe(r.operario) === z.nombre && esPresencial(r)).length || '0'])), ZONAS_TEC.filter(z => z.ops.some(op => enDsp(op)))));
 }
+// ===== Rellenar el día de un técnico =====
+// Candidatas: sus incidencias sin fecha o vencidas y las sin asignar de su zona. Primero las de poblaciones a las
+// que ya va ese día, después las que caducan antes y, al final, las más antiguas. Se marcan hasta llegar a 6 visitas.
+const VISITAS_DIA = 6;
+function candidatosDia(op, iso) {
+  const f = ddmmyyyy(parseIso(iso)), zona = zonaDe(op), hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+  const yaVa = new Set(rows.filter(x => esPresencial(x) && x.fVisita === f && x.operario === op).map(poblacionDe).filter(Boolean));
+  const suyas = rows.filter(r => esPresencial(r) && cleanInitials(r.operario) === op && (!r.fVisita || parseEs(r.fVisita) < hoy))
+    .map(r => ({ r, origen: r.fVisita ? 'vencida ' + r.fVisita.slice(0, 5) : 'sin fecha' }));
+  const pool = poolRows.filter(r => !buzon[tkey(r)] && zonaPool(r) === zona).map(r => ({ r, origen: 'sin asignar' }));
+  const cad = r => { const c = caducidad(r); return c ? c.ts : Infinity; }, reg = r => { const d = registro(r); return d ? d.getTime() : Infinity; };
+  return [...suyas, ...pool].map(x => ({ ...x, junto: yaVa.has(poblacionDe(x.r)) }))
+    .sort((a, b) => (b.junto - a.junto) || (cad(a.r) !== cad(b.r) ? (cad(a.r) < cad(b.r) ? -1 : 1) : reg(a.r) - reg(b.r) || 0));
+}
+function rellenarDia(op, iso) {
+  const d = parseIso(iso), f = ddmmyyyy(d), ya = rows.filter(x => esPresencial(x) && x.fVisita === f && x.operario === op).length;
+  const l = candidatosDia(op, iso), hueco = Math.max(0, VISITAS_DIA - ya), fe = festivo(d, zonaDe(op));
+  const m = document.getElementById('modal');
+  m.innerHTML = `<div class="md-box md-camb"><div class="dw-head"><div><div class="dw-num" style="color:var(--ink)">Rellenar el día · ${esc(op)}</div>
+      <div class="dw-sub">${esc(diaLargo(d))} · ya tiene ${plural(ya, 'visita')}${fe ? ` · <b style="color:#d9614f">festivo: ${esc(fe)}</b>` : ''} · se proponen hasta ${VISITAS_DIA} en total</div></div>
+      <button class="iconbtn" onclick="cerrarModal()" aria-label="Cerrar">✕</button></div>
+    ${l.length ? `<div class="rd-l">${l.map((x, i) => `<label class="rd-it"><input type="checkbox" data-k="${esc(tkey(x.r))}" ${i < hueco ? 'checked' : ''}>
+        <span class="mono">${esc(String(x.r.num).slice(-5))}</span><span class="rd-s"><b>${esc(x.r.descSede || '—')}</b> · ${esc(x.r.poblacion || x.r.domicilio || '')}</span>
+        <span class="rd-o${x.origen === 'sin asignar' ? ' sa' : ''}">${esc(x.origen)}</span>${x.junto ? '<span class="rd-j" title="Ese día ya va a esta población">misma población</span>' : ''}${cadBadge(x.r)}</label>`).join('')}</div>
+      <div class="acts" style="justify-content:flex-end"><button class="btn" onclick="cerrarModal()">Cancelar</button><button class="btn pri" onclick="confirmarRelleno('${jsq(op)}','${iso}')">Planificar las marcadas</button></div>`
+      : '<div class="dempty">No hay incidencias sin fecha, vencidas ni sin asignar de su zona.</div>'}
+  </div>`;
+  m.hidden = false;
+}
+async function confirmarRelleno(op, iso) {
+  const keys = [...document.querySelectorAll('#modal .rd-it input:checked')].map(i => i.dataset.k);
+  if (!keys.length) { toast('Marca al menos una'); return; }
+  cerrarModal();
+  const res = await asignarLote(keys.map(key => ({ key, codOpe: op, fechaVisita: iso })), `Planificar ${keys.length} para ${op} · ${iso.split('-').reverse().join('/')}`);
+  if (res) { quitarDeSinAsignar(res.okKeys); renderSemana(); }
+}
 function verDia(iso) { manDate = parseIso(iso); manDate.setHours(12, 0, 0, 0); showTab("man"); }
 function semDetalleHtml(id) {
   const [op, iso] = id.split('|'), d = parseIso(iso), f = ddmmyyyy(d);
@@ -546,7 +583,7 @@ function semDetalleHtml(id) {
   const conf = conflictos(f).filter(c => c.op === op);
   return `<div class="sem-det" data-drop="${esc(id)}">
     <div class="sd-h"><b>${esc(op)}</b> · ${esc(diaLargo(d))} · ${vis.length ? plural(vis.length, 'visita') + (cargaMin(op, f) ? ' · ≈ ' + fmtMin(cargaMin(op, f)) : '') : 'libre'}
-      ${vis.length ? `<button class="btn sm ghost" onclick="abrirRuta('${jsq(op)}','${f}')">Ruta</button>` : ''}<button class="iconbtn sm" onclick="semDet=null;renderSemana()" aria-label="Cerrar">✕</button></div>
+      ${fase2Activa('*') ? `<button class="btn sm" onclick="rellenarDia('${jsq(op)}','${iso}')" title="Propone incidencias sin fecha, vencidas o sin asignar de su zona para este día">Rellenar el día</button>` : ''}${vis.length ? `<button class="btn sm ghost" onclick="abrirRuta('${jsq(op)}','${f}')">Ruta</button>` : ''}<button class="iconbtn sm" onclick="semDet=null;renderSemana()" aria-label="Cerrar">✕</button></div>
     ${conf.map(c => `<div class="sd-conf">⚠ ${esc(c.texto)}</div>`).join('')}
     ${vis.length ? vis.map(r => { const e = estimarMin(r); return `<div class="sd-it" draggable="true" data-drag="${esc(tkey(r))}" data-key="${esc(tkey(r))}"><span class="h">${esc(r.desdeHora || '--:--')}</span><b class="mono">${esc(String(r.num).slice(-5))}</b><span>${esc(r.descSede || '')}</span><em title="${esc(duracionTexto(r))}">${e ? '≈ ' + esc(fmtMin(e)) + ' · ' : ''}${esc(r.tipo || '')}</em></div>`; }).join('') : '<div class="dempty">Sin visitas. Arrastra aquí un ticket para planificarlo.</div>'}
     ${vis.length ? '<div class="sp-hint">Arrastra una visita a otra casilla para moverla de técnico o de día.</div>' : ''}

@@ -82,10 +82,17 @@ try {
     abrirSinCerrar(); out.sinCerrar = document.querySelectorAll('#modal .sc-it').length; cerrarModal();
     out.olvidada = olvidada(poolRows.find(r => r.key === '2026/00/91'));
     showTab('dia'); out.botonMisCambios = /Mis cambios · 1/.test(document.getElementById('viewDia').innerText);
+    // Festivos: 12/10 es fiesta nacional; el viernes 9/10 de 2026 el próximo laborable es el martes 13
+    out.festivo = festivo(new Date(2026, 9, 12, 12)); out.proxLab = isoHoy(nextWorkday(new Date(2026, 9, 9, 12)));
+    out.viernesSanto = festivo(new Date(2027, 2, 26, 12));
+    // Rellenar el día, contacto y sede en la ficha
+    rellenarDia('DSG', isoHoy(nextWorkday())); out.rellenar = !!document.querySelector('#modal .rd-l, #modal .dempty'); cerrarModal();
+    out.contacto = /tel:600111222/.test(contactoHtml({ telefono: '600 111 222', email: 'a@b.es' }));
+    out.sede = sedeOtras('2026/00/3', rows.find(r => r.key === '2026/00/3')).length;
     out.errores = diagLista().map(d => d.msg);
     return out;
   }, payload);
-  const esperado = { misCambios: 1, sinCerrar: 1, olvidada: true, botonMisCambios: true, zonasDsp1: true, zonasDsp2: 0, ordenSin: '93,91,92', coord: 5, filtroDsp: 'DSP1', perfilDSP2: 16, perfilDSP5: 5, selectorCorto: true, selectorTodos: 70, filas: 6, sinAsignar: 1, avisoVersion: 'atgo', enCurso: 'c', marcadas: 1, buscador: true, duracion: true };
+  const esperado = { festivo: 'Fiesta Nacional', proxLab: '2026-10-13', viernesSanto: 'Viernes Santo', rellenar: true, contacto: true, sede: 4, misCambios: 1, sinCerrar: 1, olvidada: true, botonMisCambios: true, zonasDsp1: true, zonasDsp2: 0, ordenSin: '93,91,92', coord: 5, filtroDsp: 'DSP1', perfilDSP2: 16, perfilDSP5: 5, selectorCorto: true, selectorTodos: 70, filas: 6, sinAsignar: 1, avisoVersion: 'atgo', enCurso: 'c', marcadas: 1, buscador: true, duracion: true };
   for (const [k, v] of Object.entries(esperado)) if (r[k] !== v) errores.push(`${k}: esperado ${JSON.stringify(v)}, obtenido ${JSON.stringify(r[k])}`);
   for (const t of ['dia', 'sin', 'inc', 'sem', 'man']) if (!r['vista_' + t]) errores.push('La vista ' + t + ' está vacía');
   r.errores.forEach(e => errores.push('Diagnóstico: ' + e));
