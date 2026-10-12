@@ -259,9 +259,9 @@ function pasaFiltro(r){
 function renderFilters(){
   const el = document.getElementById('filters');
   el.innerHTML = '';
-  el.appendChild(zoneChips(() => { renderFilters(); render(); }, zoneCounts(rows)));
+  el.appendChild(zoneChips(() => { renderFilters(); render(); }, zoneCounts(rows), ZONAS.filter(z => z.ops.some(op => enDsp(op)))));
   const f = document.createElement('div'); f.className = 'filt2';
-  f.innerHTML = `${filtroInc.dsp ? `<span class="chip sm active fsav"><span>Solo ${esc(filtroInc.dsp)}</span><b onclick="filtroInc.dsp='';renderFilters();render()" title="Ver todos" aria-label="Quitar">×</b></span>` : ''}<select onchange="filtroInc.est=this.value;render()" title="Estado"><option value="">Todos los estados</option>${ESTADOS.map(e => `<option value="${esc(norm(e))}"${filtroInc.est === norm(e) ? ' selected' : ''}>${esc(e)}</option>`).join('')}</select>
+  f.innerHTML = `${dspChipsHtml('renderFilters();render()') || (filtroInc.dsp ? `<span class="chip sm active fsav"><span>Solo ${esc(filtroInc.dsp)}</span><b onclick="filtroInc.dsp='';renderFilters();render()" title="Ver todos" aria-label="Quitar">×</b></span>` : '')}<select onchange="filtroInc.est=this.value;render()" title="Estado"><option value="">Todos los estados</option>${ESTADOS.map(e => `<option value="${esc(norm(e))}"${filtroInc.est === norm(e) ? ' selected' : ''}>${esc(e)}</option>`).join('')}</select>
     <label class="chip sm${filtroInc.cad ? ' active' : ''}"><input type="checkbox" hidden ${filtroInc.cad ? 'checked' : ''} onchange="filtroInc.cad=this.checked;renderFilters();render()">Caducan en 24 h o vencidas</label>
     <input type="search" id="filtQ" placeholder="Filtrar: sede, cliente, Nº…" value="${esc(filtroInc.q)}" oninput="filtroInc.q=this.value;render()">
     ${filtroActivo() || zonaSel ? `<button class="chip sm" onclick="guardarFiltro()" title="Guardar esta combinación como acceso rápido">☆ Guardar</button><button class="chip sm" onclick="filtroInc={est:'',cad:false,q:''};zonaSel=null;renderFilters();render()">Limpiar</button>` : ''}
@@ -279,6 +279,23 @@ function aplicarFiltro(i){ const g = filtrosGuardados[i]; if (!g) return; zonaSe
 function borrarFiltro(i){ filtrosGuardados.splice(i, 1); try{ localStorage.setItem(FILTROS_KEY, JSON.stringify(filtrosGuardados)); }catch(e){} renderFilters(); }
 
 function filteredRows(){ return rows.filter(r => enZona(r) && pasaFiltro(r)); }
+
+// ---- Filtro por DSP (perfiles con técnicos de varios DSP, p. ej. COORD) ----
+// Es el mismo en Incidencias, Planificación (semana y día) y Sin asignar: filtroInc.dsp.
+function dspsDelPerfil(){ return PERFILES.filter(p => p !== 'COORD' && perfilCfg.tecs[p].some(op => OPERARIOS.includes(op))); }
+function enDsp(op){ return !filtroInc.dsp || (perfilCfg.tecs[filtroInc.dsp] || []).includes(cleanInitials(op)); }
+function zonaEnDsp(nombre){ if (!filtroInc.dsp) return true; const z = ZONAS_BASE.find(x => x.nombre === nombre); return !!z && dspZona(z) === filtroInc.dsp; }
+// Zonas de técnicos que se ven: las del perfil, con el filtro de zona y el de DSP
+function zonasVisibles(){
+  let z = zonaSel ? ZONAS_TEC.filter(x => x.nombre === zonaSel) : ZONAS_TEC;
+  if (filtroInc.dsp){ const l = perfilCfg.tecs[filtroInc.dsp] || []; z = z.map(x => ({ ...x, ops: x.ops.filter(op => l.includes(op)) })).filter(x => x.ops.length); }
+  return z;
+}
+function dspChipsHtml(alCambiar){
+  const l = dspsDelPerfil(); if (l.length < 2) return '';
+  if (filtroInc.dsp && !l.includes(filtroInc.dsp)) filtroInc.dsp = '';
+  return `<span class="seg mini dsp-seg" title="Ver solo los técnicos y zonas de un DSP">${[['', 'Todos'], ...l.map(p => [p, p])].map(([v, t]) => `<button class="segb${(filtroInc.dsp || '') === v ? ' on' : ''}" onclick="filtroInc.dsp='${v}';zonaSel=null;${alCambiar}">${t}</button>`).join('')}</span>`;
+}
 
 // ===== Sincronización en tiempo real con ATGO (ver atgo-sync.js) =====
 function setAtgoStatus(text, state){
@@ -628,8 +645,8 @@ function renderManana(){
   const todas = visitasDe(manDate);
   const esDisp = r => !TECNICOS.includes(cleanInitials(r.operario));
   const disp = todas.filter(esDisp);
-  const vis = todas.filter(r => !esDisp(r) && enZona(r));
-  const zonas = zonaSel ? ZONAS_TEC.filter(z => z.nombre === zonaSel) : ZONAS_TEC;
+  const vis = todas.filter(r => !esDisp(r) && enZona(r) && enDsp(r.operario));
+  const zonas = zonasVisibles();
   // Todos los técnicos de las zonas visibles, también los que no tienen visitas (para ver huecos).
   const byOp = {}; vis.forEach(r => { (byOp[r.operario] = byOp[r.operario] || []).push(r); });
   const opsZona = zonas.flatMap(z => z.ops);
@@ -652,7 +669,8 @@ function renderManana(){
       <div class="tgrid">${z.ops.slice().sort((a,b) => (byOp[b]||[]).length - (byOp[a]||[]).length || opIndex(a) - opIndex(b)).map(op => tecCard(op, byOp[op] || [], max)).join('')}</div>`;
     }).join('')}`;
   const chipsHost = document.getElementById('manChips');
-  chipsHost.appendChild(zoneChips(() => renderManana(), Object.fromEntries(ZONAS_TEC.map(z => [z.nombre, todas.filter(r => zonaDe(r.operario) === z.nombre).length || '0'])), ZONAS_TEC));
+  if (dspsDelPerfil().length > 1){ const d = document.createElement('div'); d.innerHTML = dspChipsHtml('renderManana()'); chipsHost.appendChild(d.firstChild); }
+  chipsHost.appendChild(zoneChips(() => renderManana(), Object.fromEntries(ZONAS_TEC.map(z => [z.nombre, todas.filter(r => zonaDe(r.operario) === z.nombre).length || '0'])), ZONAS_TEC.filter(z => z.ops.some(op => enDsp(op)))));
   renderCorreos();
 }
 
@@ -759,8 +777,8 @@ function colaRutasHtml(){
 }
 
 function copyResumenDia(){
-  const vis = visitasDe(manDate).filter(r => TECNICOS.includes(cleanInitials(r.operario)) && enZona(r));
-  const zonas = zonaSel ? ZONAS_TEC.filter(z => z.nombre === zonaSel) : ZONAS_TEC;
+  const vis = visitasDe(manDate).filter(r => TECNICOS.includes(cleanInitials(r.operario)) && enZona(r) && enDsp(r.operario));
+  const zonas = zonasVisibles();
   const out = [`Carga presencial · ${diaLargo(manDate)}${zonaSel ? ' · ' + zonaSel : ''}`, ''];
   zonas.forEach(z => {
     const ls = z.ops.map(op => { const n = vis.filter(r => r.operario === op).length; return `  ${op}: ${n ? n + ' visita' + (n===1?'':'s') : 'libre'}`; });
@@ -846,11 +864,25 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:'){
         bar.style.display = 'flex';
         document.getElementById('updateBtn').onclick = () => worker.postMessage('skipWaiting');
       };
-      if (reg.waiting && navigator.serviceWorker.controller) offerUpdate(reg.waiting);
+      // Actualización silenciosa: si no estás haciendo nada (ningún campo en uso, ni ficha, ventana, buscador,
+      // envío a ATGO o cola de rutas abiertos), se aplica sola; si no, se reintenta cada 20 s.
+      const libre = () => !ocupado() && document.getElementById('modal').hidden && document.getElementById('drawer').hidden && document.getElementById('palette').hidden
+        && document.getElementById('cfgMenu').hidden && !editPend && !loteEnCurso && !rutasCola && !(document.getElementById('undoBar') && !document.getElementById('undoBar').hidden);
+      const offerUpdate0 = offerUpdate;
+      const offerUpdateSolo = (worker) => {
+        offerUpdate0(worker);
+        const intentar = () => {
+          if (document.getElementById('updateBar').style.display !== 'flex') return;
+          if (libre()){ try{ sessionStorage.setItem('despacho_actualizado', '1'); }catch(e){} worker.postMessage('skipWaiting'); }
+          else setTimeout(intentar, 20000);
+        };
+        setTimeout(intentar, 15000);
+      };
+      if (reg.waiting && navigator.serviceWorker.controller) offerUpdateSolo(reg.waiting);
       reg.addEventListener('updatefound', () => {
         const nw = reg.installing;
         nw && nw.addEventListener('statechange', () => {
-          if (nw.state === 'installed' && navigator.serviceWorker.controller) offerUpdate(nw);
+          if (nw.state === 'installed' && navigator.serviceWorker.controller) offerUpdateSolo(nw);
         });
       });
       let reloading = false;

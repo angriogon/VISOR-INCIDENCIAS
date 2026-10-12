@@ -66,10 +66,14 @@ function recibirPool(m) {
   updateSinBadge();
   if (document.getElementById('viewSin').style.display !== 'none') { if (ocupado()) refrescoPendiente = true; else renderSin(); }
 }
-function sinListas() {
-  const ord = l => l.slice().sort((a, b) => actualizado(b) - actualizado(a));
-  const pend = poolRows.filter(r => !buzon[tkey(r)]);
-  return { pend: ord(pend), mias: ord(pend.filter(esMiZonaPool)), buzon: ord(poolRows.filter(r => buzon[tkey(r)])) };
+// Orden por urgencia: primero las que caducan antes (las vencidas, arriba del todo); después, la más antigua.
+// conDsp: aplica el filtro por DSP (lo que se ve en la pantalla); sin él, para contadores y avisos.
+function sinListas(conDsp) {
+  const cad = r => { const c = caducidad(r); return c ? c.ts : Infinity; }, reg = r => { const d = registro(r); return d ? d.getTime() : Infinity; };
+  const ord = l => l.slice().sort((a, b) => { const x = cad(a), y = cad(b); return x !== y ? (x < y ? -1 : 1) : reg(a) - reg(b) || 0; });
+  const ok = r => !conDsp || zonaEnDsp(zonaPool(r));
+  const pend = poolRows.filter(r => !buzon[tkey(r)] && ok(r));
+  return { pend: ord(pend), mias: ord(pend.filter(esMiZonaPool)), buzon: ord(poolRows.filter(r => buzon[tkey(r)] && ok(r))) };
 }
 function updateSinBadge() {
   const b = document.getElementById('sinBadge'); if (!b) return;
@@ -125,7 +129,7 @@ function sinSet(k, campo, v) {
   renderSinBarra();
 }
 // Todas las de la lista visible se pueden asignar, de cualquier zona y a cualquier técnico de cualquier perfil
-function sinAsignables() { const L = sinListas(); return sinVista === 'buzon' ? L.buzon : sinFiltro === 'mia' ? L.mias : L.pend; }
+function sinAsignables() { const L = sinListas(true); return sinVista === 'buzon' ? L.buzon : sinFiltro === 'mia' ? L.mias : L.pend; }
 function sinMarcadas() { return sinAsignables().filter(r => sinElec[tkey(r)] && sinElec[tkey(r)].on); }
 function sinMarcarTodas(si) {
   let sinTec = 0;
@@ -193,12 +197,12 @@ function sinFila(r, enBuzon) {
 }
 function renderSin() {
   const root = document.getElementById('viewSin');
-  const L = sinListas();
+  const L = sinListas(true);
   const lista = sinVista === 'buzon' ? L.buzon : (sinFiltro === 'mia' ? L.mias : L.pend);
   root.innerHTML = `<div class="dia-top"><h1>Sin asignar</h1>
-      <div class="acts"><span class="seg mini">${[['pend', `Pendientes · ${L.pend.length}`], ['buzon', `Buzón · ${L.buzon.length}`]].map(([v, l]) => `<button class="segb${sinVista === v ? ' on' : ''}" onclick="sinVista='${v}';renderSin()">${l}</button>`).join('')}</span>
+      <div class="acts">${dspChipsHtml('renderSin()')}<span class="seg mini">${[['pend', `Pendientes · ${L.pend.length}`], ['buzon', `Buzón · ${L.buzon.length}`]].map(([v, l]) => `<button class="segb${sinVista === v ? ' on' : ''}" onclick="sinVista='${v}';renderSin()">${l}</button>`).join('')}</span>
       ${sinVista === 'pend' ? `<span class="seg mini">${[['mia', `Mi zona · ${L.mias.length}`], ['todas', 'Todas las zonas']].map(([v, l]) => `<button class="segb${sinFiltro === v ? ' on' : ''}" onclick="sinFiltro='${v}';renderSin()">${l}</button>`).join('')}</span>` : ''}</div></div>
-    <div class="dnote" style="margin:0">Visitas en PRESENCIAL que siguen en un operario «PENDIENTE ASIGNAR». La más reciente arriba. Al asignarse desaparecen solas, también del buzón.</div>
+    <div class="dnote" style="margin:0">Visitas en PRESENCIAL que siguen en un operario «PENDIENTE ASIGNAR». Las más urgentes arriba: primero las que caducan antes y, después, las más antiguas. Al asignarse desaparecen solas, también del buzón.</div>
     ${!poolCargado ? '<div class="empty">Esperando la próxima actualización de ATGO (recarga la pestaña de ATGO y pulsa el favorito si no aparece).</div>'
       : lista.length ? `${sinAsignables().length ? '<div class="sa-barra" id="saBarra"></div>' : ''}<div class="sa-list">${lista.map(r => sinFila(r, sinVista === 'buzon')).join('')}</div>`
       : `<div class="empty">${sinVista === 'buzon' ? 'El buzón está vacío.'
@@ -449,9 +453,9 @@ let semDet = null;   // casilla con el detalle abierto: "OP|yyyy-mm-dd"
 let semGrupos = { pool: true, sinF: true, venc: true };
 function semPendGrupos() {
   const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
-  const tec = rows.filter(r => esPresencial(r) && TECNICOS.includes(cleanInitials(r.operario)) && enZona(r));
+  const tec = rows.filter(r => esPresencial(r) && TECNICOS.includes(cleanInitials(r.operario)) && enZona(r) && enDsp(r.operario));
   return [
-    { id: 'pool', titulo: 'Sin asignar', l: poolRows.filter(r => esMiZonaPool(r) && !buzon[tkey(r)] && (!zonaSel || zonaPool(r) === zonaSel)) },
+    { id: 'pool', titulo: 'Sin asignar', l: sinListas(true).mias.filter(r => !zonaSel || zonaPool(r) === zonaSel) },
     { id: 'venc', titulo: 'Vencidas', l: tec.filter(r => r.fVisita && parseEs(r.fVisita) < hoy) },
     { id: 'sinF', titulo: 'Sin fecha', l: tec.filter(r => !r.fVisita) }
   ];
@@ -462,7 +466,7 @@ function renderSemana() {
   if (!rows.length && !poolRows.length) { root.innerHTML = `<div class="empty"><h2>Sin incidencias cargadas</h2><div>Abre ATGO (⚙ › General › Abrir ATGO) y deja su pestaña abierta: la semana se llena sola.</div></div>`; return; }
   if (!ZONAS_TEC.length) { root.innerHTML = `<div class="empty"><h2>El perfil ${esc(PERFIL)} no tiene técnicos</h2><div>Añádelos en ⚙ › Perfiles.</div></div>`; return; }
   const dias = diasSemana(), act = fase2Activa('*');
-  const zonas = zonaSel ? ZONAS_TEC.filter(z => z.nombre === zonaSel) : ZONAS_TEC;
+  const zonas = zonasVisibles();
   const grupos = semPendGrupos(), nPend = grupos.reduce((s, g) => s + g.l.length, 0), nVenc = grupos[1].l.length;
   const fmtD = d => DIAS[d.getDay()].slice(0, 3) + ' ' + d.getDate();
   const confDia = Object.fromEntries(dias.map(d => [isoHoy(d), conflictos(ddmmyyyy(d))]));
@@ -471,7 +475,7 @@ function renderSemana() {
         <span class="day">${esc(dias[0].toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }))} – ${esc(dias[4].toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }))}</span>
         <button class="iconbtn" onclick="semOff++;semDet=null;renderSemana()" aria-label="Semana siguiente">▶</button>
         ${semOff ? '<button class="btn sm ghost" onclick="semOff=0;semDet=null;renderSemana()">Hoy</button>' : ''}</div>
-      <div id="semChips"></div>
+      ${dspChipsHtml('semDet=null;renderSemana()')}<div id="semChips"></div>
       <div class="acts">${nVenc && act ? `<button class="btn sm" onclick="replanificarVencidas()" title="Técnico con menos carga de la zona y el próximo laborable">Replanificar ${nVenc} vencidas</button>` : ''}<button class="btn sm" onclick="abrirMapa(manDate)">Mapa</button></div>
     </div>
     ${act ? '' : '<div class="od-aviso">Para planificar desde aquí, activa «Planificar en ATGO» para todos los tickets en ⚙.</div>'}
@@ -506,7 +510,7 @@ function renderSemana() {
         ${semDet ? semDetalleHtml(semDet) : ''}
       </div>
     </div>`;
-  document.getElementById('semChips').appendChild(zoneChips(() => { semDet = null; renderSemana(); }, Object.fromEntries(ZONAS_TEC.map(z => [z.nombre, rows.filter(r => zonaDe(r.operario) === z.nombre && esPresencial(r)).length || '0'])), ZONAS_TEC));
+  document.getElementById('semChips').appendChild(zoneChips(() => { semDet = null; renderSemana(); }, Object.fromEntries(ZONAS_TEC.map(z => [z.nombre, rows.filter(r => zonaDe(r.operario) === z.nombre && esPresencial(r)).length || '0'])), ZONAS_TEC.filter(z => z.ops.some(op => enDsp(op)))));
 }
 function verDia(iso) { manDate = parseIso(iso); manDate.setHours(12, 0, 0, 0); showTab("man"); }
 function semDetalleHtml(id) {

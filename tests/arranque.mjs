@@ -70,10 +70,16 @@ try {
     openPalette(); document.getElementById('palInput').value = 'ceuta'; palRender(); out.buscador = palItems.length > 0; closePalette();
     out.coord = (resumenCoordHtml().match(/class="coord-card/g) || []).length;
     verDsp('DSP1'); await paso(150); out.filtroDsp = filtroInc.dsp; filtroInc.dsp = '';
+    // Filtro por DSP y orden de Sin asignar por urgencia (caduca antes > más antigua)
+    filtroInc.dsp = 'DSP1'; out.zonasDsp1 = zonasVisibles().length > 0; filtroInc.dsp = 'DSP2'; out.zonasDsp2 = zonasVisibles().length; filtroInc.dsp = '';
+    const base = poolRows[0];
+    poolRows = [{ ...base, key: '2026/00/91', fRegistroISO: '2026-01-01T10:00:00Z' }, { ...base, key: '2026/00/92', fRegistroISO: '2026-09-01T10:00:00Z' }, { ...base, key: '2026/00/93', fRegistroISO: '2026-10-01T10:00:00Z' }];
+    guardarNota('2026/00/93', { cad: '2026-12-20T10:00' });
+    out.ordenSin = sinListas(true).pend.map(r => r.key.slice(-2)).join(',');
     out.errores = diagLista().map(d => d.msg);
     return out;
   }, payload);
-  const esperado = { coord: 5, filtroDsp: 'DSP1', perfilDSP2: 16, perfilDSP5: 5, selectorTodos: 70, filas: 6, sinAsignar: 1, avisoVersion: 'atgo', enCurso: 'c', marcadas: 1, buscador: true, duracion: true };
+  const esperado = { zonasDsp1: true, zonasDsp2: 0, ordenSin: '93,91,92', coord: 5, filtroDsp: 'DSP1', perfilDSP2: 16, perfilDSP5: 5, selectorTodos: 70, filas: 6, sinAsignar: 1, avisoVersion: 'atgo', enCurso: 'c', marcadas: 1, buscador: true, duracion: true };
   for (const [k, v] of Object.entries(esperado)) if (r[k] !== v) errores.push(`${k}: esperado ${JSON.stringify(v)}, obtenido ${JSON.stringify(r[k])}`);
   for (const t of ['dia', 'sin', 'inc', 'sem', 'man']) if (!r['vista_' + t]) errores.push('La vista ' + t + ' está vacía');
   r.errores.forEach(e => errores.push('Diagnóstico: ' + e));

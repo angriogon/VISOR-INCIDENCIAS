@@ -4,7 +4,7 @@ Archivo de traspaso entre sesiones. Al empezar una sesión: "lee docs/ESTADO.md 
 Al terminar: "actualiza docs/ESTADO.md". Máximo ~40 líneas: lo antiguo se resume o se borra.
 
 ## Versión actual
-- `sw.js`: despacho-v1.17.2 = `APP_VERSION` en `ajustes.js` (publicada en GitHub Pages).
+- `sw.js`: despacho-v1.18.0 = `APP_VERSION` en `ajustes.js` (publicada en GitHub Pages).
 - 1.13.0: perfiles DSP1–5/COORD, mapa con todas las incidencias del técnico, duración leída del hilo (sin estimación si no se sabe),
   fecha en Sin asignar, apoyo Cádiz→Ceuta y Málaga→Melilla, ficha flotante con pestañas, globo de estado + fecha en Incidencias,
   ⓘ novedades, aviso 📍 misma sede al asignar y toda la batería de `docs/estudio-mejoras-windows.md`.
@@ -33,6 +33,8 @@ Al terminar: "actualiza docs/ESTADO.md". Máximo ~40 líneas: lo antiguo se resu
 - 1.17.2: sw.js precachea con cache:'reload' (antes podía guardar JS viejo de la caché HTTP de GitHub Pages, 10 min,
   y avisar de recargar ATGO sin motivo); aviso de versión con dirección (syncVieja 'atgo'/'app') y «Actualizar Despacho».
   COORD se queda con los 70 técnicos (confirmado por el usuario).
+- 1.18.0: filtro por DSP compartido (filtroInc.dsp: zonasVisibles/enDsp/zonaEnDsp/dspChipsHtml) en Incidencias, Planificación,
+  día y Sin asignar; Sin asignar por urgencia (sinListas(conDsp)); actualización silenciosa (offerUpdateSolo + aviso).
 
 ## En curso
 - (vacío)

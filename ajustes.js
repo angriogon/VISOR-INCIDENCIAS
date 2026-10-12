@@ -3,8 +3,9 @@
 // asistente de inicio, diagnóstico, resumen matinal, aviso de técnico sin actividad y exportar a Excel.
 // Usa utilidades de app.js, dia.js, herramientas.js, edicion.js y panel.js solo en tiempo de llamada.
 
-const APP_VERSION = '1.17.2';   // súbela a la vez que VERSION en sw.js
+const APP_VERSION = '1.18.0';   // súbela a la vez que VERSION en sw.js
 const NOVEDADES = [
+  { v: '1.18.0', f: '2026-10-12', l: ['Filtro por DSP (Todos · DSP1…DSP5) en Planificación, el día y Sin asignar, igual que en Incidencias, cuando el perfil tiene varios DSP (COORD).', 'Sin asignar ordenado por urgencia: primero las que caducan antes y, después, las más antiguas.', 'Actualización silenciosa: las versiones nuevas se instalan solas cuando no estás haciendo nada.'] },
   { v: '1.17.2', f: '2026-10-12', l: ['Corregido: al actualizar, Despacho podía quedarse con archivos de la versión anterior (y avisar de recargar ATGO sin motivo).', 'El aviso de versión dice quién está desactualizado y «Actualizar Despacho» lo arregla en un clic.'] },
   { v: '1.17.1', f: '2026-10-12', l: ['Comodines de Galicia y Guipúzcoa reconocidos (probado con la lista real de ATGO: 37 de 42; los demás son de Canarias o genéricos).', 'Carga medida con ATGO: COORD tarda ~65 s; DSP1, ~20 s.'] },
   { v: '1.17.0', f: '2026-10-12', l: ['COORD: resumen por DSP en Mi día (visitas de hoy, retrasos, sin asignar, caducidades y escalados); al pulsar uno se ven solo sus incidencias.', 'Sin asignar: los comodines de todas las zonas se reconocen por su nombre en ATGO.', 'Al cambiar de perfil sale «Cargando DSPx…» hasta que llegan sus datos.', 'Perfiles: exportar e importar solo los perfiles para pasarlos a otro equipo.', 'Excel, informe semanal e histórico con el nombre y los técnicos del perfil activo.', 'Carga más rápida con perfiles grandes y su duración visible en ⚙ › General.', 'Corregido: un técnico quitado de un perfil ya no vuelve a aparecer al recargar.'] },
@@ -455,6 +456,8 @@ async function exportarExcel(que) {
 // ---- Arranque (cuando ya están cargados todos los scripts) ----
 window.addEventListener('DOMContentLoaded', () => {
   aplicarApariencia(); updatePerfilBtn(); marcarNovedades();
+  // Tras una actualización silenciosa (app.js), un aviso discreto con la versión nueva
+  try { if (sessionStorage.getItem('despacho_actualizado')) { sessionStorage.removeItem('despacho_actualizado'); setTimeout(() => toast(`Despacho se ha actualizado a la versión ${APP_VERSION} · novedades en ⓘ`), 1200); } } catch (e) {}
   try { revisarEspacio(); } catch (e) {}
   let visto = null; try { visto = localStorage.getItem(BIENV_KEY); } catch (e) {}
   if (!visto && !lsGet(ATGO_KEY, null)) setTimeout(() => { if (document.getElementById('modal').hidden) abrirAsistente(1); }, 800);
