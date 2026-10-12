@@ -356,7 +356,7 @@ window.addEventListener('message', (e) => {
 });
 // Versión de la sincronización que espera esta app. Si la pestaña de ATGO trae otra (la cargó antes de una
 // actualización), se avisa de que hay que recargarla. Debe coincidir con SYNC_VERSION de atgo-sync.js.
-const SYNC_VERSION = '1.17.0';
+const SYNC_VERSION = '1.17.1';
 let syncVieja = false;
 let ultimaCarga = null;   // duración de la última carga de ATGO (se ve en ⚙ › General)
 // Tras cambiar de perfil (o si los datos guardados son de otro perfil) se avisa «Cargando DSPx…» hasta que

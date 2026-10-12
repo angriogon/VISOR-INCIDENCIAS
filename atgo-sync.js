@@ -15,15 +15,15 @@
   // tickets (~100 de ~600) y las consultas en paralelo no se estorban: la carga baja de ~3 min a ~20 s.
   // (codOpe.in no funciona en ATGO: ignora el filtro; y sin "sort" la consulta es mucho más lenta.)
   const PAGE_SIZE = 100;           // por operario; si alguno tuviera más, se piden más páginas
-  const PARALELO = 6;              // consultas simultáneas (8 con perfiles grandes, ver paralelo())
-  // Con muchos técnicos (p. ej. COORD) se hacen 8 consultas a la vez para que la carga no se alargue tanto
-  function paralelo() { return OPERARIOS.length > 40 ? 8 : PARALELO; }
+  // Consultas simultáneas. Medido con ATGO real (COORD, 70 técnicos + 42 comodines, 416 tickets): 6 → 65 s; 8 → 78 s.
+  // Más en paralelo no acelera: el límite lo pone ATGO.
+  const PARALELO = 6;
   const REFRESCO_MIN = 2;          // minutos entre una carga y la siguiente (siempre, también fuera de horario)
   function refrescoMin() { return REFRESCO_MIN; }
   const TIMEOUT_MS = 120000;
   // Versión de este script: Despacho la compara con la suya (SYNC_VERSION en app.js) y avisa si esta pestaña
   // sigue con una versión antigua (hay que recargarla). Súbela cuando cambie este archivo.
-  const SYNC_VERSION = '1.17.0';
+  const SYNC_VERSION = '1.17.1';
 
   if (location.hostname !== 'atgo.tier1.es') { alert('Abre primero https://atgo.tier1.es e inicia sesión.'); return; }
 
@@ -248,7 +248,7 @@
         }
       };
       // Si falla algún operario se descarta la carga entera: así nunca parece que sus tickets "salieron".
-      await Promise.all(Array.from({ length: Math.min(paralelo(), cola.length) }, worker));
+      await Promise.all(Array.from({ length: Math.min(PARALELO, cola.length) }, worker));
       if (stopped) return;
       lastPayload = { type: 'atgo-data', partial: false, v: SYNC_VERSION, ops: OPERARIOS.slice(), rows: [...found.values()], at: Date.now(), seconds: Math.round((Date.now() - t0) / 1000), caps: ['hilo', 'estado', 'editar', 'asignar', 'pool'], estados: estadosAtgo || [], pool: poolOps ? [...pool.values()] : null, poolOps: poolOps || {} };
       send(lastPayload);

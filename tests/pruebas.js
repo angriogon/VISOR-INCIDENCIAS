@@ -109,6 +109,8 @@ igual('provincia: Andalucía sigue igual', [zt('SEVILLA'), zt('', 'Palma del Con
 igual('recomendado: Murcia propone a sus técnicos', cr.recomendar(T('1/00/7', 'XXX-MU', 'Tienda Murcia', { provincia: 'MURCIA', poblacion: 'MURCIA' }), new Date(2026, 9, 13, 12)).map(x => x.op).sort(), ['GAS', 'RUFB']);
 vm.runInContext("poolOpsDesc = { 'XXX-MU': 'PENDIENTE ASIGNAR MURCIA', 'XXX-RARO': 'PENDIENTE ASIGNAR' };", cr);
 igual('comodines: zona por el nombre en ATGO', [cr.zonaPool({ operario: 'XXX-MU', provincia: '' }), cr.zonaComodin('XXX-RARO'), cr.zonaPool({ operario: 'XXX-SVQ' })], ['MURCIA', null, 'SEVILLA/HUELVA']);
+vm.runInContext("poolOpsDesc = { 'XXX-0GALIC2': 'PENDIENTE ASIGNAR GALICIA-2', 'XXX-0GUIPUZ': 'PENDIENTE ASIGNAR GUIPUZKOA', 'XXX-0MURCIA': 'PENDIENTE ASIGNAR MURCIA_ALICANTE', 'XXX-0SANSEB': 'PENDIENTE ASIGNAR PAIS VASCO_RIOJA', 'XXX-0LEON': 'PENDIENTE ASIGNAR LEÓN', 'XXX-LP': 'PENDIENTE ASIGNAR LAS PALMAS' };", cr);
+igual('comodines reales de ATGO', ['XXX-0GALIC2', 'XXX-0GUIPUZ', 'XXX-0MURCIA', 'XXX-0SANSEB', 'XXX-0LEON', 'XXX-LP'].map(op => cr.zonaComodin(op)), ['GALICIA', 'NORTE', 'MURCIA', 'NORTE', 'CASTILLA Y LEÓN', null]);
 igual('cierre: estados que cuentan como terminada', ['CERRADO', 'Puesto operativo', 'PTO. OPERATIVO PTE. ACEPTACIÓN PRESUPUESTO', 'EN FABRICANTE', 'PRESENCIAL'].map(e => cr.esCierre(e)), [true, true, true, false, false]);
 
 // ---- Progreso del día: solo cuenta el técnico asignado (el soporte remoto también "inicia" tickets) ----

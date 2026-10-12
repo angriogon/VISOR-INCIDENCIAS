@@ -192,9 +192,9 @@ const PROV_ZONA = { sevilla: 'SEVILLA/HUELVA', huelva: 'SEVILLA/HUELVA', cordoba
   madrid: 'MADRID', 'ciudad real': 'CIUDAD REAL',
   leon: 'CASTILLA Y LEÓN', valladolid: 'CASTILLA Y LEÓN', burgos: 'CASTILLA Y LEÓN', salamanca: 'CASTILLA Y LEÓN', zamora: 'CASTILLA Y LEÓN', palencia: 'CASTILLA Y LEÓN', segovia: 'CASTILLA Y LEÓN', soria: 'CASTILLA Y LEÓN', avila: 'CASTILLA Y LEÓN',
   zaragoza: 'ARAGÓN', huesca: 'ARAGÓN', teruel: 'ARAGÓN',
-  coruna: 'GALICIA', 'a coruna': 'GALICIA', lugo: 'GALICIA', ourense: 'GALICIA', orense: 'GALICIA', pontevedra: 'GALICIA', vigo: 'GALICIA',
+  galicia: 'GALICIA', coruna: 'GALICIA', 'a coruna': 'GALICIA', lugo: 'GALICIA', ourense: 'GALICIA', orense: 'GALICIA', pontevedra: 'GALICIA', vigo: 'GALICIA',
   asturias: 'ASTURIAS/CANTABRIA', oviedo: 'ASTURIAS/CANTABRIA', gijon: 'ASTURIAS/CANTABRIA', cantabria: 'ASTURIAS/CANTABRIA', santander: 'ASTURIAS/CANTABRIA',
-  vizcaya: 'NORTE', bizkaia: 'NORTE', bilbao: 'NORTE', guipuzcoa: 'NORTE', gipuzkoa: 'NORTE', alava: 'NORTE', araba: 'NORTE', vitoria: 'NORTE', navarra: 'NORTE', pamplona: 'NORTE', rioja: 'NORTE', logrono: 'NORTE', donostia: 'NORTE', 'san sebastian': 'NORTE',
+  'pais vasco': 'NORTE', euskadi: 'NORTE', guipuzkoa: 'NORTE', vizcaya: 'NORTE', bizkaia: 'NORTE', bilbao: 'NORTE', guipuzcoa: 'NORTE', gipuzkoa: 'NORTE', alava: 'NORTE', araba: 'NORTE', vitoria: 'NORTE', navarra: 'NORTE', pamplona: 'NORTE', rioja: 'NORTE', logrono: 'NORTE', donostia: 'NORTE', 'san sebastian': 'NORTE',
   baleares: 'BALEARES', balears: 'BALEARES', mallorca: 'BALEARES', menorca: 'BALEARES', ibiza: 'BALEARES', eivissa: 'BALEARES',
   portugal: 'PORTUGAL', lisboa: 'PORTUGAL', porto: 'PORTUGAL', faro: 'PORTUGAL', braga: 'PORTUGAL', coimbra: 'PORTUGAL' };
 const PROV_RE = Object.entries(PROV_ZONA).map(([k, z]) => [new RegExp('(^|[^a-z0-9])' + k + '([^a-z0-9]|$)'), z]);

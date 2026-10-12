@@ -3,8 +3,9 @@
 // asistente de inicio, diagnóstico, resumen matinal, aviso de técnico sin actividad y exportar a Excel.
 // Usa utilidades de app.js, dia.js, herramientas.js, edicion.js y panel.js solo en tiempo de llamada.
 
-const APP_VERSION = '1.17.0';   // súbela a la vez que VERSION en sw.js
+const APP_VERSION = '1.17.1';   // súbela a la vez que VERSION en sw.js
 const NOVEDADES = [
+  { v: '1.17.1', f: '2026-10-12', l: ['Comodines de Galicia y Guipúzcoa reconocidos (probado con la lista real de ATGO: 37 de 42; los demás son de Canarias o genéricos).', 'Carga medida con ATGO: COORD tarda ~65 s; DSP1, ~20 s.'] },
   { v: '1.17.0', f: '2026-10-12', l: ['COORD: resumen por DSP en Mi día (visitas de hoy, retrasos, sin asignar, caducidades y escalados); al pulsar uno se ven solo sus incidencias.', 'Sin asignar: los comodines de todas las zonas se reconocen por su nombre en ATGO.', 'Al cambiar de perfil sale «Cargando DSPx…» hasta que llegan sus datos.', 'Perfiles: exportar e importar solo los perfiles para pasarlos a otro equipo.', 'Excel, informe semanal e histórico con el nombre y los técnicos del perfil activo.', 'Carga más rápida con perfiles grandes y su duración visible en ⚙ › General.', 'Corregido: un técnico quitado de un perfil ya no vuelve a aparecer al recargar.'] },
   { v: '1.16.2', f: '2026-10-12', l: ['Cada DSP queda con su lista matriz de técnicos por zonas; COORD con todos.', 'Perfiles: «Restablecer» (todos o el perfil abierto) vuelve a la lista matriz. Los perfiles cambiados se marcan como «modificado».'] },
   { v: '1.16.1', f: '2026-10-12', l: ['Zonas de DSP2 (Murcia, Alicante, Valencia/Castellón, Cataluña), DSP3 (Madrid, Ciudad Real), DSP4 (Castilla y León, Aragón, Galicia, Asturias/Cantabria, Norte) y DSP5 (Baleares, Portugal).', 'En esas zonas, Sin asignar ya recomienda técnico y «Mi zona» funciona como en Andalucía.'] },
@@ -210,7 +211,7 @@ function renderCfg() {
   if (cfgTab === 'gen') {
     h = `<div class="cfg-h">Conexión</div>
       <div class="cfg-t">${esc(document.getElementById('fileStatus').textContent)}${esc(document.getElementById('atgoStatus').textContent)}</div>
-      ${ultimaCarga && ultimaCarga.s != null ? `<div class="cfg-t">Última carga: ${ultimaCarga.ops != null ? plural(ultimaCarga.ops, 'técnico') + ' en ' : ''}${ultimaCarga.s} s${ultimaCarga.s > 60 ? ' · lenta: avisa si pasa a menudo' : ''}</div>` : ''}
+      ${ultimaCarga && ultimaCarga.s != null ? `<div class="cfg-t">Última carga: ${ultimaCarga.ops != null ? plural(ultimaCarga.ops, 'técnico') + ' en ' : ''}${ultimaCarga.s} s${ultimaCarga.s > 90 ? ' · lenta: avisa si pasa a menudo' : ''}</div>` : ''}
       <div class="acts"><button class="btn sm pri" onclick="document.getElementById('atgoBtn').click()">Abrir ATGO</button><button class="btn sm" onclick="document.getElementById('importBtn').click()">Importar Excel</button><button class="btn sm ghost" onclick="abrirAsistente()">Asistente de inicio</button></div>
       <div class="cfg-h">Apariencia</div>
       <div class="cfg-row"><span>Tema</span><span class="seg mini">${[['auto', 'Windows'], ['light', 'Claro'], ['dark', 'Oscuro']].map(([v, l]) => `<button class="segb${(tecCfg.tema || 'auto') === v ? ' on' : ''}" onclick="setPref('tema','${v}')">${l}</button>`).join('')}</span></div>
