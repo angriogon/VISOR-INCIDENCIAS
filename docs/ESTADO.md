@@ -40,7 +40,7 @@ Al terminar: "actualiza docs/ESTADO.md". Máximo ~40 líneas: lo antiguo se resu
 - 1.19.0: Mis cambios (abrirMisCambios), Sin cerrar hoy (sinCerrarHoy, aviso cierreHora), olvidadas (panel.js: olvidada/olvidoBadge;
   aviso revisarOlvidadas). Revisión: conocidos se guarda al crearse, restaurar copia no vuelve a la matriz, selector corto en Sin asignar
   (completarSelect), caducidad en caché, arranque con COORD/#sin rompía (funciones de ajustes.js usadas antes de cargarse).
-  Pruebas de arranque con COORD, perfil vacío y cada pestaña al abrir.
+  Pruebas de arranque con COORD, perfil vacío y cada pestaña al abrir. Probada por el usuario: funciona.
 
 ## En curso
 - (vacío)
