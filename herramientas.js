@@ -185,11 +185,23 @@ function abrirRuta(op, f) {
 }
 
 // ===== 6. Sugerencia de técnico =====
-const PROV_ZONA = { sevilla: 'SEVILLA/HUELVA', huelva: 'SEVILLA/HUELVA', cordoba: 'CÓRDOBA/JAÉN', jaen: 'CÓRDOBA/JAÉN', granada: 'GRANADA', almeria: 'ALMERÍA', malaga: 'MÁLAGA', cadiz: 'CÁDIZ', ceuta: 'CEUTA', melilla: 'MELILLA', badajoz: 'EXTREMADURA', caceres: 'EXTREMADURA' };
+// Provincia (o población principal) → zona. Se busca como palabra completa: "soria" no casa con "asesoría".
+const PROV_ZONA = { sevilla: 'SEVILLA/HUELVA', huelva: 'SEVILLA/HUELVA', cordoba: 'CÓRDOBA/JAÉN', jaen: 'CÓRDOBA/JAÉN', granada: 'GRANADA', almeria: 'ALMERÍA', malaga: 'MÁLAGA', cadiz: 'CÁDIZ', ceuta: 'CEUTA', melilla: 'MELILLA', badajoz: 'EXTREMADURA', caceres: 'EXTREMADURA',
+  murcia: 'MURCIA', cartagena: 'MURCIA', alicante: 'ALICANTE', alacant: 'ALICANTE', valencia: 'VALENCIA/CASTELLÓN', castellon: 'VALENCIA/CASTELLÓN', castello: 'VALENCIA/CASTELLÓN',
+  barcelona: 'CATALUÑA', girona: 'CATALUÑA', gerona: 'CATALUÑA', lleida: 'CATALUÑA', lerida: 'CATALUÑA', tarragona: 'CATALUÑA',
+  madrid: 'MADRID', 'ciudad real': 'CIUDAD REAL',
+  leon: 'CASTILLA Y LEÓN', valladolid: 'CASTILLA Y LEÓN', burgos: 'CASTILLA Y LEÓN', salamanca: 'CASTILLA Y LEÓN', zamora: 'CASTILLA Y LEÓN', palencia: 'CASTILLA Y LEÓN', segovia: 'CASTILLA Y LEÓN', soria: 'CASTILLA Y LEÓN', avila: 'CASTILLA Y LEÓN',
+  zaragoza: 'ARAGÓN', huesca: 'ARAGÓN', teruel: 'ARAGÓN',
+  coruna: 'GALICIA', 'a coruna': 'GALICIA', lugo: 'GALICIA', ourense: 'GALICIA', orense: 'GALICIA', pontevedra: 'GALICIA', vigo: 'GALICIA',
+  asturias: 'ASTURIAS/CANTABRIA', oviedo: 'ASTURIAS/CANTABRIA', gijon: 'ASTURIAS/CANTABRIA', cantabria: 'ASTURIAS/CANTABRIA', santander: 'ASTURIAS/CANTABRIA',
+  vizcaya: 'NORTE', bizkaia: 'NORTE', bilbao: 'NORTE', guipuzcoa: 'NORTE', gipuzkoa: 'NORTE', alava: 'NORTE', araba: 'NORTE', vitoria: 'NORTE', navarra: 'NORTE', pamplona: 'NORTE', rioja: 'NORTE', logrono: 'NORTE', donostia: 'NORTE', 'san sebastian': 'NORTE',
+  baleares: 'BALEARES', balears: 'BALEARES', mallorca: 'BALEARES', menorca: 'BALEARES', ibiza: 'BALEARES', eivissa: 'BALEARES',
+  portugal: 'PORTUGAL', lisboa: 'PORTUGAL', porto: 'PORTUGAL', faro: 'PORTUGAL', braga: 'PORTUGAL', coimbra: 'PORTUGAL' };
+const PROV_RE = Object.entries(PROV_ZONA).map(([k, z]) => [new RegExp('(^|[^a-z0-9])' + k + '([^a-z0-9]|$)'), z]);
 function zonaTicket(r) {
   for (const txt of [r.provincia, r.poblacion, r.domicilio]) {
     const p = norm(txt || ''); if (!p || p === 'null') continue;
-    for (const [k, z] of Object.entries(PROV_ZONA)) if (p.includes(k)) return z;
+    for (const [re, z] of PROV_RE) if (re.test(p)) return z;
   }
   const z = zonaDe(r.operario);
   return z === 'DISPATCHER' || z === 'SIN ZONA' ? null : z;

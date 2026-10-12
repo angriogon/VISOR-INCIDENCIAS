@@ -79,10 +79,10 @@ const dia = leer('dia.js');
 const cr = { console }; vm.createContext(cr);
 vm.runInContext([
   extraer(app, 'function norm('), extraer(app, 'function cleanInitials('), extraer(app, 'const ZONAS_BASE'),
-  "const ZONAS = ZONAS_BASE; const ZONAS_TEC = ZONAS.filter(z => !z.dispatcher); const TECNICOS = ZONAS_TEC.flatMap(z => z.ops); const OPERARIOS = ZONAS.flatMap(z => z.ops);",
+  "const ZONAS = ZONAS_BASE; const ZONAS_TEC = ZONAS.filter(z => !z.dispatcher); const TECNICOS = ZONAS_TEC.flatMap(z => z.ops); const OPERARIOS = ZONAS.flatMap(z => z.ops); const TODOS_OPS = OPERARIOS; function perfilDeOp() { return 'OTROS'; }",
   extraer(app, 'function zonaOps('), extraer(app, 'function zonaDe('), extraer(app, 'function opIndex('), extraer(app, 'function esPresencial('), extraer(app, 'function horaMin('), extraer(app, 'function sortByHora('), extraer(app, 'function ddmmyyyy('),
   extraer(dia, 'function tkey('), extraer(dia, 'const ESTADOS_CIERRE'), extraer(dia, 'function esCierre('),
-  extraer(herr, 'const PROV_ZONA'), extraer(herr, 'function zonaTicket('), extraer(herr, 'function poblacionDe('),
+  extraer(herr, 'const PROV_ZONA'), extraer(herr, 'const PROV_RE'), extraer(herr, 'function zonaTicket('), extraer(herr, 'function poblacionDe('),
   extraer(panel, 'const POOL_ZONA'), extraer(panel, 'function zonaPool('), extraer(panel, 'function sedeKey('), extraer(panel, 'function mismaSede('), extraer(panel, 'function recomendar('), extraer(panel, 'function conflictos('), extraer(panel, 'function fmtMin('),
   "let rows = [], poolOpsDesc = {}, duracionFija = {}; const JORNADA_MIN = 480; const tecCfg = {}; function cargaMin() { return 0; } function estimarMin(r) { return duracionFija[r.key] || null; }"
 ].join('\n'), cr);
@@ -100,6 +100,13 @@ vm.runInContext('rows = ' + JSON.stringify([T('2/00/1', 'DSG', 'A', { fVisita: '
 igual('conflictos: solape por duración del hilo', cr.conflictos('13/10/2026').filter(c => c.tipo === 'solape').length, 1);
 vm.runInContext("duracionFija = {};", cr);
 igual('conflictos: sin duración no inventa solapes', cr.conflictos('13/10/2026').filter(c => c.tipo === 'solape').length, 0);
+// Zonas por provincia (palabra completa) y recomendación en las zonas de DSP2–DSP5
+const zt = (provincia, poblacion, domicilio) => cr.zonaTicket({ provincia, poblacion, domicilio, operario: 'XXX-PRUEBA' });
+igual('provincia: zonas de DSP2–DSP5', [zt('Murcia'), zt('ALICANTE'), zt('Castellón'), zt('BARCELONA'), zt('Madrid'), zt('Ciudad Real'), zt('Valladolid'), zt('Zaragoza'), zt('A Coruña'), zt('Asturias'), zt('Navarra'), zt('Illes Balears'), zt('Portugal')],
+  ['MURCIA', 'ALICANTE', 'VALENCIA/CASTELLÓN', 'CATALUÑA', 'MADRID', 'CIUDAD REAL', 'CASTILLA Y LEÓN', 'ARAGÓN', 'GALICIA', 'ASTURIAS/CANTABRIA', 'NORTE', 'BALEARES', 'PORTUGAL']);
+igual('provincia: palabra completa ("asesoría" no es Soria)', zt('', '', 'C/ Asesoría Fiscal 3'), null);
+igual('provincia: Andalucía sigue igual', [zt('SEVILLA'), zt('', 'Palma del Condado, HUELVA')], ['SEVILLA/HUELVA', 'SEVILLA/HUELVA']);
+igual('recomendado: Murcia propone a sus técnicos', cr.recomendar(T('1/00/7', 'XXX-MU', 'Tienda Murcia', { provincia: 'MURCIA', poblacion: 'MURCIA' }), new Date(2026, 9, 13, 12)).map(x => x.op).sort(), ['GAS', 'RUFB']);
 igual('cierre: estados que cuentan como terminada', ['CERRADO', 'Puesto operativo', 'PTO. OPERATIVO PTE. ACEPTACIÓN PRESUPUESTO', 'EN FABRICANTE', 'PRESENCIAL'].map(e => cr.esCierre(e)), [true, true, true, false, false]);
 
 // ---- Progreso del día: solo cuenta el técnico asignado (el soporte remoto también "inicia" tickets) ----
@@ -120,8 +127,10 @@ const vSyncA = (leer('atgo-sync.js').match(/SYNC_VERSION = '([\d.]+)'/) || [])[1
 igual('SYNC_VERSION igual en atgo-sync.js y app.js', vSyncA, vSyncP);
 const opsSync = (leer('atgo-sync.js').match(/(?:const|let) OPERARIOS = \[([^\]]*)\]/) || [])[1].match(/'([A-Z]+)'/g).map(s => s.slice(1, -1)).sort();
 const zb = app.slice(app.indexOf('const ZONAS_BASE'), app.indexOf('];', app.indexOf('const ZONAS_BASE')));
-const opsApp = [...new Set([...zb.matchAll(/ops:\[([^\]]*)\]/g)].flatMap(m => m[1].match(/'([A-Z]+)'/g).map(s => s.slice(1, -1))))].sort();
-igual('ZONAS_BASE (app.js) = OPERARIOS (atgo-sync.js)', opsApp, opsSync);
+// atgo-sync.js lleva de respaldo solo los de DSP1 (zonas sin "dsp"); los demás perfiles los manda Despacho
+const opsApp = [...new Set(zb.split(/\r?\n/).filter(l => /ops:\[/.test(l) && !/dsp:/.test(l)).flatMap(l => l.match(/ops:\[([^\]]*)\]/)[1].match(/'([A-Z]+)'/g).map(s => s.slice(1, -1))))].sort();
+igual('DSP2–DSP5: zonas con su perfil', [...new Set((zb.match(/dsp:'(DSP\d)'/g) || []).map(x => x.slice(5, 9)))].sort(), ['DSP2', 'DSP3', 'DSP4', 'DSP5']);
+igual('DSP1 en ZONAS_BASE (app.js) = OPERARIOS de respaldo (atgo-sync.js)', opsApp, opsSync);
 const shell = leer('sw.js'), html = leer('index.html');
 [...html.matchAll(/<script src="([a-z-]+\.js)"/g)].map(m => m[1]).forEach(js => igual('SHELL incluye ' + js, shell.includes("'./" + js + "'"), true));
 const vSw = (shell.match(/despacho-v([\d.]+)/) || [])[1], vApp = (leer('ajustes.js').match(/APP_VERSION = '([\d.]+)'/) || [])[1];

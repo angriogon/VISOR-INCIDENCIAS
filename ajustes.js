@@ -3,8 +3,9 @@
 // asistente de inicio, diagnóstico, resumen matinal, aviso de técnico sin actividad y exportar a Excel.
 // Usa utilidades de app.js, dia.js, herramientas.js, edicion.js y panel.js solo en tiempo de llamada.
 
-const APP_VERSION = '1.16.0';   // súbela a la vez que VERSION en sw.js
+const APP_VERSION = '1.16.1';   // súbela a la vez que VERSION en sw.js
 const NOVEDADES = [
+  { v: '1.16.1', f: '2026-10-12', l: ['Zonas de DSP2 (Murcia, Alicante, Valencia/Castellón, Cataluña), DSP3 (Madrid, Ciudad Real), DSP4 (Castilla y León, Aragón, Galicia, Asturias/Cantabria, Norte) y DSP5 (Baleares, Portugal).', 'En esas zonas, Sin asignar ya recomienda técnico y «Mi zona» funciona como en Andalucía.'] },
   { v: '1.16.0', f: '2026-10-12', l: ['Se puede asignar cualquier técnico de cualquier perfil a cualquier incidencia, también en «Todas las zonas» y en el buzón.', 'Técnicos de DSP2, DSP3, DSP4 y DSP5 dados de alta.', 'Nueva ventana de Perfiles: añadir técnicos por código (o varios a la vez), por zonas o copiándolos de otro perfil, y quitarlos con ×.'] },
   { v: '1.15.1', f: '2026-10-11', l: ['Extensión 1.1.0: corregido el bloqueo de Chrome/Edge que impedía sincronizar. Hay que volver a cargarla.', 'Si caduca la sesión de ATGO, la sincronización sigue sola al volver a iniciarla.'] },
   { v: '1.15.0', f: '2026-10-11', l: ['Progreso del día corregido: «en curso» y «terminada» solo cuentan si lo marca el técnico asignado, no el soporte remoto.', 'Tras guardar en ATGO la lista se actualiza enseguida, aunque coincida con una carga.', 'Aviso si la pestaña de ATGO tiene una sincronización antigua y hay que recargarla.', 'Arranque más rápido: el módulo de Excel se carga solo al importar o exportar.', 'Correcciones: Esc en una confirmación cancela, quitar datos refresca todo, notas y copiar ficha en tickets sin asignar.'] },
@@ -87,7 +88,9 @@ function renderPerfiles() {
   const enOtros = op => PERFILES.filter(x => x !== p && perfilCfg.tecs[x].includes(op));
   const chip = op => `<span class="pf-tec" title="${esc([nom[op], enOtros(op).length ? 'También en ' + enOtros(op).join(', ') : ''].filter(Boolean).join(' · '))}"><b>${esc(op)}</b>${nom[op] ? `<small>${esc(nom[op])}</small>` : ''}${enOtros(op).length ? `<i>${esc(enOtros(op).join(' '))}</i>` : ''}<button onclick="perfQuitar('${p}','${jsq(op)}')" aria-label="Quitar ${esc(op)}" title="Quitar de ${p}">×</button></span>`;
   const sugeridos = TODOS_OPS.filter(op => !l.includes(op));
+  // Zonas que aún no están completas: las de este perfil como botones; las de otros perfiles, en un desplegable
   const zonasQuedan = ZONAS_BASE.filter(z => z.ops.some(op => !l.includes(op)));
+  const propias = zonasQuedan.filter(z => (z.dsp || 'DSP1') === p), ajenas = zonasQuedan.filter(z => (z.dsp || 'DSP1') !== p);
   box.innerHTML = `
     <div class="dw-head"><div><div class="dw-num" style="color:var(--ink)">Perfiles y técnicos</div><div class="dw-sub">Cada perfil ve solo sus técnicos. Un técnico puede estar en varios. Se puede asignar a cualquiera desde cualquier perfil.</div></div>
       <button class="iconbtn" onclick="cerrarModal()" aria-label="Cerrar">✕</button></div>
@@ -102,7 +105,8 @@ function renderPerfiles() {
           <button class="btn sm pri" onclick="perfAnadir('${p}',document.getElementById('pfIn').value)">Añadir</button>
         </div>
         <div class="pf-rapido">
-          ${zonasQuedan.length ? `<span>Añadir zona:</span>${zonasQuedan.map(z => `<button class="chip sm" onclick="perfZona('${p}','${jsq(z.nombre)}')">${esc(z.nombre)}</button>`).join('')}` : ''}
+          ${propias.length ? `<span>Añadir zona:</span>${propias.map(z => `<button class="chip sm" onclick="perfZona('${p}','${jsq(z.nombre)}')">${esc(z.nombre)}</button>`).join('')}` : ''}
+          ${ajenas.length ? `<select onchange="perfZona('${p}',this.value)"><option value="">Añadir zona de otro perfil…</option>${PERFILES.filter(x => x !== 'COORD').map(x => { const zs = ajenas.filter(z => (z.dsp || 'DSP1') === x); return zs.length ? `<optgroup label="${x}">${zs.map(z => `<option value="${esc(z.nombre)}">${esc(z.nombre)} (${z.ops.length})</option>`).join('')}</optgroup>` : ''; }).join('')}</select>` : ''}
           <select onchange="perfCopiar('${p}',this.value)"><option value="">Copiar técnicos de…</option>${PERFILES.filter(x => x !== p && perfilCfg.tecs[x].length).map(x => `<option value="${x}">${x} (${perfilCfg.tecs[x].length})</option>`).join('')}</select>
           ${sugeridos.length ? `<button class="chip sm" onclick="perfTodos('${p}')" title="Añade todos los técnicos de todos los perfiles">Todos</button>` : ''}
           ${l.length ? `<button class="chip sm pf-vaciar" onclick="perfVaciar('${p}')">Vaciar</button>` : ''}

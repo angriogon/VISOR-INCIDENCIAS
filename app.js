@@ -12,26 +12,39 @@ const ZONAS_BASE = [
   { nombre:'CÁDIZ',          ops:['EACL','AAR','DSJ','JRHG'] },
   { nombre:'CEUTA',          ops:['JIFC'], apoyo:['DSJ','AAR','EACL','JRHG'] },
   { nombre:'MELILLA',        ops:['PHEP'], apoyo:['JVR','ILG','FMNT','MMHG'] },
-  { nombre:'EXTREMADURA',    ops:['MLOR'] }
+  { nombre:'EXTREMADURA',    ops:['MLOR'] },
+  // DSP2 · Cataluña y Levante
+  { nombre:'MURCIA',            ops:['RUFB','GAS'], dsp:'DSP2' },
+  { nombre:'ALICANTE',          ops:['JLAR','DOB','FMDT'], dsp:'DSP2' },
+  { nombre:'VALENCIA/CASTELLÓN', ops:['AHC','EMPC','JPV'], dsp:'DSP2' },
+  { nombre:'CATALUÑA',          ops:['JHT','MRME','JMLZ','JGIM','ALA','AGR','JJCH','OALC'], dsp:'DSP2' },
+  // DSP3 · Madrid-Centro
+  { nombre:'MADRID',            ops:['ADGG','AGUR','JCY','ASAR','ALV','IRP','JMIO','LOM'], dsp:'DSP3' },
+  { nombre:'CIUDAD REAL',       ops:['JICN','ANAR'], dsp:'DSP3' },
+  // DSP4 · Norte
+  { nombre:'CASTILLA Y LEÓN',   ops:['JCCT','MREE','AGOR','JLMG','CVA','ZETA'], dsp:'DSP4' },
+  { nombre:'ARAGÓN',            ops:['JRAM'], dsp:'DSP4' },
+  { nombre:'GALICIA',           ops:['JMPL','JSF','PRG'], dsp:'DSP4' },
+  { nombre:'ASTURIAS/CANTABRIA', ops:['CMDF','MACR','LABEL','ABEC'], dsp:'DSP4' },
+  { nombre:'NORTE',             ops:['CBUP','OAM','JRMO','JAIS'], dsp:'DSP4' },
+  // DSP5 · Baleares-Portugal
+  { nombre:'BALEARES',          ops:['GOMILA','FASG','JMV','TIKKA'], dsp:'DSP5' },
+  { nombre:'PORTUGAL',          ops:['TICASGEST'], dsp:'DSP5' }
 ];
 // Perfiles: cada dispatcher (DSP1…DSP5) y el coordinador (COORD) ven solo sus técnicos.
-// DSP1 (el perfil de siempre) empieza con los de Andalucía/Extremadura; DSP2–DSP5 con su lista inicial (PERFIL_INICIAL).
+// Cada zona indica en "dsp" su perfil (sin "dsp" = DSP1: Andalucía/Extremadura). Es la lista inicial de cada perfil.
 // Se gestionan en la ventana de Perfiles (ajustes.js). Un técnico puede estar en varios perfiles.
 const PERFILES = ['DSP1','DSP2','DSP3','DSP4','DSP5','COORD'];
 const PERFIL_KEY = 'dispatcher_perfiles_v1';
 const BASE_OPS = ZONAS_BASE.flatMap(z => z.ops);
-const PERFIL_INICIAL = {
-  DSP2: ['RUFB','GAS','JLAR','DOB','FMDT','AHC','EMPC','JPV','JHT','MRME','JMLZ','JGIM','ALA','AGR','JJCH','OALC'],
-  DSP3: ['ADGG','AGUR','JCY','ASAR','ALV','IRP','JMIO','LOM','JICN','ANAR'],
-  DSP4: ['JCCT','MREE','AGOR','JLMG','CVA','ZETA','JRAM','JMPL','JSF','PRG','CMDF','MACR','LABEL','ABEC','CBUP','OAM','JRMO','JAIS'],
-  DSP5: ['GOMILA','FASG','JMV','TIKKA','TICASGEST']
-};
+const dspZona = z => z.dsp || 'DSP1';
+const PERFIL_INICIAL = Object.fromEntries(PERFILES.filter(p => p !== 'COORD').map(p => [p, ZONAS_BASE.filter(z => dspZona(z) === p).flatMap(z => z.ops)]));
 let perfilCfg = (() => {
   let c = null; try{ c = JSON.parse(localStorage.getItem(PERFIL_KEY) || 'null'); }catch(e){}
   if (!c || !c.tecs) c = { activo:'DSP1', tecs:{} };
-  PERFILES.forEach(p => { if (!Array.isArray(c.tecs[p])) c.tecs[p] = p === 'DSP1' ? BASE_OPS.slice() : []; });
-  // Técnicos nuevos en ZONAS_BASE que aún no están en ningún perfil: van a DSP1
-  BASE_OPS.forEach(op => { if (!PERFILES.some(p => c.tecs[p].includes(op))) c.tecs.DSP1.push(op); });
+  PERFILES.forEach(p => { if (!Array.isArray(c.tecs[p])) c.tecs[p] = (PERFIL_INICIAL[p] || []).slice(); });
+  // Técnicos nuevos en ZONAS_BASE que aún no están en ningún perfil: van al perfil de su zona
+  ZONAS_BASE.forEach(z => z.ops.forEach(op => { if (!PERFILES.some(p => c.tecs[p].includes(op))) c.tecs[dspZona(z)].push(op); }));
   // Listas iniciales de DSP2–DSP5 (una sola vez: después mandan los cambios que hagas en Perfiles)
   if (!c.inicial1){ Object.entries(PERFIL_INICIAL).forEach(([p, l]) => l.forEach(op => { if (!c.tecs[p].includes(op)) c.tecs[p].push(op); })); c.inicial1 = true; try{ localStorage.setItem(PERFIL_KEY, JSON.stringify(c)); }catch(e){} }
   if (!PERFILES.includes(c.activo)) c.activo = 'DSP1';
@@ -40,8 +53,8 @@ let perfilCfg = (() => {
 const PERFIL = perfilCfg.activo;
 // Todos los técnicos conocidos (de cualquier perfil): se puede asignar a cualquiera desde cualquier perfil
 const TODOS_OPS = [...new Set([...BASE_OPS, ...PERFILES.flatMap(p => perfilCfg.tecs[p])])];
-// Perfil "dueño" de un técnico que no está en ZONAS_BASE (para agruparlo): el primer DSP que lo tiene
-function perfilDeOp(op){ return PERFILES.filter(p => p !== 'COORD').find(p => perfilCfg.tecs[p].includes(op)) || 'OTROS'; }
+// Perfil "dueño" de un técnico (el de su zona; si no tiene zona, el primer DSP que lo tiene)
+function perfilDeOp(op){ const z = ZONAS_BASE.find(x => x.ops.includes(op)); return z ? dspZona(z) : PERFILES.filter(p => p !== 'COORD').find(p => perfilCfg.tecs[p].includes(op)) || 'OTROS'; }
 // Zonas del perfil activo: las de ZONAS_BASE con sus técnicos y, para los demás, un grupo por perfil (p. ej. "DSP2")
 const ZONAS = (() => {
   const mios = perfilCfg.tecs[PERFIL];

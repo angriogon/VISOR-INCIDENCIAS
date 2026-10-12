@@ -28,7 +28,7 @@ Publicada en GitHub Pages: https://angriogon.github.io/VISOR-INCIDENCIAS/
   Cada ticket se identifica con `tkey(r)`.
 - **Perfiles:** `ZONAS_BASE` (todas las zonas, con `apoyo`) → `ZONAS` = solo los técnicos del perfil activo
   (`PERFIL`, `perfilCfg` en `dispatcher_perfiles_v1`). `OPERARIOS`/`TECNICOS` salen de `ZONAS`; para la lista
-  completa usa `TODOS_OPS` (todos los perfiles) o `BASE_OPS`/`ZONAS_BASE` (Andalucía/Extremadura), y `zonaOps(zona)` para los técnicos
+  completa usa `TODOS_OPS` (todos los perfiles) o `BASE_OPS`/`ZONAS_BASE` (todas las zonas; `dsp` = perfil de la zona, sin `dsp` = DSP1), y `zonaOps(zona)` para los técnicos
   que pueden atender una zona. Los técnicos fuera de ZONAS_BASE se agrupan en una zona con el nombre de su perfil (`perfilDeOp`).
   Selector de técnico único: `opcionesTecnico` (panel.js). Ventana de perfiles: `abrirPerfiles` (ajustes.js).
   A atgo-sync se manda `operarios` (perfil activo, lo que se sincroniza) y `permitidos` (todos, a quién se puede asignar).
