@@ -29,6 +29,7 @@ Al terminar: "actualiza docs/ESTADO.md". Máximo ~40 líneas: lo antiguo se resu
   evita re-añadir técnicos quitados. SYNC_VERSION 1.17.0. 57 pruebas.
 - 1.17.1: probado con ATGO real. Comodines: 37 de 42 con zona (sin zona: Canarias LP/T/F/LAN y XXX genérico).
   Carga COORD (70 téc. + 42 comodines, 416 tickets): 65 s con 6 en paralelo, 78 s con 8 → se queda en 6.
+  1.17.0/1.17.1 probadas por el usuario: funcionan.
 
 ## En curso
 - (vacío)
