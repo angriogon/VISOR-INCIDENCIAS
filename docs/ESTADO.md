@@ -44,7 +44,7 @@ Al terminar: "actualiza docs/ESTADO.md". Máximo ~40 líneas: lo antiguo se resu
 
 - 1.20.0: festivos (festivo/festivosNacionales en app.js, tecCfg.festivos, ⚙ › Festivos), «Rellenar el día» (panel.js rellenarDia),
   ficha con contacto (telefono en mapTicket, SYNC 1.20.0), material + GLS y historial de sede (dia.js); CSS sin uso quitado (46 reglas).
-  La copia en OneDrive ya incluía los perfiles (no hubo que tocarla).
+  La copia en OneDrive ya incluía los perfiles (no hubo que tocarla). Probada por el usuario: funciona.
 
 ## En curso
 - (vacío)
