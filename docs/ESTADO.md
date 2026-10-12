@@ -4,7 +4,7 @@ Archivo de traspaso entre sesiones. Al empezar una sesión: "lee docs/ESTADO.md 
 Al terminar: "actualiza docs/ESTADO.md". Máximo ~40 líneas: lo antiguo se resume o se borra.
 
 ## Versión actual
-- `sw.js`: despacho-v1.16.2 = `APP_VERSION` en `ajustes.js` (publicada en GitHub Pages).
+- `sw.js`: despacho-v1.17.0 = `APP_VERSION` en `ajustes.js` (publicada en GitHub Pages).
 - 1.13.0: perfiles DSP1–5/COORD, mapa con todas las incidencias del técnico, duración leída del hilo (sin estimación si no se sabe),
   fecha en Sin asignar, apoyo Cádiz→Ceuta y Málaga→Melilla, ficha flotante con pestañas, globo de estado + fecha en Incidencias,
   ⓘ novedades, aviso 📍 misma sede al asignar y toda la batería de `docs/estudio-mejoras-windows.md`.
@@ -24,6 +24,10 @@ Al terminar: "actualiza docs/ESTADO.md". Máximo ~40 líneas: lo antiguo se resu
 - 1.16.1: zonas de DSP2–DSP5 en ZONAS_BASE (propiedad dsp) y provincias en PROV_ZONA (palabra completa). 48 pruebas.
 - 1.16.2: lista matriz por defecto (perfilesPorDefecto: DSP por zonas, COORD = todos); migración única matriz1 que deja
   todos los perfiles en la matriz; «Restablecer» por perfil o todos en la ventana de Perfiles. Probada por el usuario: funciona.
+- 1.17.0: resumen por DSP para COORD, comodines por nombre (zonaComodin), «Cargando DSPx…» (payload.ops), exportar/importar
+  perfiles, informe/Excel por perfil (jornadas fusionan perfiles, vencOp), 8 consultas en paralelo si >40 técnicos, «conocidos»
+  evita re-añadir técnicos quitados. SYNC_VERSION 1.17.0. 57 pruebas.
+  Sin medir con ATGO real (sesión caducada): tiempo de carga con COORD y lista real de comodines.
 
 ## En curso
 - (vacío)

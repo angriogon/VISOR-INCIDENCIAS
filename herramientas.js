@@ -198,6 +198,8 @@ const PROV_ZONA = { sevilla: 'SEVILLA/HUELVA', huelva: 'SEVILLA/HUELVA', cordoba
   baleares: 'BALEARES', balears: 'BALEARES', mallorca: 'BALEARES', menorca: 'BALEARES', ibiza: 'BALEARES', eivissa: 'BALEARES',
   portugal: 'PORTUGAL', lisboa: 'PORTUGAL', porto: 'PORTUGAL', faro: 'PORTUGAL', braga: 'PORTUGAL', coimbra: 'PORTUGAL' };
 const PROV_RE = Object.entries(PROV_ZONA).map(([k, z]) => [new RegExp('(^|[^a-z0-9])' + k + '([^a-z0-9]|$)'), z]);
+// Zona que nombra un texto (provincia, población o nombre de comodín), o null
+function zonaDeTexto(t) { const p = norm(t || ''); if (!p || p === 'null') return null; for (const [re, z] of PROV_RE) if (re.test(p)) return z; return null; }
 function zonaTicket(r) {
   for (const txt of [r.provincia, r.poblacion, r.domicilio]) {
     const p = norm(txt || ''); if (!p || p === 'null') continue;
@@ -321,13 +323,18 @@ function guardarJornada() {
     const o = ops[op] = ops[op] || { tot: 0, d: 0, t: 0, c: 0, p: 0 };
     o.tot++; o[x.st]++;
   });
-  const venc = rows.filter(r => { const c = !esCierre(r.estado) && caducidad(r); return c && c.ts < Date.now(); }).map(tkey);
+  const vencR = rows.filter(r => { const c = !esCierre(r.estado) && caducidad(r); return c && c.ts < Date.now(); });
   const prev = jornadas[isoHoy()] || {};
-  jornadas[isoHoy()] = { ops, venc: [...new Set([...(prev.venc || []), ...venc])], at: Date.now() };
+  // Se suman los técnicos de cada perfil que se use ese día (cambiar de perfil no borra lo del otro).
+  // vencOp: de qué técnico es cada caducidad vencida, para contar solo las del perfil en el informe.
+  const vencOp = { ...(prev.vencOp || {}) }; vencR.forEach(r => { vencOp[tkey(r)] = cleanInitials(r.operario); });
+  jornadas[isoHoy()] = { ops: { ...(prev.ops || {}), ...ops }, venc: [...new Set([...(prev.venc || []), ...vencR.map(tkey)])], vencOp, at: Date.now() };
   Object.keys(jornadas).forEach(k => { const d = parseIso(k); if (d && dias(d) > 63) delete jornadas[k]; });   // 9 semanas: histórico de indicadores
   lsSet(JORN_KEY, jornadas);
 }
 let infSemana = 'esta';
+// Caducidad vencida de un técnico del perfil activo (las antiguas, sin técnico apuntado, cuentan siempre)
+function deMiPerfil(j, key) { const op = j.vencOp && j.vencOp[key]; return !op || TECNICOS.includes(op); }
 function rangoSemana(cual) {
   const d = new Date(); d.setHours(12, 0, 0, 0);
   const lunes = new Date(d); lunes.setDate(d.getDate() - ((d.getDay() + 6) % 7));
@@ -346,7 +353,7 @@ function datosInforme() {
   const cerr = Object.values(cerradas).filter(c => enRango(c.ts));
   cerr.forEach(c => { const t = porOp[c.op] = porOp[c.op] || { tot: 0, d: 0, t: 0 }; t.cerr = (t.cerr || 0) + 1; });
   const ev = eventos.filter(e => enRango(e.ts));
-  const venc = new Set(); Object.entries(jornadas).filter(([k]) => k >= a && k <= b).forEach(([, j]) => (j.venc || []).forEach(x => venc.add(x)));
+  const venc = new Set(); Object.entries(jornadas).filter(([k]) => k >= a && k <= b).forEach(([, j]) => (j.venc || []).forEach(x => { if (deMiPerfil(j, x)) venc.add(x); }));
   const filas = TECNICOS.filter(op => porOp[op]).map(op => ({ op, zona: zonaDe(op), ...porOp[op] }));
   const tot = filas.reduce((s, f) => ({ tot: s.tot + f.tot, d: s.d + f.d, t: s.t + f.t, cerr: s.cerr + (f.cerr || 0) }), { tot: 0, d: 0, t: 0, cerr: 0 });
   return { ini, fin, diasCon: diasCon.sort(), filas, tot, nuevos: ev.filter(e => e.tipo === 'nuevo').length, escalados: ev.filter(e => norm(e.a) === norm('ESCALADO TIER1')).length, material: ev.filter(e => (e.tipo === 'estado' || e.tipo === 'nuevo') && esMaterial(e.a)).length, venc: venc.size };
@@ -354,7 +361,7 @@ function datosInforme() {
 function pct(a, b) { return b ? Math.round(a / b * 100) + '%' : '—'; }
 function informeTexto(d) {
   const f = x => x.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
-  const out = [`Informe semanal Despacho · del ${f(d.ini)} al ${f(d.fin)}`, '',
+  const out = [`Informe semanal Despacho · ${PERFIL} · del ${f(d.ini)} al ${f(d.fin)}`, '',
     `Visitas enrutadas: ${d.tot.tot} · terminadas ${d.tot.d} (${pct(d.tot.d, d.tot.tot)}) · en trámite ${d.tot.t} · cerradas ${d.tot.cerr}`,
     `Tickets nuevos: ${d.nuevos} · escalados a TIER1: ${d.escalados} · a PTE. MOVER MATERIAL: ${d.material} · con caducidad vencida: ${d.venc}`, '',
     'Técnico · zona · enrutadas · terminadas · en trámite · cumplimiento · cerradas'];
@@ -364,7 +371,7 @@ function informeTexto(d) {
 function informeHtml(d) {
   const th = 'style="text-align:left;padding:4px 10px;border-bottom:1px solid #ccc;font-weight:600"', td = 'style="padding:3px 10px;border-bottom:1px solid #eee"', tdr = 'style="padding:3px 10px;border-bottom:1px solid #eee;text-align:right"';
   const f = x => x.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
-  return `<div style="font:11pt Calibri,Arial,sans-serif"><p><b>Informe semanal · del ${f(d.ini)} al ${f(d.fin)}</b></p>
+  return `<div style="font:11pt Calibri,Arial,sans-serif"><p><b>Informe semanal · ${esc(PERFIL)} · del ${f(d.ini)} al ${f(d.fin)}</b></p>
   <p>Visitas enrutadas: <b>${d.tot.tot}</b> · terminadas <b>${d.tot.d}</b> (${pct(d.tot.d, d.tot.tot)}) · en trámite <b>${d.tot.t}</b> · cerradas <b>${d.tot.cerr}</b><br>
   Tickets nuevos: ${d.nuevos} · escalados a TIER1: ${d.escalados} · a PTE. MOVER MATERIAL: ${d.material} · con caducidad vencida: ${d.venc}</p>
   <table style="border-collapse:collapse"><tr><th ${th}>Técnico</th><th ${th}>Zona</th><th ${th}>Enrutadas</th><th ${th}>Terminadas</th><th ${th}>En trámite</th><th ${th}>Cumplimiento</th><th ${th}>Cerradas</th></tr>
@@ -379,14 +386,14 @@ function abrirHistorico() {
     const a = new Date(lun); a.setDate(a.getDate() - 7 * i); const b = new Date(a); b.setDate(b.getDate() + 6);
     const ka = isoHoy(a), kb = isoHoy(b), js = Object.entries(jornadas).filter(([k]) => k >= ka && k <= kb).map(([, j]) => j);
     const porOp = {}; let tot = 0, d = 0; const venc = new Set();
-    js.forEach(j => { Object.entries(j.ops || {}).forEach(([op, o]) => { const t = porOp[op] = porOp[op] || { tot: 0, d: 0 }; t.tot += o.tot; t.d += o.d; tot += o.tot; d += o.d; }); (j.venc || []).forEach(x => venc.add(x)); });
+    js.forEach(j => { Object.entries(j.ops || {}).forEach(([op, o]) => { if (!TECNICOS.includes(op)) return; const t = porOp[op] = porOp[op] || { tot: 0, d: 0 }; t.tot += o.tot; t.d += o.d; tot += o.tot; d += o.d; }); (j.venc || []).forEach(x => { if (deMiPerfil(j, x)) venc.add(x); }); });
     sem.push({ a, tot, d, venc: venc.size, porOp, dias: js.length });
   }
   const maxV = Math.max(1, ...sem.map(s => s.venc)), f = x => x.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
   const ops = TECNICOS.filter(op => sem.some(s => s.porOp[op]));
   const pc = (a, b) => b ? Math.round(a / b * 100) : null;
   m.innerHTML = `<div class="md-box md-inf">
-    <div class="dw-head"><div><div class="dw-num" style="color:var(--ink)">Histórico de indicadores</div><div class="dw-sub">Últimas 8 semanas · se guarda un resumen de cada día con Despacho abierto</div></div>
+    <div class="dw-head"><div><div class="dw-num" style="color:var(--ink)">Histórico de indicadores · ${esc(PERFIL)}</div><div class="dw-sub">Últimas 8 semanas · se guarda un resumen de cada día con Despacho abierto</div></div>
       <div class="acts"><span class="seg mini">${[['esta', 'Esta semana'], ['pasada', 'Semana pasada'], ['hist', 'Histórico']].map(([v, l]) => `<button class="segb${infSemana === v ? ' on' : ''}" onclick="infSemana='${v}';abrirInforme()">${l}</button>`).join('')}</span>
       <button class="iconbtn" onclick="cerrarModal()" aria-label="Cerrar">✕</button></div></div>
     <div class="hist-g">${sem.map(s => { const p = pc(s.d, s.tot); return `<div class="hist-c" title="${esc(`Semana del ${f(s.a)}: ${s.d}/${s.tot} visitas terminadas · ${s.venc} con caducidad vencida · ${plural(s.dias, 'día')} con datos`)}">
@@ -402,7 +409,7 @@ function abrirInforme() {
   const m = document.getElementById('modal'), d = datosInforme();
   const f = x => x.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
   m.innerHTML = `<div class="md-box">
-    <div class="dw-head"><div><div class="dw-num" style="color:var(--ink)">Informe semanal</div><div class="dw-sub">Del ${f(d.ini)} al ${f(d.fin)} · ${d.diasCon.length ? plural(d.diasCon.length, 'día') + ' con datos' : 'sin datos todavía'}</div></div>
+    <div class="dw-head"><div><div class="dw-num" style="color:var(--ink)">Informe semanal · ${esc(PERFIL)}</div><div class="dw-sub">Del ${f(d.ini)} al ${f(d.fin)} · ${d.diasCon.length ? plural(d.diasCon.length, 'día') + ' con datos' : 'sin datos todavía'}</div></div>
       <div class="acts"><span class="seg mini">${[['esta', 'Esta semana'], ['pasada', 'Semana pasada'], ['hist', 'Histórico']].map(([v, l]) => `<button class="segb${infSemana === v ? ' on' : ''}" onclick="infSemana='${v}';abrirInforme()">${l}</button>`).join('')}</span>
       <button class="iconbtn" onclick="cerrarModal()" aria-label="Cerrar">✕</button></div></div>
     <div class="kpis inc-kpis">
@@ -431,7 +438,7 @@ async function copiarInforme() {
 }
 function correoInforme() {
   const d = datosInforme(), f = x => x.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
-  const subject = `Informe semanal Despacho · ${f(d.ini)} - ${f(d.fin)}`, body = informeTexto(d), c = cfgCorreo();
+  const subject = `Informe semanal Despacho · ${PERFIL} · ${f(d.ini)} - ${f(d.fin)}`, body = informeTexto(d), c = cfgCorreo();
   if (encodeURIComponent(body).length > 1800) { copiarInforme(); mailto(c.resumenPara, subject, null, ''); toast('Informe copiado con formato: pégalo en el correo'); }
   else mailto(c.resumenPara, subject, body, '');
 }

@@ -22,8 +22,14 @@ let sinFiltro = 'mia', sinVista = 'pend';
 function ticketDe(key) { return rows.find(x => tkey(x) === key) || poolRows.find(x => tkey(x) === key) || null; }
 
 // ===== Sin asignar (operarios comodín) y buzón =====
+// Zona de una incidencia sin asignar: por el código del comodín (Andalucía), por su nombre en ATGO
+// ("PENDIENTE ASIGNAR MURCIA" → MURCIA) y, si no, por la provincia del ticket.
+function zonaComodin(op) {
+  op = cleanInitials(op);
+  return POOL_ZONA[op] || zonaDeTexto(String(poolOpsDesc[op] || '').replace(/^PENDIENTE( DE)? ASIGNAR\s*/i, ''));
+}
 function zonaPool(r) {
-  const z = POOL_ZONA[cleanInitials(r.operario)];
+  const z = zonaComodin(r.operario) || zonaDeTexto(String(r.desOperario || '').replace(/^PENDIENTE( DE)? ASIGNAR\s*/i, ''));
   if (z) return z;
   const t = zonaTicket(r);   // por provincia
   if (t) return t;
@@ -223,6 +229,12 @@ let syncUltima = 0, syncAvisado = false;
 function marcarSync(m) { if (m && !m.partial && m.at) { syncUltima = m.at; syncAvisado = !!m.desdeCache; renderSyncAviso(); } }   // con datos guardados no se manda aviso de Windows
 function renderSyncAviso() {
   const el = document.getElementById('syncAviso'); if (!el || (typeof caidaSeguida !== 'undefined' && caidaSeguida)) return;   // aviso de carga sospechosa a la vista
+  if (typeof perfilEsperando !== 'undefined' && perfilEsperando) {
+    el.hidden = false; el.className = 'sync-aviso cargando';
+    el.innerHTML = `⏳ Cargando los técnicos de ${esc(PERFIL)}… (unos segundos; necesita la pestaña de ATGO abierta)`;
+    return;
+  }
+  el.className = 'sync-aviso';
   if (typeof syncVieja !== 'undefined' && syncVieja) {
     el.hidden = false;
     el.innerHTML = `⚠ La pestaña de ATGO tiene una versión antigua de la sincronización: recárgala (F5) <button class="btn sm" onclick="document.getElementById('atgoBtn').click()">Ir a ATGO</button>`;

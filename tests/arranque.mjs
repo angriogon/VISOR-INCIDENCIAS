@@ -68,10 +68,12 @@ try {
     showTab('sin'); sinMarcarTodas(true); out.marcadas = sinMarcadas().length;
     abrirNovedades(); cerrarModal(); abrirAtajos(); cerrarModal();
     openPalette(); document.getElementById('palInput').value = 'ceuta'; palRender(); out.buscador = palItems.length > 0; closePalette();
+    out.coord = (resumenCoordHtml().match(/class="coord-card/g) || []).length;
+    verDsp('DSP1'); await paso(150); out.filtroDsp = filtroInc.dsp; filtroInc.dsp = '';
     out.errores = diagLista().map(d => d.msg);
     return out;
   }, payload);
-  const esperado = { perfilDSP2: 16, perfilDSP5: 5, selectorTodos: 70, filas: 6, sinAsignar: 1, avisoVersion: true, enCurso: 'c', marcadas: 1, buscador: true, duracion: true };
+  const esperado = { coord: 5, filtroDsp: 'DSP1', perfilDSP2: 16, perfilDSP5: 5, selectorTodos: 70, filas: 6, sinAsignar: 1, avisoVersion: true, enCurso: 'c', marcadas: 1, buscador: true, duracion: true };
   for (const [k, v] of Object.entries(esperado)) if (r[k] !== v) errores.push(`${k}: esperado ${JSON.stringify(v)}, obtenido ${JSON.stringify(r[k])}`);
   for (const t of ['dia', 'sin', 'inc', 'sem', 'man']) if (!r['vista_' + t]) errores.push('La vista ' + t + ' está vacía');
   r.errores.forEach(e => errores.push('Diagnóstico: ' + e));

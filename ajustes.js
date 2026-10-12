@@ -3,8 +3,9 @@
 // asistente de inicio, diagnóstico, resumen matinal, aviso de técnico sin actividad y exportar a Excel.
 // Usa utilidades de app.js, dia.js, herramientas.js, edicion.js y panel.js solo en tiempo de llamada.
 
-const APP_VERSION = '1.16.2';   // súbela a la vez que VERSION en sw.js
+const APP_VERSION = '1.17.0';   // súbela a la vez que VERSION en sw.js
 const NOVEDADES = [
+  { v: '1.17.0', f: '2026-10-12', l: ['COORD: resumen por DSP en Mi día (visitas de hoy, retrasos, sin asignar, caducidades y escalados); al pulsar uno se ven solo sus incidencias.', 'Sin asignar: los comodines de todas las zonas se reconocen por su nombre en ATGO.', 'Al cambiar de perfil sale «Cargando DSPx…» hasta que llegan sus datos.', 'Perfiles: exportar e importar solo los perfiles para pasarlos a otro equipo.', 'Excel, informe semanal e histórico con el nombre y los técnicos del perfil activo.', 'Carga más rápida con perfiles grandes y su duración visible en ⚙ › General.', 'Corregido: un técnico quitado de un perfil ya no vuelve a aparecer al recargar.'] },
   { v: '1.16.2', f: '2026-10-12', l: ['Cada DSP queda con su lista matriz de técnicos por zonas; COORD con todos.', 'Perfiles: «Restablecer» (todos o el perfil abierto) vuelve a la lista matriz. Los perfiles cambiados se marcan como «modificado».'] },
   { v: '1.16.1', f: '2026-10-12', l: ['Zonas de DSP2 (Murcia, Alicante, Valencia/Castellón, Cataluña), DSP3 (Madrid, Ciudad Real), DSP4 (Castilla y León, Aragón, Galicia, Asturias/Cantabria, Norte) y DSP5 (Baleares, Portugal).', 'En esas zonas, Sin asignar ya recomienda técnico y «Mi zona» funciona como en Andalucía.'] },
   { v: '1.16.0', f: '2026-10-12', l: ['Se puede asignar cualquier técnico de cualquier perfil a cualquier incidencia, también en «Todas las zonas» y en el buzón.', 'Técnicos de DSP2, DSP3, DSP4 y DSP5 dados de alta.', 'Nueva ventana de Perfiles: añadir técnicos por código (o varios a la vez), por zonas o copiándolos de otro perfil, y quitarlos con ×.'] },
@@ -49,7 +50,58 @@ function marcarNovedades() { let v = null; try { v = localStorage.getItem(NOV_KE
 // ---- Perfiles: ventana para gestionar los técnicos de cada DSP ----
 function guardarPerfiles() { try { localStorage.setItem(PERFIL_KEY, JSON.stringify(perfilCfg)); } catch (e) { toast('No se pudo guardar en este equipo'); } }
 // Al cambiar de perfil se reinicia la foto de seguimiento: así no salen como «nuevos» ni «salieron» los tickets del otro perfil
-function setPerfil(p) { if (p === PERFIL) return; perfilCfg.activo = p; guardarPerfiles(); lsSet(SNAP_KEY, { start: 0, items: {} }); location.reload(); }
+function setPerfil(p) {
+  if (p === PERFIL) return; perfilCfg.activo = p; guardarPerfiles(); lsSet(SNAP_KEY, { start: 0, items: {} });
+  try { sessionStorage.setItem('despacho_perfil_cambiado', p); } catch (e) {}   // muestra «Cargando DSPx…» hasta que lleguen sus datos
+  location.reload();
+}
+// ---- Resumen por DSP (Mi día del coordinador) ----
+// Una tarjeta por DSP: visitas de hoy hechas/total, retrasos, sin asignar de sus zonas, caducidades y escalados.
+// Al pulsarla se abre Incidencias con solo los técnicos de ese DSP.
+function resumenCoordHtml() {
+  const ruta = rutaHoy(), sin = sinListas().pend;
+  const cards = PERFILES.filter(p => p !== 'COORD' && perfilCfg.tecs[p].length).map(p => {
+    const ops = perfilCfg.tecs[p], zonas = ZONAS_BASE.filter(z => dspZona(z) === p).map(z => z.nombre);
+    const r = ruta.filter(x => ops.includes(cleanInitials(x.op)));
+    const hechas = r.filter(x => x.st === 'd').length, tarde = r.filter(x => x.late).length;
+    const mias = rows.filter(x => ops.includes(cleanInitials(x.operario)));
+    const cad = mias.filter(x => { const c = caducidad(x); return c && ['venc', 'urg'].includes(cadNivel(c)); }).length;
+    const esc1 = mias.filter(x => norm(x.estado) === norm('ESCALADO TIER1')).length;
+    const sa = sin.filter(x => zonas.includes(zonaPool(x))).length;
+    const pc = r.length ? Math.round(hechas / r.length * 100) : 0;
+    const hot = tarde || cad || esc1;
+    return `<button class="coord-card${hot ? ' hot' : ''}" onclick="verDsp('${p}')" title="Ver las incidencias de ${p}">
+      <div class="cc-h"><b>${p}</b><small>${esc(zonas.join(' · ') || plural(ops.length, 'técnico'))}</small></div>
+      <div class="cc-prog"><div class="pbar"><i class="d" style="width:${pc}%"></i></div><span>${r.length ? `${hechas}/${r.length} hoy` : 'sin visitas hoy'}</span></div>
+      <div class="cc-kpi"><span${tarde ? ' class="w"' : ''}>${tarde} retraso${tarde === 1 ? '' : 's'}</span><span${sa ? ' class="a"' : ''}>${sa} sin asignar</span><span${cad ? ' class="w"' : ''}>${cad} caducan</span><span${esc1 ? ' class="w"' : ''}>${esc1} escal.</span></div>
+    </button>`;
+  });
+  return cards.length ? `<section class="coord-res"><div class="cc-tit">Resumen por DSP <small>pulsa uno para ver sus incidencias</small></div><div class="coord-grid">${cards.join('')}</div></section>` : '';
+}
+function verDsp(p) { filtroInc = { est: '', cad: false, q: '', dsp: p }; zonaSel = null; showTab('inc'); }
+
+// ---- Exportar / importar solo los perfiles (para pasárselos a otro dispatcher sin el resto de tus datos) ----
+function exportarPerfiles() {
+  const data = { app: 'panel-despacho-perfiles', version: 1, fecha: new Date().toISOString(), tecs: perfilCfg.tecs };
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
+  a.download = `despacho-perfiles-${isoHoy()}.json`; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  toast('Perfiles exportados');
+}
+function importarPerfiles() {
+  const i = document.createElement('input'); i.type = 'file'; i.accept = '.json,application/json';
+  i.onchange = () => { const f = i.files[0]; if (!f) return; const rd = new FileReader(); rd.onload = () => { try { importarPerfilesDatos(JSON.parse(rd.result)); } catch (e) { toast('No es un archivo de perfiles válido'); } }; rd.readAsText(f); };
+  i.click();
+}
+async function importarPerfilesDatos(d) {
+  const tecs = d && (d.app === 'panel-despacho-perfiles' ? d.tecs : d.app === 'panel-despacho' && d.perfiles ? d.perfiles.tecs : null);
+  if (!tecs || typeof tecs !== 'object') { toast('No es un archivo de perfiles de Despacho'); return; }
+  const limpio = Object.fromEntries(PERFILES.map(p => [p, [...new Set((Array.isArray(tecs[p]) ? tecs[p] : []).map(x => cleanInitials(x)).filter(x => /^[A-Z0-9]{2,12}$/.test(x)))]]));
+  const ok = await confirmar(`<b>Importar perfiles</b><p>${PERFILES.map(p => `${p}: ${limpio[p].length}`).join(' · ')}</p><p class="hint">Sustituye los técnicos de todos los perfiles de este equipo. El perfil en uso no cambia.</p>`, 'Importar');
+  if (ok) { perfilCfg.tecs = limpio; guardarPerfiles(); perfilesCambiados = true; toast('Perfiles importados'); }
+  abrirPerfiles(perfSel || PERFIL);
+}
 let perfilesCambiados = false, perfSel = null, perfBusca = '';
 function perfCambio(p) { guardarPerfiles(); if (p === PERFIL) perfilesCambiados = true; renderPerfiles(); }
 // Nombre del técnico si aparece en alguna incidencia cargada ("APELLIDOS, NOMBRE" → "Nombre Apellidos")
@@ -129,7 +181,8 @@ function renderPerfiles() {
         <div class="pf-tecs">${grupos.length ? grupos.map(g => `<div class="pf-g"><div class="pf-gt">${esc(g.t)} <small>${g.ops.length}</small></div><div class="pf-chips">${g.ops.map(chip).join('')}</div></div>`).join('') : '<div class="dempty">Sin técnicos. Añádelos arriba escribiendo su código, por zonas o copiándolos de otro perfil.</div>'}</div>
       </section>
     </div>
-    ${perfilesCambiados ? `<div class="pf-aplicar"><span>Has cambiado los técnicos del perfil en uso (${PERFIL}).</span><button class="btn sm pri" onclick="lsSet(SNAP_KEY,{start:0,items:{}});location.reload()">Aplicar cambios (recarga)</button></div>` : ''}`;
+    <div class="pf-pie"><span>Para pasar los perfiles a otro equipo:</span><button class="btn sm ghost" onclick="exportarPerfiles()">Exportar perfiles</button><button class="btn sm ghost" onclick="importarPerfiles()">Importar perfiles</button></div>
+    ${perfilesCambiados ? `<div class="pf-aplicar"><span>Has cambiado los técnicos del perfil en uso (${PERFIL}).</span><button class="btn sm pri" onclick="lsSet(SNAP_KEY,{start:0,items:{}});try{sessionStorage.setItem('despacho_perfil_cambiado',PERFIL)}catch(e){};location.reload()">Aplicar cambios (recarga)</button></div>` : ''}`;
   const i = document.getElementById('pfIn'); if (i && perfBusca) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); }
 }
 function updatePerfilBtn() { const b = document.getElementById('perfilBtn'); if (b) { b.textContent = PERFIL; b.title = `Perfil ${PERFIL}: ${plural(OPERARIOS.length, 'técnico')}. Pulsa para gestionar los perfiles.`; } }
@@ -157,6 +210,7 @@ function renderCfg() {
   if (cfgTab === 'gen') {
     h = `<div class="cfg-h">Conexión</div>
       <div class="cfg-t">${esc(document.getElementById('fileStatus').textContent)}${esc(document.getElementById('atgoStatus').textContent)}</div>
+      ${ultimaCarga && ultimaCarga.s != null ? `<div class="cfg-t">Última carga: ${ultimaCarga.ops != null ? plural(ultimaCarga.ops, 'técnico') + ' en ' : ''}${ultimaCarga.s} s${ultimaCarga.s > 60 ? ' · lenta: avisa si pasa a menudo' : ''}</div>` : ''}
       <div class="acts"><button class="btn sm pri" onclick="document.getElementById('atgoBtn').click()">Abrir ATGO</button><button class="btn sm" onclick="document.getElementById('importBtn').click()">Importar Excel</button><button class="btn sm ghost" onclick="abrirAsistente()">Asistente de inicio</button></div>
       <div class="cfg-h">Apariencia</div>
       <div class="cfg-row"><span>Tema</span><span class="seg mini">${[['auto', 'Windows'], ['light', 'Claro'], ['dark', 'Oscuro']].map(([v, l]) => `<button class="segb${(tecCfg.tema || 'auto') === v ? ' on' : ''}" onclick="setPref('tema','${v}')">${l}</button>`).join('')}</span></div>
@@ -195,6 +249,7 @@ function renderCfg() {
       <div class="cfg-h">Datos cargados</div>
       <div class="cfg-t">${esc(document.getElementById('fileStatus').textContent)} · ${Math.round(espacioUsado() / 1024)} KB guardados en este equipo (límite ~5 MB; lo antiguo se limpia solo).</div>
       <div class="acts">${rows.length ? '<button class="btn sm ghost" onclick="document.getElementById(\'clearBtn\').click()">Quitar datos cargados</button>' : ''}<button class="btn sm ghost" onclick="liberarEspacio();renderCfg();toast(\'Espacio liberado\')">Liberar espacio ahora</button></div>
+      ${(() => { const l = Object.entries(poolOpsDesc).filter(([op]) => !zonaComodin(op)); return l.length ? `<div class="cfg-h">Comodines sin zona</div><div class="cfg-t">Estos «PENDIENTE ASIGNAR» de ATGO no se asocian a ninguna zona por su nombre (sus incidencias usan la provincia del ticket): ${esc(l.map(([op, d]) => op + ' (' + d + ')').join(', '))}. Si alguno debería ser de una zona, dímelo.</div>` : ''; })()}
       <div class="cfg-h">Diagnóstico</div>
       <div class="cfg-t">Versión ${esc(APP_VERSION)} · ${plural(diagLista().length, 'error')} registrado${diagLista().length === 1 ? '' : 's'}.</div>
       <div class="acts"><button class="btn sm" onclick="copiarDiagnostico()">Copiar diagnóstico</button>${diagLista().length ? '<button class="btn sm ghost" onclick="lsSet(DIAG_KEY,[]);renderCfg()">Vaciar</button>' : ''}</div>`;
@@ -392,7 +447,7 @@ async function exportarExcel(que) {
   if (!datos.length) { toast('No hay datos que exportar'); return; }
   const ws = XLSX.utils.json_to_sheet(datos), wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, nombre);
-  XLSX.writeFile(wb, `despacho-${nombre}-${isoHoy()}.xlsx`);
+  XLSX.writeFile(wb, `despacho-${PERFIL}-${nombre}-${isoHoy()}.xlsx`);   // con el perfil: para enviarlo al responsable de cada DSP
 }
 
 // ---- Arranque (cuando ya están cargados todos los scripts) ----

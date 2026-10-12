@@ -83,7 +83,7 @@ vm.runInContext([
   extraer(app, 'function zonaOps('), extraer(app, 'function zonaDe('), extraer(app, 'function opIndex('), extraer(app, 'function esPresencial('), extraer(app, 'function horaMin('), extraer(app, 'function sortByHora('), extraer(app, 'function ddmmyyyy('),
   extraer(dia, 'function tkey('), extraer(dia, 'const ESTADOS_CIERRE'), extraer(dia, 'function esCierre('),
   extraer(herr, 'const PROV_ZONA'), extraer(herr, 'const PROV_RE'), extraer(herr, 'function zonaTicket('), extraer(herr, 'function poblacionDe('),
-  extraer(panel, 'const POOL_ZONA'), extraer(panel, 'function zonaPool('), extraer(panel, 'function sedeKey('), extraer(panel, 'function mismaSede('), extraer(panel, 'function recomendar('), extraer(panel, 'function conflictos('), extraer(panel, 'function fmtMin('),
+  extraer(panel, 'const POOL_ZONA'), extraer(herr, 'function zonaDeTexto('), extraer(panel, 'function zonaComodin('), extraer(panel, 'function zonaPool('), extraer(panel, 'function sedeKey('), extraer(panel, 'function mismaSede('), extraer(panel, 'function recomendar('), extraer(panel, 'function conflictos('), extraer(panel, 'function fmtMin('),
   "let rows = [], poolOpsDesc = {}, duracionFija = {}; const JORNADA_MIN = 480; const tecCfg = {}; function cargaMin() { return 0; } function estimarMin(r) { return duracionFija[r.key] || null; }"
 ].join('\n'), cr);
 const T = (key, op, sede, extra) => ({ key, num: key.replace(/\//g, ''), operario: op, estado: 'PRESENCIAL', descSede: sede, descCliente: 'CARREFOUR', provincia: 'CEUTA', poblacion: 'CEUTA', fVisita: '', ...(extra || {}) });
@@ -107,6 +107,8 @@ igual('provincia: zonas de DSP2–DSP5', [zt('Murcia'), zt('ALICANTE'), zt('Cast
 igual('provincia: palabra completa ("asesoría" no es Soria)', zt('', '', 'C/ Asesoría Fiscal 3'), null);
 igual('provincia: Andalucía sigue igual', [zt('SEVILLA'), zt('', 'Palma del Condado, HUELVA')], ['SEVILLA/HUELVA', 'SEVILLA/HUELVA']);
 igual('recomendado: Murcia propone a sus técnicos', cr.recomendar(T('1/00/7', 'XXX-MU', 'Tienda Murcia', { provincia: 'MURCIA', poblacion: 'MURCIA' }), new Date(2026, 9, 13, 12)).map(x => x.op).sort(), ['GAS', 'RUFB']);
+vm.runInContext("poolOpsDesc = { 'XXX-MU': 'PENDIENTE ASIGNAR MURCIA', 'XXX-RARO': 'PENDIENTE ASIGNAR' };", cr);
+igual('comodines: zona por el nombre en ATGO', [cr.zonaPool({ operario: 'XXX-MU', provincia: '' }), cr.zonaComodin('XXX-RARO'), cr.zonaPool({ operario: 'XXX-SVQ' })], ['MURCIA', null, 'SEVILLA/HUELVA']);
 igual('cierre: estados que cuentan como terminada', ['CERRADO', 'Puesto operativo', 'PTO. OPERATIVO PTE. ACEPTACIÓN PRESUPUESTO', 'EN FABRICANTE', 'PRESENCIAL'].map(e => cr.esCierre(e)), [true, true, true, false, false]);
 
 // ---- Progreso del día: solo cuenta el técnico asignado (el soporte remoto también "inicia" tickets) ----
@@ -121,6 +123,35 @@ hilo([{ ts: ahora - 1800000, t: 'El usuario EACL ha iniciado el ticket' }, { ts:
 igual('progreso: finalizado por el técnico', cp.progresoHilo('k', 'EACL').k, 'd');
 hilo([{ ts: ahora - 86400000 * 2, t: 'El usuario EACL ha finalizado el ticket' }]);
 igual('progreso: lo de otros días no cuenta', cp.progresoHilo('k', 'EACL'), null);
+
+// ---- Perfiles: lista matriz, migración, cambios del usuario y selector de técnicos ----
+const bloquePerfiles = app.slice(app.indexOf('const PERFILES'), app.indexOf('const PERFIL = perfilCfg.activo;'));
+function perfilesCon(guardado) {
+  const almacen = guardado ? { dispatcher_perfiles_v1: JSON.stringify(guardado) } : {};
+  const c = { localStorage: { getItem: k => almacen[k] ?? null, setItem: (k, v) => { almacen[k] = String(v); } } }; vm.createContext(c);
+  vm.runInContext(extraer(app, 'const ZONAS_BASE') + '\n' + bloquePerfiles + '\nthis.cfg = perfilCfg; this.def = perfilesPorDefecto();', c);
+  return { cfg: c.cfg, def: c.def, guardado: almacen.dispatcher_perfiles_v1 && JSON.parse(almacen.dispatcher_perfiles_v1) };
+}
+const cuenta = t => Object.fromEntries(Object.entries(t).map(([p, l]) => [p, l.length]));
+const nuevo = perfilesCon(null);
+igual('perfiles: lista matriz en un equipo nuevo', cuenta(nuevo.cfg.tecs), { DSP1: 21, DSP2: 16, DSP3: 10, DSP4: 18, DSP5: 5, COORD: 70 });
+igual('perfiles: DSP2 con Murcia y Cataluña', ['RUFB', 'GAS', 'JHT', 'OALC'].every(op => nuevo.cfg.tecs.DSP2.includes(op)) && !nuevo.cfg.tecs.DSP2.includes('DSG'), true);
+const viejo = perfilesCon({ activo: 'DSP2', inicial1: true, tecs: { DSP1: ['AMRG', 'DSG', 'ZZZ1'], DSP2: ['RUFB'], DSP3: [], DSP4: [], DSP5: [], COORD: [] } });
+igual('perfiles: los antiguos pasan una vez a la matriz', [cuenta(viejo.cfg.tecs).DSP2, viejo.cfg.tecs.DSP1.includes('ZZZ1'), viejo.cfg.activo, viejo.guardado.matriz1], [16, false, 'DSP2', true]);
+const propio = { activo: 'DSP3', matriz1: true, tecs: { ...nuevo.def, DSP3: ['ADGG', 'NUEVO1'] } };
+igual('perfiles: tras la migración se respetan tus cambios (quitar y añadir)', perfilesCon(propio).cfg.tecs.DSP3.slice().sort(), ['ADGG', 'NUEVO1']);
+const conNuevo = perfilesCon({ ...propio, conocidos: nuevo.def.DSP1.filter(op => op !== 'DSG') });
+igual('perfiles: un técnico nuevo en el código entra en su perfil y en COORD', [conNuevo.cfg.tecs.DSP1.filter(x => x === 'DSG').length, conNuevo.cfg.tecs.COORD.filter(x => x === 'DSG').length], [1, 1]);
+igual('perfiles: restablecer = lista matriz', cuenta(perfilesCon(propio).def), { DSP1: 21, DSP2: 16, DSP3: 10, DSP4: 18, DSP5: 5, COORD: 70 });
+const so = { esc: s => String(s), plural: (n, w) => n + ' ' + w + (n === 1 ? '' : 's') }; vm.createContext(so);
+vm.runInContext(extraer(panel, 'function opcionesTecnico(') + `
+  const PERFILES = ['DSP1','DSP2','COORD'], PERFIL = 'DSP1', TECNICOS = ['DSG','ACAB'], TODOS_OPS = ['AMRG','DSG','ACAB','RUFB','GAS'];
+  const perfilCfg = { tecs: { DSP1: ['AMRG','DSG','ACAB'], DSP2: ['RUFB','GAS'], COORD: TODOS_OPS } };
+  function dispatcherOps() { return ['AMRG']; }`, so);
+const selHtml = so.opcionesTecnico([{ op: 'ACAB', carga: 0 }], 'RUFB', false);
+const valores = [...selHtml.matchAll(/value="([^"]*)"/g)].map(m => m[1]);
+igual('selector: todos los técnicos de todos los perfiles, una vez cada uno', valores.slice().sort(), ['ACAB', 'AMRG', 'DSG', 'GAS', 'RUFB']);
+igual('selector: el recomendado primero y el elegido marcado', [valores[0], /value="RUFB" selected/.test(selHtml), /optgroup label="Técnicos de DSP2"/.test(selHtml)], ['ACAB', true, true]);
 
 // ---- Coherencia de configuración ----
 const vSyncA = (leer('atgo-sync.js').match(/SYNC_VERSION = '([\d.]+)'/) || [])[1], vSyncP = (app.match(/SYNC_VERSION = '([\d.]+)'/) || [])[1];

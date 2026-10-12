@@ -623,6 +623,7 @@ function renderDia(force) {
       <div class="acts"><button class="btn sm" onclick="openPalette()" title="Buscar ticket o acción">Buscar <kbd>Ctrl K</kbd></button><button class="btn sm" onclick="copiarResumenJornada()" title="Texto listo para pegar a tu responsable">Copiar resumen del día</button><button class="btn sm" onclick="abrirInforme()">Informe semanal</button><button class="btn sm ghost" onclick="plegarTodo(true)" title="Plegar todas las secciones">Plegar</button><button class="btn sm ghost" onclick="plegarTodo(false)" title="Desplegar todas las secciones">Desplegar</button></div>
     </div>
     <div class="tiles">${tiles.map(t => `<button class="tile${t.hot ? ' hot' : ''}${!t.n || t.n === '0/0' ? ' zero' : ''}" data-go="${t.go}"><b>${esc(String(t.n))}</b><span>${esc(t.l)}</span><small>${esc(t.s)}</small></button>`).join('')}</div>
+    ${PERFIL === 'COORD' ? resumenCoordHtml() : ''}
     <div class="dia-grid">
       <div class="dcol">
       <section class="dsec" id="secNov">
@@ -674,6 +675,7 @@ function restoreBackup(file) {
   reader.onload = () => {
     try {
       const d = JSON.parse(reader.result);
+      if (d && d.app === 'panel-despacho-perfiles') { importarPerfilesDatos(d); return; }   // archivo solo de perfiles (ajustes.js)
       if (!d || d.app !== 'panel-despacho') throw new Error('no es una copia de Despacho');
       const hechos = [];
       if (d.notas && typeof d.notas === 'object') { notas = { ...notas, ...d.notas }; lsSet(NOTAS_KEY, notas); hechos.push(Object.keys(d.notas).length + ' notas'); }

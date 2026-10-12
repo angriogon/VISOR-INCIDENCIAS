@@ -622,3 +622,16 @@
   .pf-rest{margin-top:8px; background:none !important; border:1px dashed var(--line) !important; color:var(--ink-dim) !important; font-size:12px; text-align:center !important; display:block !important;}
   .pf-rest:hover{border-color:var(--amber) !important; color:var(--amber) !important;}
   .pf-cab h3 small{display:block; margin-top:2px;}
+  .pf-pie{display:flex; gap:8px; align-items:center; justify-content:flex-end; font-size:12px; color:var(--ink-faint); border-top:1px solid var(--line); padding-top:10px;}
+  .sync-aviso.cargando{color:var(--teal); background:var(--teal-dim); padding-right:10px;}
+  /* Resumen por DSP (COORD) */
+  .coord-res{display:grid; gap:8px; margin-bottom:14px;}
+  .cc-tit{font-weight:700; font-size:12px; letter-spacing:.3px; text-transform:uppercase; color:var(--ink-faint);} .cc-tit small{font-weight:500; text-transform:none; letter-spacing:0; margin-left:6px;}
+  .coord-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:10px;}
+  .coord-card{display:grid; gap:8px; text-align:left; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:12px; font:inherit; color:var(--ink); cursor:pointer;}
+  .coord-card:hover{border-color:var(--amber);}
+  .coord-card.hot{border-left:3px solid #d9614f;}
+  .cc-h{display:grid;} .cc-h b{font-size:15px;} .cc-h small{color:var(--ink-faint); font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .cc-prog{display:grid; grid-template-columns:1fr auto; gap:8px; align-items:center; font-size:12px; color:var(--ink-dim);}
+  .cc-kpi{display:flex; flex-wrap:wrap; gap:4px 10px; font-size:11.5px; color:var(--ink-faint);}
+  .cc-kpi .w{color:#d9614f; font-weight:600;} .cc-kpi .a{color:var(--amber); font-weight:600;}

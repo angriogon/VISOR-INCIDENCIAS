@@ -50,8 +50,14 @@ let perfilCfg = (() => {
   // 1.16.2: todos los perfiles pasan una vez a la lista matriz (lo pidió el usuario); después mandan sus cambios
   if (!c.matriz1){ c.tecs = perfilesPorDefecto(); c.matriz1 = true; try{ localStorage.setItem(PERFIL_KEY, JSON.stringify(c)); }catch(e){} }
   PERFILES.forEach(p => { if (!Array.isArray(c.tecs[p])) c.tecs[p] = (PERFIL_INICIAL[p] || []).slice(); });
-  // Técnicos nuevos en ZONAS_BASE que aún no están en ningún perfil: van al perfil de su zona
-  ZONAS_BASE.forEach(z => z.ops.forEach(op => { if (!PERFILES.some(p => p !== 'COORD' && c.tecs[p].includes(op))) c.tecs[dspZona(z)].push(op); }));
+  // Técnicos que se añadan a ZONAS_BASE en el futuro: entran solos en el perfil de su zona (y en COORD).
+  // "conocidos" guarda los que ya existían, para no volver a meter a los que quitaste tú.
+  if (!Array.isArray(c.conocidos)) c.conocidos = BASE_OPS.slice();
+  const nuevos = BASE_OPS.filter(op => !c.conocidos.includes(op));
+  if (nuevos.length){
+    ZONAS_BASE.forEach(z => z.ops.filter(op => nuevos.includes(op)).forEach(op => { [dspZona(z), 'COORD'].forEach(p => { if (!c.tecs[p].includes(op)) c.tecs[p].push(op); }); }));
+    c.conocidos = BASE_OPS.slice(); try{ localStorage.setItem(PERFIL_KEY, JSON.stringify(c)); }catch(e){}
+  }
   if (!PERFILES.includes(c.activo)) c.activo = 'DSP1';
   return c;
 })();
@@ -240,10 +246,11 @@ function zoneCounts(list){ const c = {}; list.forEach(r => { const z = zonaDe(r.
 
 // ---- Filtros de Incidencias (zona, estado, caducidad, texto) y filtros guardados ----
 const FILTROS_KEY = 'dispatcher_filtros_v1';
-let filtroInc = { est: '', cad: false, q: '' };
+let filtroInc = { est: '', cad: false, q: '', dsp: '' };   // dsp: ver solo los técnicos de un DSP (desde el resumen de COORD)
 let filtrosGuardados = (() => { try{ const l = JSON.parse(localStorage.getItem(FILTROS_KEY) || '[]'); return Array.isArray(l) ? l : []; }catch(e){ return []; } })();
-function filtroActivo(){ return !!(filtroInc.est || filtroInc.cad || filtroInc.q); }
+function filtroActivo(){ return !!(filtroInc.est || filtroInc.cad || filtroInc.q || filtroInc.dsp); }
 function pasaFiltro(r){
+  if (filtroInc.dsp && !(perfilCfg.tecs[filtroInc.dsp] || []).includes(cleanInitials(r.operario))) return false;
   if (filtroInc.est && norm(r.estado) !== filtroInc.est) return false;
   if (filtroInc.cad){ const c = caducidad(r); if (!c || !['venc','urg'].includes(cadNivel(c))) return false; }
   if (filtroInc.q){ const h = norm([r.num, r.descSede, r.descCliente, r.domicilio, r.referencia, r.tipo, r.operario].join(' ')); if (!norm(filtroInc.q).split(/\s+/).every(t => h.includes(t))) return false; }
@@ -254,7 +261,7 @@ function renderFilters(){
   el.innerHTML = '';
   el.appendChild(zoneChips(() => { renderFilters(); render(); }, zoneCounts(rows)));
   const f = document.createElement('div'); f.className = 'filt2';
-  f.innerHTML = `<select onchange="filtroInc.est=this.value;render()" title="Estado"><option value="">Todos los estados</option>${ESTADOS.map(e => `<option value="${esc(norm(e))}"${filtroInc.est === norm(e) ? ' selected' : ''}>${esc(e)}</option>`).join('')}</select>
+  f.innerHTML = `${filtroInc.dsp ? `<span class="chip sm active fsav"><span>Solo ${esc(filtroInc.dsp)}</span><b onclick="filtroInc.dsp='';renderFilters();render()" title="Ver todos" aria-label="Quitar">×</b></span>` : ''}<select onchange="filtroInc.est=this.value;render()" title="Estado"><option value="">Todos los estados</option>${ESTADOS.map(e => `<option value="${esc(norm(e))}"${filtroInc.est === norm(e) ? ' selected' : ''}>${esc(e)}</option>`).join('')}</select>
     <label class="chip sm${filtroInc.cad ? ' active' : ''}"><input type="checkbox" hidden ${filtroInc.cad ? 'checked' : ''} onchange="filtroInc.cad=this.checked;renderFilters();render()">Caducan en 24 h o vencidas</label>
     <input type="search" id="filtQ" placeholder="Filtrar: sede, cliente, Nº…" value="${esc(filtroInc.q)}" oninput="filtroInc.q=this.value;render()">
     ${filtroActivo() || zonaSel ? `<button class="chip sm" onclick="guardarFiltro()" title="Guardar esta combinación como acceso rápido">☆ Guardar</button><button class="chip sm" onclick="filtroInc={est:'',cad:false,q:''};zonaSel=null;renderFilters();render()">Limpiar</button>` : ''}
@@ -337,7 +344,7 @@ window.addEventListener('message', (e) => {
   atgoSource = e.source;   // pestaña de ATGO que sincroniza: a ella se le piden los hilos
   if (m.type === 'atgo-data'){
     recibirCapacidades(m); configurarAtgo(e.source);
-    if (!m.partial){ syncVieja = m.v !== SYNC_VERSION; renderSyncAviso(); }
+    if (!m.partial){ ultimaCarga = { s: m.seconds, ops: Array.isArray(m.ops) ? m.ops.length : null, at: m.at }; syncVieja = m.v !== SYNC_VERSION; if (perfilEsperando && (mismaLista(m.ops) || !m.ops)) perfilListo(); else renderSyncAviso(); }   // sin "ops" = sincronización antigua: manda su aviso de recargar
     if (!m.partial && ocupado() && (!atgoEnCola || Date.now() - atgoEnColaDesde < 4 * 60000)){ if (!atgoEnCola) atgoEnColaDesde = Date.now(); atgoEnCola = m; return; }
     atgoEnCola = null; aplicarDatosAtgo(m);
   }
@@ -349,8 +356,18 @@ window.addEventListener('message', (e) => {
 });
 // Versión de la sincronización que espera esta app. Si la pestaña de ATGO trae otra (la cargó antes de una
 // actualización), se avisa de que hay que recargarla. Debe coincidir con SYNC_VERSION de atgo-sync.js.
-const SYNC_VERSION = '1.16.0';
+const SYNC_VERSION = '1.17.0';
 let syncVieja = false;
+let ultimaCarga = null;   // duración de la última carga de ATGO (se ve en ⚙ › General)
+// Tras cambiar de perfil (o si los datos guardados son de otro perfil) se avisa «Cargando DSPx…» hasta que
+// llega una carga de ATGO hecha con los técnicos de este perfil (la sincronización manda su lista en "ops").
+const mismaLista = l => Array.isArray(l) && l.slice().sort().join() === OPERARIOS.slice().sort().join();
+let perfilEsperando = (() => {
+  try { if (sessionStorage.getItem('despacho_perfil_cambiado') === PERFIL) return true; } catch (e) {}
+  try { const c = JSON.parse(localStorage.getItem(ATGO_KEY) || 'null'); return !!(c && Array.isArray(c.ops) && !mismaLista(c.ops)); } catch (e) { return false; }
+})();
+function perfilListo(){ perfilEsperando = false; try { sessionStorage.removeItem('despacho_perfil_cambiado'); } catch (e) {} renderSyncAviso(); }
+if (perfilEsperando) setTimeout(() => { if (perfilEsperando) perfilListo(); }, 3 * 60000);   // por si la pestaña de ATGO no responde
 // La lista de técnicos que sincroniza la pestaña de ATGO sale de aquí (ZONAS_BASE): así no puede quedar desfasada.
 // atgo-sync.js mantiene su propia lista solo como respaldo si esta no llega.
 let atgoConfigurada = null;
