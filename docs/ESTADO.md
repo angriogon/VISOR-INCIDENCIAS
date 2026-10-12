@@ -35,6 +35,7 @@ Al terminar: "actualiza docs/ESTADO.md". Máximo ~40 líneas: lo antiguo se resu
   COORD se queda con los 70 técnicos (confirmado por el usuario).
 - 1.18.0: filtro por DSP compartido (filtroInc.dsp: zonasVisibles/enDsp/zonaEnDsp/dspChipsHtml) en Incidencias, Planificación,
   día y Sin asignar; Sin asignar por urgencia (sinListas(conDsp)); actualización silenciosa (offerUpdateSolo + aviso).
+  Probada por el usuario: funciona.
 
 ## En curso
 - (vacío)
