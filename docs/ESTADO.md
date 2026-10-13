@@ -25,7 +25,7 @@ Al terminar: "actualiza docs/ESTADO.md". Máximo ~40 líneas: lo antiguo se resu
   aviso si otra pestaña de ATGO da error; errorAtgo separa 401 (sesión) de 403 (sin permiso); editar no se fía de "expires".
 
 - 1.22.3: un 400 de ATGO salía como «sesión caducada» (el texto de ATGO contenía «caducidad»). errorAtgo clasifica por código;
-  atgo-sync errorDe lee el JSON de JHipster entero. Pendiente: motivo real del 400 al mover el 2026/00/98183 en Planificación.
+  atgo-sync errorDe lee el JSON de JHipster entero. El 400 del 2026/00/98183 («Parameterized Exception») es del propio ticket en ATGO: tampoco deja desde su web (otros sí).
 
 ## En curso
 - Crear tickets desde Despacho: espera la lista de campos y valores por defecto del usuario (ver docs/estudio-alta-tickets.md).
