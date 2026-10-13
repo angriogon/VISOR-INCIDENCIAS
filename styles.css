@@ -760,3 +760,5 @@
   .ed-res.ko{background:#fbe3df; color:#b5432f; border:1px solid #e7a99d;}
   .md-pasos{margin:6px 0 0; padding-left:20px; display:grid; gap:6px; font-size:13px;}
   .sync-dot{cursor:pointer;}
+  /* Reincidencia: el mismo equipo ha fallado en 10 días */
+  .reinc{background:#fbe3df !important; color:#b5432f !important; border-color:#e7a99d !important; font-weight:700; font-size:10.5px; vertical-align:1px;}

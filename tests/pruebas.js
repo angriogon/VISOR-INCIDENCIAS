@@ -172,6 +172,15 @@ const coe = {}; vm.createContext(coe);
 vm.runInContext([extraer(app, 'function norm('), extraer(app, 'const ESTADOS'), extraer(app, 'function ordenEstado(')].join('\n'), coe);
 igual('orden por estado: PRESENCIAL antes que FUERA DE MANTENIMIENTO y ESCALADO; desconocidos al final', ['ESCALADO TIER1', 'OTRO', 'presencial', 'FUERA DE MANTENIMIENTO'].sort((a, b) => coe.ordenEstado(a) - coe.ordenEstado(b)), ['presencial', 'FUERA DE MANTENIMIENTO', 'ESCALADO TIER1', 'OTRO']);
 
+// ---- Reincidencias: identificar el equipo ----
+const ceq = {}; vm.createContext(ceq);
+vm.runInContext([extraer(panel, 'const EQUIPO_PAL'), extraer(panel, 'function equipoDe(')].join('\n'), ceq);
+const eqId = (t, el) => (ceq.equipoDe(t, el) || {}).id || null;
+igual('equipo: IT de la balanza en el texto', eqId('No pesa la balanza IT40512 de charcutería'), 'IT40512');
+igual('equipo: el IT del texto y el elemento de ATGO son el mismo equipo', [eqId('', '40512'), eqId('', 'IT40512')], ['IT40512', 'IT40512']);
+igual('equipo: caja y aparato', [eqId('Falla la impresora de la caja 131'), eqId('Caja 12: no lee la pistola'), eqId('caja nº 7 bloqueada')], ['CAJA131|impresora', 'CAJA12|escáner', 'CAJA7']);
+igual('equipo: sin datos no hay equipo', eqId('No funciona el wifi de la tienda'), null);
+
 // ---- Coherencia de configuración ----
 const vSyncA = (leer('atgo-sync.js').match(/SYNC_VERSION = '([\d.]+)'/) || [])[1], vSyncP = (app.match(/SYNC_VERSION = '([\d.]+)'/) || [])[1];
 igual('SYNC_VERSION igual en atgo-sync.js y app.js', vSyncA, vSyncP);

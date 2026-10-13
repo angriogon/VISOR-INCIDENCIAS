@@ -19,7 +19,8 @@ function registrarCerrada(e, estado) {
   const r = rows.find(x => tkey(x) === k) || {};
   cerradas[k] = {
     key: k, num: e.num || r.num, op: cleanInitials(e.op || r.operario || ''), sede: e.sede || r.descSede || '', cli: e.cli || r.descCliente || '',
-    dir: r.domicilio || '', estado, ts: e.ts || Date.now(), fVisita: e.f || r.fVisita || '', motivo: motivoTexto(k), url: r.url || ATGO_URL + k
+    dir: r.domicilio || '', estado, ts: e.ts || Date.now(), fVisita: e.f || r.fVisita || '', motivo: motivoTexto(k), url: r.url || ATGO_URL + k,
+    elemento: r.elemento || '', ref: r.referencia || '', reg: (registro(r) || { getTime: () => 0 }).getTime() || 0   // para reincidencias por equipo
   };
 }
 function podarCerradas() {

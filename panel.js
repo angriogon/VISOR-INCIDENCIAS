@@ -414,20 +414,44 @@ function conflictos(f) {
   return out;
 }
 
-// ===== Reincidencias (misma sede, varios tickets en 30 días) =====
+// ===== Reincidencias: el MISMO EQUIPO vuelve a fallar en 10 días =====
+// En hipers y almacenes grandes se abren avisos casi a diario: contar por sede no sirve. Se identifica el equipo:
+//  1. «IT12345» en el texto del ticket (balanzas) o el elemento de ATGO (codElemento, el «código IT»);
+//  2. «caja 131» en el texto, con el aparato si se nombra (impresora, escáner/pistola, cajón, datáfono…).
+// Si no se puede saber el equipo, no hay marca.
+const REINC_DIAS = 10;
+const EQUIPO_PAL = [[/pistola|esc[aá]ner|lector/i, 'escáner'], [/impresora|ticketera/i, 'impresora'], [/caj[oó]n/i, 'cajón'], [/dat[aá]fono|pin ?pad|pinpad/i, 'datáfono'], [/pantalla|visor|monitor|t[aá]ctil/i, 'pantalla'], [/teclado/i, 'teclado'], [/balanza|b[aá]scula/i, 'balanza']];
 function sedeKey(r) { return norm((r.descCliente || r.cli || '') + '|' + (r.descSede || r.sede || '')); }
+function equipoDe(texto, elemento) {
+  const t = String(texto || '');
+  const it = /\bIT[\s-]?(\d{3,})\b/i.exec(t);
+  if (it) return { id: 'IT' + it[1], txt: 'IT' + it[1] };
+  const el = String(elemento || '').trim().toUpperCase().replace(/^IT[\s-]?/, '');
+  const caja = /\bcaja\s*(?:n[ºo°.]*\s*)?(\d{1,4})\b/i.exec(t);
+  if (caja) { const d = EQUIPO_PAL.find(([re]) => re.test(t)); return { id: 'CAJA' + caja[1] + (d ? '|' + d[1] : ''), txt: 'caja ' + caja[1] + (d ? ' · ' + d[1] : '') }; }
+  if (el && el !== 'NULL') return { id: 'IT' + el, txt: (/^\d+$/.test(el) ? 'IT' : '') + el };
+  return null;
+}
 function reincidencias() {
-  const lim = Date.now() - 30 * 86400000, m = {};
-  const add = (k, info) => { (m[k] = m[k] || new Map()).set(info.key, info); };
-  [...rows, ...poolRows].forEach(r => { const d = registro(r); if (d && d.getTime() >= lim && (r.descSede)) add(sedeKey(r), { key: tkey(r), num: r.num, sede: r.descSede, cli: r.descCliente, estado: r.estado, ts: d.getTime() }); });
-  Object.values(cerradas).forEach(c => { if (c.ts >= lim && c.sede) add(sedeKey(c), { key: c.key, num: c.num, sede: c.sede, cli: c.cli, estado: c.estado, ts: c.ts }); });
-  return Object.values(m).map(x => [...x.values()]).filter(l => l.length >= 2).sort((a, b) => b.length - a.length);
+  const lim = Date.now() - 2 * REINC_DIAS * 86400000, m = {};
+  const add = (sede, eq, info) => { if (!eq || !info.ts || info.ts < lim) return; const k = sede + '#' + eq.id; (m[k] = m[k] || new Map()).set(info.key, { ...info, eq: eq.txt }); };
+  [...rows, ...poolRows].forEach(r => { const d = registro(r), k = tkey(r); add(sedeKey(r), equipoDe((typeof motivoTexto === 'function' ? motivoTexto(k) : '') + ' ' + (r.referencia || ''), r.elemento), { key: k, num: r.num, ts: d && d.getTime(), estado: r.estado }); });
+  Object.values(cerradas).forEach(c => add(sedeKey(c), equipoDe((c.motivo || '') + ' ' + (c.ref || ''), c.elemento), { key: c.key, num: c.num, ts: c.reg || c.ts, cerrada: c.ts, estado: c.estado }));
+  // Cada ticket con los demás del mismo equipo abiertos a menos de 10 días del suyo
+  const idx = {};
+  Object.values(m).forEach(x => { const l = [...x.values()]; if (l.length < 2) return; l.forEach(t => { const otros = l.filter(o => o.key !== t.key && Math.abs(o.ts - t.ts) <= REINC_DIAS * 86400000); if (otros.length) idx[t.key] = { eq: t.eq, otros }; }); });
+  return idx;
 }
 let reincCache = { at: 0, idx: {} };
+function reincDe(r) {
+  if (Date.now() - reincCache.at > 30000) reincCache = { at: Date.now(), idx: reincidencias() };
+  return reincCache.idx[tkey(r)] || null;
+}
 function reincBadge(r) {
-  if (Date.now() - reincCache.at > 30000) { const idx = {}; reincidencias().forEach(l => l.forEach(t => idx[t.key] = l.length)); reincCache = { at: Date.now(), idx }; }
-  const n = reincCache.idx[tkey(r)];
-  return n ? `<span class="reinc" title="Misma sede con ${n} tickets en 30 días">↻ ${n}</span>` : '';
+  const x = reincDe(r); if (!x) return '';
+  const fd = ts => new Date(ts).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
+  const t = `El mismo equipo (${x.eq}) ha fallado ${x.otros.length + 1} veces en ${REINC_DIAS} días: ` + x.otros.map(o => `Nº ${o.num} del ${fd(o.ts)}${o.cerrada ? ' (cerrado el ' + fd(o.cerrada) + ')' : ''}`).join(' · ');
+  return `<span class="reinc" title="${esc(t)}">🔁 ${esc(x.eq)}</span>`;
 }
 
 // ===== Planificación en bloque (secuencial: cada uno se guarda y se comprueba por separado) =====

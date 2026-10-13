@@ -1,6 +1,6 @@
 # Estudio: replantear la marca de reincidencias (↻)
 
-Fecha: 13/10/2026. Solo es un estudio: no hay nada implementado.
+Fecha: 13/10/2026. **Implementado en la 1.22.1** con la propuesta A, un margen de 10 días (lo eligió el usuario) y sin la marca por sede (D).
 
 ## Qué falla hoy
 
