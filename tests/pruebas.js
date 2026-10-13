@@ -167,6 +167,11 @@ vm.runInContext("bajasPrueba = ['GAS', 'RUFB']", so);
 const selBaja = [...so.opcionesTecnico([], 'RUFB', false).matchAll(/value="([^"]*)"/g)].map(m => m[1]);
 igual('nómina: el de baja no sale en el selector (salvo si ya es el elegido)', [selBaja.includes('GAS'), selBaja.includes('RUFB')], [false, true]);
 
+// ---- Incidencias: orden por estado dentro de cada técnico ----
+const coe = {}; vm.createContext(coe);
+vm.runInContext([extraer(app, 'function norm('), extraer(app, 'const ESTADOS'), extraer(app, 'function ordenEstado(')].join('\n'), coe);
+igual('orden por estado: PRESENCIAL antes que FUERA DE MANTENIMIENTO y ESCALADO; desconocidos al final', ['ESCALADO TIER1', 'OTRO', 'presencial', 'FUERA DE MANTENIMIENTO'].sort((a, b) => coe.ordenEstado(a) - coe.ordenEstado(b)), ['presencial', 'FUERA DE MANTENIMIENTO', 'ESCALADO TIER1', 'OTRO']);
+
 // ---- Coherencia de configuración ----
 const vSyncA = (leer('atgo-sync.js').match(/SYNC_VERSION = '([\d.]+)'/) || [])[1], vSyncP = (app.match(/SYNC_VERSION = '([\d.]+)'/) || [])[1];
 igual('SYNC_VERSION igual en atgo-sync.js y app.js', vSyncA, vSyncP);

@@ -4,7 +4,7 @@ Archivo de traspaso entre sesiones. Al empezar una sesión: "lee docs/ESTADO.md 
 Al terminar: "actualiza docs/ESTADO.md". Máximo ~40 líneas: lo antiguo se resume o se borra.
 
 ## Versión actual
-- `sw.js`: despacho-v1.21.0 = `APP_VERSION` en `ajustes.js` (SYNC_VERSION 1.20.0 en atgo-sync.js y app.js).
+- `sw.js`: despacho-v1.22.0 = `APP_VERSION` en `ajustes.js` (SYNC_VERSION 1.20.0 en atgo-sync.js y app.js).
 - Historia resumida (detalle en NOVEDADES de ajustes.js y en git): 1.13 perfiles DSP1–5/COORD, ficha flotante, duración del hilo;
   1.14–1.15 pulido y revisión (asignarLote, SYNC_VERSION, pruebas de arranque); 1.15.1 extensión con "world": "MAIN";
   1.16.x asignar a cualquiera, zonas DSP2–5, lista matriz y «Restablecer»; 1.17.x resumen COORD, comodines por nombre, carga en 6 paralelos;
@@ -15,6 +15,10 @@ Al terminar: "actualiza docs/ESTADO.md". Máximo ~40 líneas: lo antiguo se resu
   color de acento (ACENTOS; --warn separa los avisos), Compacto/Normal/Amplio, accesibilidad (Modo accesible + ACC_OPS,
   saltar al contenido, foco en ventanas, aria-label automático), cabecera sin «Despacho» y pestañas en mayúsculas,
   novedades con las 5 últimas + «Anteriores». Estudio de crear tickets: docs/estudio-alta-tickets.md (viable: POST /incidencias/alta). 63 pruebas.
+
+- 1.22.0: Incidencias agrupadas por estado (ordenEstado/porEstadoHtml) y retroiluminadas (.ln-color), fechasHtml (VISITA/CADUCA tras el Nº),
+  avatar de color (colorTec), resultado de ATGO en la ficha (edResultado) y toast por encima (z 80), forzarAtgo (app.js).
+  Estudio de reincidencias: docs/estudio-reincidencias.md (propuesta A por equipo; espera respuesta del usuario).
 
 ## En curso
 - Crear tickets desde Despacho: espera la lista de campos y valores por defecto del usuario (ver docs/estudio-alta-tickets.md).

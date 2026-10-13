@@ -6,6 +6,9 @@ const EDIT_KEY = 'dispatcher_ediciones_v1';
 const EDIT_TIMEOUT_MS = 25000;
 let ediciones = lsGet(EDIT_KEY, []);
 let atgoCaps = [], atgoEstados = [];
+// Resultado del último cambio, visible arriba de la ficha › Actuar (el aviso flotante quedaba tapado por la ficha)
+let edResultado = null;   // { key, ok, txt, ts }
+function anotarResultado(key, ok, txt) { edResultado = { key, ok, txt, ts: Date.now() }; toast(txt, ok ? 'ok' : 'ko'); }
 let editPend = null;   // { id, key, accion, t0 } mientras se espera respuesta
 
 // Llamado desde index.html al recibir datos de ATGO: qué sabe hacer la pestaña de ATGO y su lista de estados
@@ -62,7 +65,7 @@ function enviarEdicion(accion, key, datos) {
     registrarEdicion({ key, num: r.num, accion, detalle: datos.resumen, ok: false, error: 'sin respuesta de ATGO' });
     editTarde[id] = { key, accion, datos, ts: Date.now() };   // si ATGO contesta luego, se apunta el resultado real
     editPend = null;
-    toast('ATGO no ha respondido. Comprueba en ATGO si se aplicó antes de repetirlo.');
+    anotarResultado(key, false, 'ATGO no ha respondido. Comprueba en ATGO si se aplicó antes de repetirlo.');
     if (fichaKey === key) renderFicha();
     resolve({ ok: false, error: 'sin respuesta de ATGO' });
   }, EDIT_TIMEOUT_MS);
@@ -98,11 +101,11 @@ function recibirEdicion(m) {
   registrarEdicion({ key, num: r.num, accion, detalle: datos.resumen, ok: !!m.ok, error: m.error || '', dif: m.dif || null });
   if (m.hilo) recibirHilos({ [key]: m.hilo });
   if (m.ok) {
-    toast(accion === 'comentario' ? 'Comentario publicado en ATGO ✓' : accion === 'asignar' ? 'Guardado en ATGO ✓ · comprobado campo a campo' : 'Estado cambiado en ATGO ✓ · ' + (m.estadoActual || ''));
+    anotarResultado(key, true, accion === 'comentario' ? 'Comentario publicado en ATGO ✓' : accion === 'asignar' ? 'Guardado en ATGO ✓ · comprobado campo a campo' : 'Estado cambiado en ATGO ✓ · ' + (m.estadoActual || ''));
     if (accion === 'comentario' && fichaKey === key) { const ta = document.getElementById('edCom'); if (ta) ta.value = ''; }
     if (accion === 'asignar' && antes && Object.keys(antes).length) ofrecerDeshacer(key, r, antes, sinFechaAntes);
-  } else toast('No se aplicó: ' + (m.error || 'error desconocido'));
-  if (fichaKey === key) renderFicha();
+  } else anotarResultado(key, false, 'No se aplicó: ' + (m.error || 'error desconocido'));
+  if (fichaKey === key) { renderFicha(); verResultado(); }
   if (resolve) resolve(m);
 }
 
@@ -202,6 +205,8 @@ function asignarHtml(key, r, pend) {
 }
 
 // ---- Sección "Actuar en ATGO" de la ficha ----
+// Lleva a la vista el resultado (la ficha puede estar desplazada más abajo, en el formulario)
+function verResultado() { setTimeout(() => { const el = document.getElementById('edRes'); if (el) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }, 50); }
 function edicionHtml(key, r) {
   if (!r || !/^\d+\/[^/]+\/\d+$/.test(key)) return '';
   const pend = editPend && editPend.key === key;
@@ -214,7 +219,8 @@ function edicionHtml(key, r) {
   const opciones = atgoEstados.filter(x => norm(x.desEstado) !== norm(r.estado));
   return `<div class="dw-sec">
     <div class="dw-h">Actuar en ATGO <small>con tu usuario</small></div>
-    ${pend ? `<div class="ed-pend">Enviando a ATGO y comprobando… no cierres la pestaña de ATGO.</div>` : ''}
+    ${pend ? `<div class="ed-pend" role="status">⏳ Enviando a ATGO y comprobando… no cierres la pestaña de ATGO.</div>` : ''}
+    ${!pend && edResultado && edResultado.key === key && Date.now() - edResultado.ts < 120000 ? `<div class="ed-res ${edResultado.ok ? 'ok' : 'ko'}" id="edRes" role="status"><span>${esc(edResultado.txt)}</span><small>${esc(hhmm(edResultado.ts))}</small><button class="iconbtn sm" onclick="edResultado=null;this.parentNode.remove()" aria-label="Cerrar aviso">✕</button></div>` : ''}
     ${frasesHtml(r)}
     <textarea id="edCom" rows="2" placeholder="Comentario para el hilo del ticket (lo verá el técnico)"${pend ? ' disabled' : ''}></textarea>
     <div class="acts"><button class="btn" onclick="publicarComentario()"${pend ? ' disabled' : ''}>Publicar en el hilo</button></div>

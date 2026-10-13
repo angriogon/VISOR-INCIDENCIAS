@@ -725,3 +725,38 @@
   /* Novedades: últimas versiones y resumen de las anteriores */
   .nov-ant ul{columns:2 240px; column-gap:22px;}
   .nov-ant li{break-inside:avoid; margin-bottom:3px;}
+
+  /* ===== v1.22: Incidencias por estado y retroiluminadas, fechas junto al Nº, técnico más visible, avisos y reconexión ===== */
+  .ln-color{background:color-mix(in srgb, var(--c) 9%, var(--panel)); border-left:4px solid var(--c) !important;}
+  .line.ln-color[data-key]:hover, .vh.ln-color:hover{background:color-mix(in srgb, var(--c) 17%, var(--panel));}
+  .line.ln-color{border-top-color:color-mix(in srgb, var(--c) 18%, var(--line));}
+  .ln-grupo{display:flex; align-items:center; gap:8px; padding:6px 12px 3px 12px; font-size:10.5px; font-weight:700; letter-spacing:.5px; text-transform:uppercase; color:var(--c); border-top:1px solid var(--line);}
+  .ln-grupo::before{content:""; width:9px; height:9px; border-radius:50%; background:var(--c);}
+  .ln-grupo small{font-weight:600; color:var(--ink-faint); letter-spacing:0;}
+  .ln-d{color:var(--ink-dim);}
+  .fch{display:inline-flex; align-items:center; gap:5px; font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:600; padding:1px 7px 1px 2px; border-radius:6px; border:1px solid var(--line); background:var(--panel); color:var(--ink); vertical-align:1px; white-space:nowrap;}
+  .fch i{font-style:normal; font-family:'IBM Plex Sans',system-ui,sans-serif; font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.4px; padding:1px 5px; border-radius:4px; background:var(--panel2); color:var(--ink-dim);}
+  .fch.vis{border-color:color-mix(in srgb, #3b7dd8 45%, var(--line));}
+  .fch.vis i{background:#3b7dd8; color:#fff;}
+  .fch.vis.hoy{background:color-mix(in srgb, #3b7dd8 14%, var(--panel));}
+  .fch.vis.sin{color:var(--ink-faint); font-family:inherit; font-weight:500; border-style:dashed;}
+  .fch.vis.sin i{background:var(--panel2); color:var(--ink-faint);}
+  .fch[class*="cad-"] i{background:#7d8790; color:#fff;}
+  .fch.cad-pronto{border-color:var(--warn);} .fch.cad-pronto i{background:var(--warn);}
+  .fch.cad-urg, .fch.cad-venc{border-color:#d0544a; color:#b5432f; background:color-mix(in srgb, #d0544a 10%, var(--panel));} .fch.cad-urg i, .fch.cad-venc i{background:#d0544a;}
+  /* Técnico: avatar de color y nombre más grande */
+  .tg-h .av{width:42px; height:42px; font-size:12px; font-weight:800; letter-spacing:.3px; background:color-mix(in srgb, var(--c) 20%, var(--panel)); color:color-mix(in srgb, var(--c) 70%, var(--ink)); box-shadow:inset 0 0 0 2px color-mix(in srgb, var(--c) 55%, transparent);}
+  .tg-h{grid-template-columns:42px minmax(0,190px) minmax(0,1fr) 56px 14px;}
+  .tg-n b{font-size:15.5px; font-weight:800; letter-spacing:.3px;}
+  .tg-n span{font-size:13px; color:var(--ink); font-weight:500;}
+  body.densa .tg-h .av{width:32px; height:32px; font-size:10.5px;} body.densa .tg-n b{font-size:13.5px;} body.densa .tg-n span{font-size:12px;}
+  /* Avisos flotantes por encima de la ficha y las ventanas */
+  #toast{z-index:80; font-size:12.5px; padding:8px 16px; box-shadow:0 8px 24px rgba(0,0,0,.25); max-width:min(640px, calc(100vw - 32px));}
+  #toast.ok{background:#1d7a55; color:#fff;} #toast.ko{background:#b5432f; color:#fff;}
+  .undo-bar{bottom:64px;}   /* el aviso flotante va debajo, sin taparse */
+  .ed-res{display:flex; gap:8px; align-items:center; border-radius:8px; padding:8px 10px; font-size:12.5px; font-weight:600;}
+  .ed-res span{flex:1;} .ed-res small{font-weight:500; opacity:.8;}
+  .ed-res.ok{background:color-mix(in srgb, #1d9e75 14%, var(--panel)); color:var(--done-tx); border:1px solid color-mix(in srgb, #1d9e75 45%, transparent);}
+  .ed-res.ko{background:#fbe3df; color:#b5432f; border:1px solid #e7a99d;}
+  .md-pasos{margin:6px 0 0; padding-left:20px; display:grid; gap:6px; font-size:13px;}
+  .sync-dot{cursor:pointer;}

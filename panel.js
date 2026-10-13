@@ -275,7 +275,7 @@ function renderSyncAviso() {
   }
   const viejo = source === 'atgo' && syncUltima && Date.now() - syncUltima > SYNC_AVISO_MIN * 60000;
   el.hidden = !viejo;
-  if (viejo) el.innerHTML = `⚠ ATGO sin actualizar desde las ${esc(hhmm(syncUltima))} <button class="btn sm" onclick="document.getElementById('atgoBtn').click()">Abrir ATGO</button>`;
+  if (viejo) el.innerHTML = `⚠ ATGO sin actualizar desde las ${esc(hhmm(syncUltima))} <button class="btn sm" onclick="document.getElementById('atgoBtn').click()">Abrir ATGO</button><button class="btn sm pri" onclick="forzarAtgo()" title="Recarga ATGO desde cero y rehace la conexión">Forzar reconexión</button>`;
   if (viejo && !syncAvisado) { syncAvisado = true; notificarLista([{ num: '—', op: 'ATGO', a: 'Lleva más de ' + SYNC_AVISO_MIN + ' min sin actualizar: revisa la pestaña de ATGO o la sesión' }]); }
 }
 setInterval(renderSyncAviso, 60000);

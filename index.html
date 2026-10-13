@@ -19,7 +19,7 @@
 <a class="saltar" href="#principal">Saltar al contenido</a>
 <header>
   <nav class="tabs" aria-label="Secciones"><button class="tab active" id="tabDia" onclick="showTab('dia')" title="Mi día (1)" aria-current="page">Mi día<i class="tbadge" id="diaBadge" hidden></i></button><button class="tab" id="tabSin" onclick="showTab('sin')" title="Sin asignar (2)">Sin asignar<i class="tbadge" id="sinBadge" hidden></i></button><button class="tab" id="tabInc" onclick="showTab('inc')" title="Incidencias (3)">Incidencias</button><button class="tab" id="tabSem" onclick="showTab('sem')" title="Planificación: semana y detalle de cada día (4)">Planificación</button></nav>
-  <span class="sync-dot" id="syncDot" tabindex="0" aria-label="Estado de ATGO"><i></i><span class="sync-tip"><span id="fileStatus">Sin datos</span><span id="atgoStatus"></span></span></span>
+  <span class="sync-dot" id="syncDot" tabindex="0" role="button" aria-label="Estado de ATGO: pulsa para conectar o forzar la reconexión" onclick="cfgTab='gen';toggleCfg(event)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();cfgTab='gen';toggleCfg(event)}"><i></i><span class="sync-tip"><span id="fileStatus">Sin datos</span><span id="atgoStatus"></span></span></span>
   <span class="sync-aviso" id="syncAviso" hidden></span>
   <div class="spacer"></div>
   <button class="btn ghost" id="installBtn" style="display:none;" title="Instalar como aplicación de Windows">Instalar app</button>

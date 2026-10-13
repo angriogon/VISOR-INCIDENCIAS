@@ -376,6 +376,7 @@ window.addEventListener('message', (e) => {
   const m = e.data;
   atgoSource = e.source;   // pestaña de ATGO que sincroniza: a ella se le piden los hilos
   if (m.type === 'atgo-data'){
+    if (forzadoEn && Date.now() - forzadoEn < 120000){ forzadoEn = 0; clearTimeout(forzadoT); toast('ATGO conectado de nuevo ✓', 'ok'); }
     recibirCapacidades(m); configurarAtgo(e.source);
     if (!m.partial){ ultimaCarga = { s: m.seconds, ops: Array.isArray(m.ops) ? m.ops.length : null, at: m.at }; syncVieja = m.v === SYNC_VERSION ? false : (!m.v || cmpVer(m.v, SYNC_VERSION) < 0) ? 'atgo' : 'app'; if (perfilEsperando && (mismaLista(m.ops) || !m.ops)) perfilListo(); else renderSyncAviso(); }   // sin "ops" = sincronización antigua: manda su aviso de recargar
     if (!m.partial && ocupado() && (!atgoEnCola || Date.now() - atgoEnColaDesde < 4 * 60000)){ if (!atgoEnCola) atgoEnColaDesde = Date.now(); atgoEnCola = m; return; }
@@ -431,6 +432,28 @@ document.getElementById('atgoBtn').addEventListener('click', () => {
   atgoWin = window.open(ATGO_URL, 'atgo-tier1');
   if (!atgoWin) toast('El navegador bloqueó la ventana. Abre ' + ATGO_URL);
 });
+// «Forzar reconexión» (⚙ › General, aviso de ATGO sin actualizar, clic en el punto de estado): cuando ATGO se queda
+// pillado y abrirlo no sirve. Olvida la conexión anterior y abre ATGO recargado desde cero en su pestaña de Despacho
+// (la extensión vuelve a arrancar la sincronización y esta, al ver que la abrió Despacho, se conecta sola).
+let forzadoEn = 0, forzadoT = null;
+function forzarAtgo(){
+  if (typeof editPend !== 'undefined' && editPend){ toast('Espera a que termine el cambio que se está guardando en ATGO'); return; }
+  atgoSource = null; atgoConfigurada = null; forzadoEn = Date.now();
+  const w = window.open(ATGO_ORIGIN + '/?despacho=' + Date.now() + '#/mistickets/', 'atgo-tier1');
+  if (!w){ toast('El navegador bloqueó la ventana. Permite las ventanas emergentes de Despacho y repítelo'); return; }
+  atgoWin = w; try{ w.focus(); }catch(e){}
+  setAtgoStatus('Cargando: reconectando con ATGO…');
+  toast('Reabriendo ATGO desde cero… si te pide usuario, inicia sesión');
+  clearTimeout(forzadoT);
+  forzadoT = setTimeout(() => {
+    if (typeof syncUltima !== 'undefined' && syncUltima >= forzadoEn) return;   // ya han llegado datos nuevos
+    confirmar(`<b>ATGO sigue sin conectar</b>
+      <ol class="md-pasos"><li>En la pestaña de ATGO que se acaba de abrir, <b>inicia sesión</b> si te lo pide y espera unos segundos.</li>
+      <li>Si usas el <b>favorito ⟳ Despacho ATGO</b> en lugar de la extensión, púlsalo en esa pestaña.</li>
+      <li>Con la extensión: en <span class="mono">chrome://extensions</span> comprueba que «Despacho» está <b>activada</b> (y pulsa ⟳ para recargarla).</li>
+      <li>Cierra otras pestañas de ATGO abiertas a mano y vuelve a pulsar <b>Forzar reconexión</b>.</li></ol>`, 'Entendido');
+  }, 45000);
+}
 
 // Marcador: carga atgo-sync.js (de esta misma web) dentro de la pestaña de ATGO.
 (function(){
@@ -493,10 +516,11 @@ function tecRow(op, items, ruta, esDisp){
   const esc1 = items.filter(r => norm(r.estado) === norm('ESCALADO TIER1')).length;
   const sinF = items.filter(r => esPresencial(r) && !r.fVisita).length;
   const enRuta = new Set(ruta.map(x => tkey(x.r)));
-  const resto = items.filter(r => !enRuta.has(tkey(r))).sort((a, b) => (parseEs(a.fVisita) || 9e15) - (parseEs(b.fVisita) || 9e15));
+  // Resto: agrupadas por estado (en el orden de ESTADOS) y, dentro de cada estado, por fecha de visita
+  const resto = items.filter(r => !enRuta.has(tkey(r))).sort((a, b) => ordenEstado(a.estado) - ordenEstado(b.estado) || (parseEs(a.fVisita) || 9e15) - (parseEs(b.fVisita) || 9e15));
   return `<div class="tg${isCol(op) ? ' collapsed' : ''}" data-op="${esc(op)}">
     <div class="tg-h" onclick="toggleGroup('${jsq(op)}')">
-      <div class="av">${esc(op)}</div>
+      <div class="av" style="--c:${colorTec(op)}">${esc(op)}</div>
       <div class="tg-n"><b>${esc(op)}${enBaja(op) ? ' <span class="baja-tag" title="De baja (⚙ › Técnicos): reasigna sus incidencias">BAJA</span>' : ''}</b><span>${esc(nombreTecnico(ref) || zonaDe(op))}</span></div>
       <div class="tg-m">
         ${esDisp ? '<span class="tg-none">Pendientes de asignar</span>'
@@ -510,7 +534,7 @@ function tecRow(op, items, ruta, esDisp){
     <div class="tg-b">
       ${!esDisp && ruta.some(x => esPresencial(x.r) && !x.salio) ? `<div class="tg-acts"><button class="btn sm" onclick="abrirRuta('${jsq(op)}', todayStr())" title="GLS 9:00-10:00, citas con hora en su orden, sin hora a mediodía">Ruta de hoy en Maps</button></div>` : ''}
       ${tot ? '<div class="tg-l">Hoy</div>' + sortByHora(ruta.map(x => Object.assign({}, x.r, { _x: x }))).map(r => visitaHoyHtml(r._x)).join('') : ''}
-      ${resto.length ? `<div class="tg-l">${tot ? 'Resto de incidencias' : 'Incidencias'}</div>` + resto.map(lineHtml).join('') : ''}
+      ${resto.length ? `<div class="tg-l">${tot ? 'Resto de incidencias' : 'Incidencias'}</div>` + porEstadoHtml(resto) : ''}
       ${esDisp ? '' : cerradasHtml(op)}
     </div>
   </div>`;
@@ -520,7 +544,7 @@ function visitaHoyHtml(x){
   const r = x.r, mot = typeof motivoTexto === 'function' ? motivoTexto(tkey(r)) : '';
   const hora = (r.desdeHora || '--:--') + (r.hastaHora ? '–' + r.hastaHora : '');
   const lab = x.label || ST_LAB[x.st];
-  return `<div class="vh" data-key="${esc(tkey(r))}">
+  return `<div class="vh ln-color" data-key="${esc(tkey(r))}" style="--c:${estadoColor(r.estado)}">
     <span class="vh-i st-${x.st}" title="${esc(ST_LAB[x.st])}">${ST_ICO[x.st]}</span>
     <span class="vh-h${x.late ? ' late' : ''}" title="${x.late ? 'Ya debería haber empezado' : ''}">${esc(hora)}</span>
     <span class="vh-n">${numHtml(r)}${segBadges(r)}${cadBadge(r)}</span>
@@ -533,14 +557,39 @@ function visitaHoyHtml(x){
 const ESTADO_COLOR = { 'presencial':'#2f8f87', 'puesto operativo':'#4f9a5b', 'fuera de mantenimiento':'#7d8790', 'material pte. fabricante':'#8e6cc4', 'pte. mover material':'#c9862b', 'en fabricante':'#4a7fcf', 'escalado tier1':'#d0544a', 'cerrado':'#5f8f6a' };
 function estadoColor(e){ const n = norm(e); return ESTADO_COLOR[n] || (/cerrad|operativo/.test(n) ? '#5f8f6a' : colorFor(e)); }
 function estadoPill(e){ return e ? `<span class="est-pill" style="--c:${estadoColor(e)}">${esc(e)}</span>` : ''; }
+// Orden de los estados dentro de cada técnico (el de ESTADOS; los demás, al final)
+function ordenEstado(e){ const i = ESTADOS.findIndex(x => norm(x) === norm(e)); return i < 0 ? 99 : i; }
+// Las incidencias de un técnico, agrupadas por estado con una cabecera de su color
+function porEstadoHtml(lista){
+  let h = '', ant = null;
+  lista.forEach(r => {
+    const e = r.estado || '—';
+    if (norm(e) !== ant){ ant = norm(e); h += `<div class="ln-grupo" style="--c:${estadoColor(e)}"><span>${esc(e)}</span><small>${lista.filter(x => norm(x.estado || '—') === ant).length}</small></div>`; }
+    h += lineHtml(r);
+  });
+  return h;
+}
+// Color fijo de cada técnico (su avatar)
+function colorTec(op){ return colorFor(cleanInitials(op)); }
+// Visita y caducidad juntas, justo detrás del Nº: cada una con su etiqueta y color
+function fechasHtml(r){
+  const vis = r.fVisita ? r.fVisita.slice(0, 5) + (r.desdeHora ? ' ' + r.desdeHora : '') + (r.hastaHora ? '–' + r.hastaHora : '') : 'sin fecha';
+  const hoyVis = r.fVisita && r.fVisita === todayStr();
+  let h = `<span class="fch vis${r.fVisita ? (hoyVis ? ' hoy' : '') : ' sin'}" title="Fecha de visita asignada"><i>Visita</i>${esc(vis)}</span>`;
+  const c = esCierre(r.estado) ? null : caducidad(r);
+  if (c){
+    const nv = cadNivel(c), d = new Date(c.ts);
+    const f = d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' }) + (c.conHora ? ' ' + hhmm(c.ts) : '');
+    h += `<span class="fch cad-${nv}" title="Caducidad: ${esc(cadTexto(c))}${r.estCaducidad ? ' · ' + esc(r.estCaducidad) : ''} (${c.src === 'manual' ? 'puesta a mano' : c.src === 'excel' ? 'de ATGO' : 'del hilo'})"><i>${nv === 'venc' ? 'Caducada' : 'Caduca'}</i>${esc(f)}</span>`;
+  }
+  return h;
+}
 function lineHtml(r){
-  const fecha = r.fVisita ? r.fVisita.slice(0, 5) + (r.desdeHora ? ' ' + r.desdeHora : '') + (r.hastaHora ? '–' + r.hastaHora : '') : 'Sin fecha';
   const txt = [r.tipo, r.descSede || '—', r.referencia && 'Ref ' + r.referencia, r.descCliente, r.domicilio].filter(Boolean);
-  return `<div class="line" data-key="${esc(tkey(r))}" style="border-left-color:${estadoColor(r.estado)}" title="${esc(txt.join(' · '))}">
-    <span class="ln-tx">${numHtml(r)}${segBadges(r)}${cadBadge(r)}${reincBadge(r)}
-    ${r.fCaducidad || r.estCaducidad ? `<span>· Caduca <b>${esc(r.fCaducidad || '—')}</b> (${esc(r.estCaducidad || '—')})</span>` : ''}
-    <span>· ${esc(txt.join(' · '))}</span></span>
-    <span class="ln-end">${estadoPill(r.estado || '—')}<span class="ln-f${r.fVisita ? '' : ' sin'}" title="Fecha de visita asignada">${esc(fecha)}</span></span>
+  return `<div class="line ln-color" data-key="${esc(tkey(r))}" style="--c:${estadoColor(r.estado)}" title="${esc(txt.join(' · '))}">
+    <span class="ln-tx">${numHtml(r)}${fechasHtml(r)}${segBadges(r)}${reincBadge(r)}
+    <span class="ln-d">${esc(txt.join(' · '))}</span></span>
+    <span class="ln-end">${estadoPill(r.estado || '—')}</span>
   </div>`;
 }
 
@@ -855,7 +904,7 @@ if (navigator.storage && navigator.storage.persist) navigator.storage.persist().
 
 function esc(s){ return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 let toastTimer=null;
-function toast(m){ const e=document.getElementById('toast'); if(!e)return; e.textContent=m; e.style.opacity=1; clearTimeout(toastTimer); toastTimer=setTimeout(()=>e.style.opacity=0, Math.max(1400, m.length*45)); }
+function toast(m, tipo){ const e=document.getElementById('toast'); if(!e)return; e.textContent=m; e.className = tipo || ''; e.style.opacity=1; clearTimeout(toastTimer); toastTimer=setTimeout(()=>e.style.opacity=0, Math.max(1400, m.length*45)); }
 function copyText(s){
   const fb=()=>{ const a=document.createElement('textarea'); a.value=s; document.body.appendChild(a); a.select(); try{document.execCommand('copy'); toast('Copiado');}catch(e){toast('No se pudo copiar');} a.remove(); };
   if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(s).then(()=>toast('Copiado'), fb); else fb();
