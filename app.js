@@ -374,7 +374,12 @@ setInterval(aplicarPendiente, 2000);   // por si el navegador no avisa al soltar
 window.addEventListener('message', (e) => {
   if (e.origin !== ATGO_ORIGIN || !e.data || typeof e.data !== 'object') return;
   const m = e.data;
-  atgoSource = e.source;   // pestaña de ATGO que sincroniza: a ella se le piden los hilos
+  // Pestaña de ATGO que sincroniza: a ella se le piden los hilos y se mandan los cambios. Solo cambia con datos o al
+  // conectarse: antes cualquier mensaje la cambiaba, y una pestaña antigua con la sesión caducada (que avisa cada 30 s)
+  // se quedaba con los cambios y fallaban con «sesión caducada» aunque la buena funcionara.
+  const otraPestana = atgoSource && !atgoSource.closed && e.source !== atgoSource;
+  if (!otraPestana || m.type === 'atgo-data' || m.type === 'atgo-hello') atgoSource = e.source;
+  else if (m.type === 'atgo-status'){ if (m.error){ otraAtgoCaducada = Date.now(); renderSyncAviso(); } return; }   // avisos de otra pestaña: no tapan los de la buena
   if (m.type === 'atgo-data'){
     if (forzadoEn && Date.now() - forzadoEn < 120000){ forzadoEn = 0; clearTimeout(forzadoT); toast('ATGO conectado de nuevo ✓', 'ok'); }
     recibirCapacidades(m); configurarAtgo(e.source);
@@ -390,7 +395,7 @@ window.addEventListener('message', (e) => {
 });
 // Versión de la sincronización que espera esta app. Si la pestaña de ATGO trae otra (la cargó antes de una
 // actualización), se avisa de que hay que recargarla. Debe coincidir con SYNC_VERSION de atgo-sync.js.
-const SYNC_VERSION = '1.22.0';
+const SYNC_VERSION = '1.22.2';
 let syncVieja = false;   // 'atgo': la pestaña de ATGO es más antigua · 'app': Despacho es más antiguo · false: iguales
 function cmpVer(a, b){ const x = String(a || '0').split('.').map(Number), y = String(b || '0').split('.').map(Number); for (let i = 0; i < 3; i++){ if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) - (y[i] || 0); } return 0; }
 // Borra la copia guardada de Despacho y recarga desde el servidor (notas, perfiles y ajustes no se tocan)
@@ -435,7 +440,7 @@ document.getElementById('atgoBtn').addEventListener('click', () => {
 // «Forzar reconexión» (⚙ › General, aviso de ATGO sin actualizar, clic en el punto de estado): cuando ATGO se queda
 // pillado y abrirlo no sirve. Olvida la conexión anterior y abre ATGO recargado desde cero en su pestaña de Despacho
 // (la extensión vuelve a arrancar la sincronización y esta, al ver que la abrió Despacho, se conecta sola).
-let forzadoEn = 0, forzadoT = null;
+let forzadoEn = 0, forzadoT = null, otraAtgoCaducada = 0;
 function forzarAtgo(){
   if (typeof editPend !== 'undefined' && editPend){ toast('Espera a que termine el cambio que se está guardando en ATGO'); return; }
   atgoSource = null; atgoConfigurada = null; forzadoEn = Date.now();

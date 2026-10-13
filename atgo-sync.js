@@ -23,7 +23,7 @@
   const TIMEOUT_MS = 120000;
   // Versión de este script: Despacho la compara con la suya (SYNC_VERSION en app.js) y avisa si esta pestaña
   // sigue con una versión antigua (hay que recargarla). Súbela cuando cambie este archivo.
-  const SYNC_VERSION = '1.22.0';
+  const SYNC_VERSION = '1.22.2';
 
   if (location.hostname !== 'atgo.tier1.es') { alert('Abre primero https://atgo.tier1.es e inicia sesión.'); return; }
 
@@ -320,7 +320,7 @@
     const reply = (o) => { try { dest.postMessage({ type: 'atgo-editado', id: m.id, key: m.key, accion: m.accion, ...o }, PWA_ORIGIN); } catch (e) {} };
     try {
       if (!/^\d+\/[^/]+\/\d+$/.test(m.key || '')) throw new Error('ticket no válido');
-      if (sessionExpired()) throw new Error('la sesión de ATGO ha caducado: vuelve a iniciar sesión');
+      if (!token()) throw new Error('la sesión de ATGO ha caducado: vuelve a iniciar sesión');   // sin token; si lo hay, decide ATGO (401)
       const [p, s, c] = m.key.split('/').map(encodeURIComponent);
       const H = { Authorization: 'Bearer ' + token() };
       if (m.accion === 'comentario') {
@@ -354,7 +354,7 @@
         }
         if (!Object.keys(camb).length) throw new Error('nada que cambiar');
         const base = '/api/v1/atgo/incidencias/' + p + '/' + s + '/' + c;
-        const leer = async () => { const r = await fetch(base, { headers: { ...H, Accept: 'application/json' } }); if (!r.ok) throw new Error('no se pudo leer la ficha (' + r.status + ')'); return r.json(); };
+        const leer = async () => { const r = await fetch(base, { headers: { ...H, Accept: 'application/json' } }); if (!r.ok) throw new Error('no se pudo leer la ficha (ATGO respondió ' + r.status + ')'); return r.json(); };
         const antes = await leer();
         const put = await fetch(urlGuardado(antes, camb), { method: 'PUT', headers: H });
         if (!put.ok) { const r = put; throw new Error('ATGO respondió ' + put.status + ': ' + (await r.text().catch(() => '')).replace(/\s+/g, ' ').slice(0, 160)); }

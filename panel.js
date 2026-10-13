@@ -273,6 +273,11 @@ function renderSyncAviso() {
       : `⚠ La pestaña de ATGO tiene una versión antigua de la sincronización: recárgala (F5) <button class="btn sm" onclick="document.getElementById('atgoBtn').click()">Ir a ATGO</button>`;
     return;
   }
+  if (typeof otraAtgoCaducada !== 'undefined' && otraAtgoCaducada && Date.now() - otraAtgoCaducada < 3 * 60000) {
+    el.hidden = false;
+    el.innerHTML = `⚠ Hay otra pestaña de ATGO con la sesión caducada o con error. Ciérrala (o inicia sesión en ella) para que no interfiera <button class="btn sm" onclick="forzarAtgo()">Forzar reconexión</button>`;
+    return;
+  }
   const viejo = source === 'atgo' && syncUltima && Date.now() - syncUltima > SYNC_AVISO_MIN * 60000;
   el.hidden = !viejo;
   if (viejo) el.innerHTML = `⚠ ATGO sin actualizar desde las ${esc(hhmm(syncUltima))} <button class="btn sm" onclick="document.getElementById('atgoBtn').click()">Abrir ATGO</button><button class="btn sm pri" onclick="forzarAtgo()" title="Recarga ATGO desde cero y rehace la conexión">Forzar reconexión</button>`;
@@ -478,7 +483,7 @@ async function asignarLote(items, titulo) {
   loteEnCurso = false;
   seleccion.clear();
   if (enLote) toast(`${bien}/${items.length} guardados en ATGO${mal.length ? ' · fallaron ' + mal.length : ''}`);
-  if (mal.length) confirmar(`<b>No se guardaron ${mal.length}</b><ul>${mal.map(x => `<li>${esc(x)}</li>`).join('')}</ul>`, 'Entendido');
+  if (mal.length) confirmar(`<b>No se guardaron ${mal.length}</b><ul>${mal.map(x => `<li>${esc(x)}</li>`).join('')}</ul>${mal.some(x => /sesi[oó]n|pestaña de ATGO|no ha respondido/i.test(x)) ? '<p class="hint">Si ATGO funciona con normalidad, cierra las pestañas de ATGO antiguas o pulsa <button class="btn sm" onclick="cerrarModal();forzarAtgo()">Forzar reconexión</button> y repítelo.</p>' : ''}`, 'Entendido');
   refreshVisible(); if (document.getElementById('viewSem').style.display !== 'none') renderSemana();
   return { bien, okKeys, mal };
 }
