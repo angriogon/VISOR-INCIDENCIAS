@@ -181,6 +181,13 @@ igual('equipo: el IT del texto y el elemento de ATGO son el mismo equipo', [eqId
 igual('equipo: caja y aparato', [eqId('Falla la impresora de la caja 131'), eqId('Caja 12: no lee la pistola'), eqId('caja nº 7 bloqueada')], ['CAJA131|impresora', 'CAJA12|escáner', 'CAJA7']);
 igual('equipo: sin datos no hay equipo', eqId('No funciona el wifi de la tienda'), null);
 
+// ---- Errores de ATGO al guardar: solo un 401 es sesión caducada ----
+const cer = {}; vm.createContext(cer);
+vm.runInContext(extraer(leer('edicion.js'), 'function errorAtgo('), cer);
+const tipoErr = s => { const t = cer.errorAtgo(s); return /sesión de ATGO ha caducado/.test(t) ? 'sesion' : /\(400\)/.test(t) ? '400' : /\(403\)/.test(t) ? '403' : 'otro'; };
+igual('errores ATGO: 400 con «fechaCaducidad» en el detalle no es sesión caducada', tipoErr('ATGO respondió 400: Bad Request · Failed to convert fechaCaducidad'), '400');
+igual('errores ATGO: 401, 403 y sin token', [tipoErr('ATGO respondió 401: Unauthorized'), tipoErr('ATGO respondió 403: Forbidden'), tipoErr('la sesión de ATGO ha caducado: vuelve a iniciar sesión')], ['sesion', '403', 'sesion']);
+
 // ---- Coherencia de configuración ----
 const vSyncA = (leer('atgo-sync.js').match(/SYNC_VERSION = '([\d.]+)'/) || [])[1], vSyncP = (app.match(/SYNC_VERSION = '([\d.]+)'/) || [])[1];
 igual('SYNC_VERSION igual en atgo-sync.js y app.js', vSyncA, vSyncP);

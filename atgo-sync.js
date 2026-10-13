@@ -23,7 +23,7 @@
   const TIMEOUT_MS = 120000;
   // Versión de este script: Despacho la compara con la suya (SYNC_VERSION en app.js) y avisa si esta pestaña
   // sigue con una versión antigua (hay que recargarla). Súbela cuando cambie este archivo.
-  const SYNC_VERSION = '1.22.2';
+  const SYNC_VERSION = '1.22.3';
 
   if (location.hostname !== 'atgo.tier1.es') { alert('Abre primero https://atgo.tier1.es e inicia sesión.'); return; }
 
@@ -316,6 +316,17 @@
     });
     return out;
   }
+  // Respuesta de error de ATGO (JSON de JHipster: title, detail, message, fieldErrors) en una línea legible
+  async function errorDe(r) {
+    const txt = await r.text().catch(() => '');
+    let d = txt.replace(/\s+/g, ' ').trim();
+    try {
+      const j = JSON.parse(txt);
+      d = [j.title, j.detail, j.message && j.message !== 'error.http.' + r.status ? j.message : '', ...(Array.isArray(j.fieldErrors) ? j.fieldErrors.map(f => (f.field || '') + ': ' + (f.message || '')) : [])]
+        .filter(Boolean).join(' · ');
+    } catch (e) {}
+    return 'ATGO respondió ' + r.status + (d ? ': ' + d.slice(0, 400) : '');
+  }
   async function editar(m, dest) {
     const reply = (o) => { try { dest.postMessage({ type: 'atgo-editado', id: m.id, key: m.key, accion: m.accion, ...o }, PWA_ORIGIN); } catch (e) {} };
     try {
@@ -328,7 +339,7 @@
         if (!texto || texto.length > 4000) throw new Error('comentario vacío o demasiado largo');
         const url = '/api/v1/atgo/hilo/' + p + '/' + s + '/' + c + '?currentDateTime=' + encodeURIComponent(ahoraAtgo()) + '&geolocalizacion=null';
         const r = await fetch(url, { method: 'POST', headers: { ...H, 'Content-Type': 'text/plain' }, body: texto });
-        if (!r.ok) throw new Error('ATGO respondió ' + r.status + ': ' + (await r.text().catch(() => '')).replace(/\s+/g, ' ').slice(0, 160));
+        if (!r.ok) throw new Error(await errorDe(r));
         // Comprobación: el comentario debe aparecer en el hilo
         const items = await getHilo(m.key);
         const ok = items.some(i => i.t.replace(/\s+/g, ' ').trim() === texto.replace(/\s+/g, ' ').trim());
@@ -337,7 +348,7 @@
         const est = Number(m.estado);
         if (!Number.isInteger(est) || (estadosAtgo && !estadosAtgo.some(x => x.estado === est))) throw new Error('estado no válido');
         const r = await fetch('/api/v1/atgo/incidencias/cambiar-estado/' + p + '/' + s + '/' + c + '/' + est, { method: 'PUT', headers: H });
-        if (!r.ok) throw new Error('ATGO respondió ' + r.status + ': ' + (await r.text().catch(() => '')).replace(/\s+/g, ' ').slice(0, 160));
+        if (!r.ok) throw new Error(await errorDe(r));
         const st = await getEstado(m.key);
         const esperado = (estadosAtgo || []).find(x => x.estado === est);
         const ok = !esperado || String(st.estado).trim().toUpperCase() === String(esperado.desEstado).trim().toUpperCase();
@@ -357,7 +368,7 @@
         const leer = async () => { const r = await fetch(base, { headers: { ...H, Accept: 'application/json' } }); if (!r.ok) throw new Error('no se pudo leer la ficha (ATGO respondió ' + r.status + ')'); return r.json(); };
         const antes = await leer();
         const put = await fetch(urlGuardado(antes, camb), { method: 'PUT', headers: H });
-        if (!put.ok) { const r = put; throw new Error('ATGO respondió ' + put.status + ': ' + (await r.text().catch(() => '')).replace(/\s+/g, ' ').slice(0, 160)); }
+        if (!put.ok) throw new Error(await errorDe(put));
         const despues = await leer();
         const dif = compararFichas(antes, despues);
         const esperados = new Set(['codOpe', 'desOpe', 'fechaVisita', 'horaInicioVisita', 'horaFinVisita']);

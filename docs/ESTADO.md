@@ -4,7 +4,7 @@ Archivo de traspaso entre sesiones. Al empezar una sesión: "lee docs/ESTADO.md 
 Al terminar: "actualiza docs/ESTADO.md". Máximo ~40 líneas: lo antiguo se resume o se borra.
 
 ## Versión actual
-- `sw.js`: despacho-v1.22.2 = `APP_VERSION` en `ajustes.js` (SYNC_VERSION 1.22.2 en atgo-sync.js y app.js).
+- `sw.js`: despacho-v1.22.3 = `APP_VERSION` en `ajustes.js` (SYNC_VERSION 1.22.3 en atgo-sync.js y app.js).
 - Historia resumida (detalle en NOVEDADES de ajustes.js y en git): 1.13 perfiles DSP1–5/COORD, ficha flotante, duración del hilo;
   1.14–1.15 pulido y revisión (asignarLote, SYNC_VERSION, pruebas de arranque); 1.15.1 extensión con "world": "MAIN";
   1.16.x asignar a cualquiera, zonas DSP2–5, lista matriz y «Restablecer»; 1.17.x resumen COORD, comodines por nombre, carga en 6 paralelos;
@@ -23,6 +23,9 @@ Al terminar: "actualiza docs/ESTADO.md". Máximo ~40 líneas: lo antiguo se resu
 
 - 1.22.2: atgoSource solo cambia con atgo-data/atgo-hello (una pestaña antigua con sesión caducada se quedaba con los cambios);
   aviso si otra pestaña de ATGO da error; errorAtgo separa 401 (sesión) de 403 (sin permiso); editar no se fía de "expires".
+
+- 1.22.3: un 400 de ATGO salía como «sesión caducada» (el texto de ATGO contenía «caducidad»). errorAtgo clasifica por código;
+  atgo-sync errorDe lee el JSON de JHipster entero. Pendiente: motivo real del 400 al mover el 2026/00/98183 en Planificación.
 
 ## En curso
 - Crear tickets desde Despacho: espera la lista de campos y valores por defecto del usuario (ver docs/estudio-alta-tickets.md).

@@ -86,8 +86,10 @@ function recibirEdicionTarde(m) {
 // Mensajes de ATGO más claros para los fallos habituales
 function errorAtgo(e) {
   const s = String(e || 'error desconocido');
-  if (/(^|\D)401(\D|$)|caducad/i.test(s)) return 'la sesión de ATGO ha caducado: vuelve a iniciar sesión en ATGO y repítelo (' + s.slice(0, 60) + ')';
-  if (/(^|\D)403(\D|$)/.test(s)) return 'ATGO no permite este cambio a tu usuario (403). Prueba a hacerlo en ATGO; si allí sí deja, avisa';
+  const cod = (/ATGO respondió (\d{3})/.exec(s) || [])[1];
+  if (cod === '401' || /^la sesión de ATGO ha caducado/.test(s)) return 'la sesión de ATGO ha caducado: vuelve a iniciar sesión en ATGO y repítelo';
+  if (cod === '400') return 'ATGO no acepta el cambio en este ticket (400). Detalle: ' + s.replace(/^.*?ATGO respondió 400:?\s*/, '').slice(0, 300) + '. Prueba a hacerlo en ATGO y, si allí funciona, pásame este mensaje';
+  if (cod === '403') return 'ATGO no permite este cambio a tu usuario (403). Prueba a hacerlo en ATGO; si allí sí deja, avisa';
   if (/(^|\D)404(\D|$)/.test(s)) return 'ATGO no encuentra el ticket (puede que ya no exista o haya cambiado)';
   if (/(^|\D)5\d\d(\D|$)|failed to fetch|network/i.test(s)) return 'ATGO no responde ahora mismo (' + s.slice(0, 80) + '). Comprueba en ATGO si se aplicó antes de repetirlo';
   return s;
