@@ -16,6 +16,7 @@ Máximo ~40 líneas: lo antiguo se resume o se borra (el detalle está en git y 
 - Crear tickets desde Despacho: lista de campos y valores por defecto (`docs/estudio-alta-tickets.md`; viable: POST /incidencias/alta).
 - Informes de COORD por cliente y proyecto: hay que leer el proyecto (`numProy`) de cada ticket.
 - Recogida GLS de las zonas DSP2–5 y si Canarias pertenece a algún DSP.
+- Propuestas DSP, COORD y API (docs/propuestas-dsp-coord-api.md): espera a que el usuario elija cuáles.
 - Implantación en empresa: decisiones en `docs/implantacion-empresa.md`. Versión móvil: `docs/propuesta-ios.md`.
 
 ## Por validar con datos reales (lo prueba el usuario; Claude no escribe en ATGO)
