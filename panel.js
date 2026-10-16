@@ -467,15 +467,22 @@ async function asignarLote(items, titulo) {
   const sedeLote = (r, op) => { const ms = mismaSede(r), ops = Object.keys(ms); return ops.length && op && !ops.includes(op) ? ` <span class="sede-aviso warn" title="${esc(ops.map(o => mismaSedeTexto(o, ms[o])).join('\n'))}">📍 ${esc(ops.join(', '))}</span>` : ''; };
   const ok = await confirmar(`<b>${esc(titulo || 'Planificar en ATGO')}</b><p>${plural(items.length, 'ticket')}:</p>
     <table class="md-tab">${items.slice(0, 25).map(it => { const r = ticketDe(it.key) || {}; return `<tr><td>Nº ${esc(r.num || it.key)}</td><td><span>${esc(r.operario || '')}${r.fVisita ? ' · ' + esc(r.fVisita) : ''}</span> → <b>${esc(it.codOpe || r.operario)}${it.fechaVisita ? ' · ' + esc(it.fechaVisita.split('-').reverse().join('/')) : ''}</b>${sedeLote(r, it.codOpe)}</td></tr>`; }).join('')}${items.length > 25 ? `<tr><td colspan="2">…y ${items.length - 25} más</td></tr>` : ''}</table>
-    <p class="hint">Se guardan uno a uno, comprobando cada ficha campo a campo. Si alguno falla, los demás siguen.</p>`, 'Guardar ' + plural(items.length, 'cambio'));
+    <p class="hint">${items.length > 1 && puedeLote() ? 'Se guardan de 4 en 4' : 'Se guardan uno a uno'}, comprobando cada ficha campo a campo. Si alguno falla, los demás siguen.</p>`, 'Guardar ' + plural(items.length, 'cambio'));
   if (!ok) return;
   loteEnCurso = true;
   const enLote = items.length > 1;   // «Deshacer» solo tiene sentido para una asignación suelta
   let bien = 0; const mal = [], okKeys = [];
-  for (let i = 0; i < items.length; i++) {
+  const datosDe = (it, r) => ({ ...(it.codOpe && it.codOpe !== cleanInitials(r.operario) ? { codOpe: it.codOpe } : {}), ...(it.fechaVisita ? { fechaVisita: it.fechaVisita } : {}), ...(enLote ? { sinDeshacer: true } : {}), resumen: `${r.operario || ''} → ${it.codOpe || r.operario}${it.fechaVisita ? ' · ' + it.fechaVisita.split('-').reverse().join('/') : ''}` });
+  if (enLote && puedeLote()) {
+    // Todo de una vez: ATGO guarda 4 a la vez y la lista se recarga una sola vez al final
+    const nums = items.map(it => (ticketDe(it.key) || {}).num || it.key);
+    let hechos = 0; toast(`Guardando ${items.length} en ATGO (4 a la vez)…`);
+    const res = await enviarLoteAtgo(items.map(it => ({ key: it.key, datos: datosDe(it, ticketDe(it.key) || {}) })), () => { hechos++; toast(`Guardando en ATGO… ${hechos}/${items.length}`); });
+    res.forEach((x, i) => { if (x && x.ok) { bien++; okKeys.push(items[i].key); } else mal.push(nums[i] + ': ' + ((x && x.error) || 'sin respuesta')); });
+  } else for (let i = 0; i < items.length; i++) {
     const it = items[i], r = ticketDe(it.key) || {};
     toast(`Guardando ${i + 1}/${items.length} en ATGO…`);
-    const res = await enviarEdicion('asignar', it.key, { ...(it.codOpe && it.codOpe !== cleanInitials(r.operario) ? { codOpe: it.codOpe } : {}), ...(it.fechaVisita ? { fechaVisita: it.fechaVisita } : {}), ...(enLote ? { sinDeshacer: true } : {}), resumen: `${r.operario || ''} → ${it.codOpe || r.operario}${it.fechaVisita ? ' · ' + it.fechaVisita.split('-').reverse().join('/') : ''}` });
+    const res = await enviarEdicion('asignar', it.key, datosDe(it, r));
     if (res && res.ok) { bien++; okKeys.push(it.key); } else mal.push((r.num || it.key) + ': ' + ((res && res.error) || 'sin respuesta'));
     // Sin pestaña de ATGO o con la sesión caducada no tiene sentido seguir: el resto ni se intenta
     if (res && res.sinAtgo && i < items.length - 1) { items.slice(i + 1).forEach(x => mal.push((((ticketDe(x.key) || {}).num) || x.key) + ': no se intentó (' + res.error + ')')); break; }

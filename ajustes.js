@@ -3,8 +3,9 @@
 // asistente de inicio, diagnóstico, resumen matinal, aviso de técnico sin actividad y exportar a Excel.
 // Usa utilidades de app.js, dia.js, herramientas.js, edicion.js y panel.js solo en tiempo de llamada.
 
-const APP_VERSION = '1.22.3';   // súbela a la vez que VERSION en sw.js
+const APP_VERSION = '1.23.0';   // súbela a la vez que VERSION en sw.js
 const NOVEDADES = [
+  { v: '1.23.0', f: '2026-10-16', l: ['Asignar varias a la vez es mucho más rápido: se mandan todas de una vez y ATGO las guarda de 4 en 4 (antes, de una en una), cada una comprobada campo a campo.', 'Cada asignación se ve en Despacho en cuanto ATGO la confirma, y la lista completa se recarga una sola vez al final (antes, una recarga entera por cada ticket).', 'Recarga una vez la pestaña de ATGO (F5).'] },
   { v: '1.22.3', f: '2026-10-13', l: ['Corregido: un rechazo de ATGO (error 400) se mostraba como «la sesión de ATGO ha caducado». Ahora se dice que ATGO no acepta el cambio y se muestra su motivo completo.', 'Recarga una vez la pestaña de ATGO (F5).'] },
   { v: '1.22.2', f: '2026-10-13', l: ['Corregido: «la sesión de ATGO ha caducado» al guardar aunque ATGO funcionara. Pasaba si quedaba abierta otra pestaña de ATGO antigua: Despacho le mandaba los cambios a ella. Ahora solo los recibe la pestaña que sincroniza, y se avisa si hay otra con error.', 'Error 403 de ATGO (sin permiso) separado de la sesión caducada; el aviso de «No se guardaron» ofrece Forzar reconexión.', 'Recarga una vez la pestaña de ATGO (F5).'] },
   { v: '1.22.1', f: '2026-10-13', l: ['Reincidencias por equipo: 🔁 sale solo si el mismo equipo (IT de la balanza, elemento de ATGO o «caja 131» con su aparato) vuelve a fallar en 10 días, abierto o ya cerrado. Ya no se marcan todas las de una sede con mucho tráfico.', 'Recarga una vez la pestaña de ATGO (F5) para que lea el código del equipo.'] },

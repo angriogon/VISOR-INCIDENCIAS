@@ -66,6 +66,7 @@ try {
     abrirPerfiles('DSP2'); await paso(50); out.perfilDSP2 = document.querySelectorAll('#perfBox .pf-tec').length; perfSel = 'DSP5'; renderPerfiles(); out.perfilDSP5 = document.querySelectorAll('#perfBox .pf-tec').length; cerrarModal();
     showTab('sin'); sinFiltro = 'todas'; renderSin(); const s0 = document.querySelector('#viewSin select'); out.selectorCorto = s0.options.length < 10; completarSelect(s0); out.selectorTodos = s0.options.length;
     showTab('sin'); sinMarcarTodas(true); out.marcadas = sinMarcadas().length;
+
     abrirNovedades(); cerrarModal(); abrirAtajos(); cerrarModal();
     openPalette(); document.getElementById('palInput').value = 'ceuta'; palRender(); out.buscador = palItems.length > 0; closePalette();
     out.coord = (resumenCoordHtml().match(/class="coord-card/g) || []).length;
@@ -97,10 +98,18 @@ try {
     modoAccesible(false); setPref('acento', ''); setPref('densidad', 'amplia'); out.amplia = document.body.classList.contains('amplia'); setPref('densidad', 'normal');
     abrirNovedades(); out.novedades = document.querySelectorAll('#modal details.nov').length; cerrarModal();
     out.sinNombre = [...document.querySelectorAll('button')].filter(b => b.offsetParent && !(b.getAttribute('aria-label') || b.textContent.trim())).length;
+    // Lote: una pestaña de ATGO simulada contesta las 3 de una vez; las filas se actualizan sin recargar
+    { const prevCaps = atgoCaps.slice(), prevSrc = atgoSource, prevConf = confirmar; const recibidos = [];
+      atgoCaps = [...atgoCaps, 'editar', 'asignar', 'lote']; confirmar = async () => true;
+      atgoSource = { closed: false, postMessage: (msg) => { recibidos.push(msg.type + ':' + (msg.items || []).length); setTimeout(() => (msg.items || []).forEach(it => recibirEdicion({ type: 'atgo-editado', id: it.id, key: it.key, accion: 'asignar', ok: true, fila: { operario: 'ACAB', fVisita: '20/10/2026' } })), 30); } };
+      const ks = rows.filter(r => r.operario !== 'ACAB').slice(0, 3).map(r => r.key);
+      const lr = await asignarLote(ks.map(k => ({ key: k, codOpe: 'ACAB', fechaVisita: '2026-10-20' })), 'Prueba');
+      out.lote = recibidos.join() + ' · ' + (lr && lr.bien) + ' · ' + ks.every(k => ticketDe(k).operario === 'ACAB' && ticketDe(k).fVisita === '20/10/2026');
+      atgoCaps = prevCaps; atgoSource = prevSrc; confirmar = prevConf; }
     out.errores = diagLista().map(d => d.msg);
     return out;
   }, payload);
-  const esperado = { nomina: 69, bajaSelector: true, acento: '#0b8ad6', accesible: true, amplia: true, novedades: 6, sinNombre: 0, festivo: 'Fiesta Nacional', proxLab: '2026-10-13', viernesSanto: 'Viernes Santo', rellenar: true, contacto: true, sede: 4, misCambios: 1, sinCerrar: 1, olvidada: true, botonMisCambios: true, zonasDsp1: true, zonasDsp2: 0, ordenSin: '93,91,92', coord: 5, filtroDsp: 'DSP1', perfilDSP2: 16, perfilDSP5: 5, selectorCorto: true, selectorTodos: 70, filas: 6, sinAsignar: 1, avisoVersion: 'atgo', enCurso: 'c', marcadas: 1, buscador: true, duracion: true };
+  const esperado = { lote: 'despacho-editar-lote:3 · 3 · true', nomina: 69, bajaSelector: true, acento: '#0b8ad6', accesible: true, amplia: true, novedades: 6, sinNombre: 0, festivo: 'Fiesta Nacional', proxLab: '2026-10-13', viernesSanto: 'Viernes Santo', rellenar: true, contacto: true, sede: 4, misCambios: 1, sinCerrar: 1, olvidada: true, botonMisCambios: true, zonasDsp1: true, zonasDsp2: 0, ordenSin: '93,91,92', coord: 5, filtroDsp: 'DSP1', perfilDSP2: 16, perfilDSP5: 5, selectorCorto: true, selectorTodos: 70, filas: 6, sinAsignar: 1, avisoVersion: 'atgo', enCurso: 'c', marcadas: 1, buscador: true, duracion: true };
   for (const [k, v] of Object.entries(esperado)) if (r[k] !== v) errores.push(`${k}: esperado ${JSON.stringify(v)}, obtenido ${JSON.stringify(r[k])}`);
   for (const t of ['dia', 'sin', 'inc', 'sem', 'man']) if (!r['vista_' + t]) errores.push('La vista ' + t + ' está vacía');
   r.errores.forEach(e => errores.push('Diagnóstico: ' + e));

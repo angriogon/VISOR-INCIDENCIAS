@@ -17,6 +17,35 @@ function recibirCapacidades(m) {
   if (Array.isArray(m.estados) && m.estados.length) atgoEstados = m.estados;
 }
 function puedeEditar() { return atgoCaps.includes('editar') && !!hiloFuente(); }
+function puedeLote() { return atgoCaps.includes('lote') && !!hiloFuente(); }
+// La fila que devuelve ATGO tras asignar se aplica ya: no hay que esperar a la siguiente recarga de la lista.
+// Si era de Sin asignar y pasa a un técnico de tu perfil, entra en Incidencias.
+function aplicarFila(key, f) {
+  if (!f) return;
+  const r = ticketDe(key); if (!r) return;
+  Object.assign(r, { operario: f.operario || r.operario, desOperario: f.desOperario || r.desOperario, fVisita: f.fVisita || '', desdeHora: f.desdeHora || '', hastaHora: f.hastaHora || '' });
+  if (poolRows.includes(r) && !/^XXX/.test(r.operario) && OPERARIOS.includes(r.operario) && !rows.some(x => tkey(x) === key)) rows.push(r);
+}
+// Lote de asignaciones: un solo mensaje a la pestaña de ATGO, que las guarda de 4 en 4 y contesta cada una al terminarla.
+let lotePend = new Map();   // id → { key, datos, resolve }
+function enviarLoteAtgo(items, alResultado) {
+  const src = hiloFuente();
+  if (!src || src.closed) return Promise.resolve(items.map(() => ({ ok: false, error: 'sin pestaña de ATGO', sinAtgo: true })));
+  const ps = items.map(it => new Promise(resolve => {
+    it.id = 'l' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+    lotePend.set(it.id, { key: it.key, datos: it.datos, resolve: res => { if (alResultado) alResultado(res); resolve(res); } });
+  }));
+  try { src.postMessage({ type: 'despacho-editar-lote', items: items.map(it => ({ id: it.id, key: it.key, accion: 'asignar', ...it.datos })) }, ATGO_ORIGIN); }
+  catch (e) { items.forEach(it => { const p = lotePend.get(it.id); lotePend.delete(it.id); if (p) p.resolve({ ok: false, error: 'sin contacto con ATGO', sinAtgo: true }); }); }
+  // Tiempo de espera según el tamaño (4 a la vez, ~10 s cada tanda en el peor caso)
+  setTimeout(() => items.forEach(it => {
+    const p = lotePend.get(it.id); if (!p) return;
+    lotePend.delete(it.id); editTarde[it.id] = { key: it.key, accion: 'asignar', datos: it.datos, ts: Date.now() };
+    registrarEdicion({ key: it.key, num: (ticketDe(it.key) || {}).num, accion: 'asignar', detalle: it.datos.resumen, ok: false, error: 'sin respuesta de ATGO' });
+    p.resolve({ ok: false, error: 'sin respuesta de ATGO: comprueba en ATGO si se aplicó' });
+  }), EDIT_TIMEOUT_MS + Math.ceil(items.length / 4) * 12000);
+  return Promise.all(ps);
+}
 
 function registrarEdicion(o) {
   ediciones = [{ ts: Date.now(), ...o }, ...ediciones].filter(e => Date.now() - e.ts < 30 * 86400000).slice(0, 300);
@@ -96,6 +125,13 @@ function errorAtgo(e) {
 }
 function recibirEdicion(m) {
   if (m && editTarde[m.id]) { recibirEdicionTarde(m); return; }
+  if (m && lotePend.has(m.id)) {
+    const p = lotePend.get(m.id); lotePend.delete(m.id);
+    if (!m.ok) m = { ...m, error: errorAtgo(m.error), sinAtgo: /sesión de ATGO ha caducado/.test(errorAtgo(m.error)) };
+    registrarEdicion({ key: p.key, num: (ticketDe(p.key) || {}).num, accion: 'asignar', detalle: p.datos.resumen, ok: !!m.ok, error: m.error || '', dif: m.dif || null });
+    if (m.ok) aplicarFila(p.key, m.fila);
+    p.resolve(m); return;
+  }
   if (!editPend || m.id !== editPend.id) return;
   const { key, accion, datos, resolve, antes, sinFechaAntes } = editPend;
   editPend = null;
@@ -103,6 +139,7 @@ function recibirEdicion(m) {
   if (!m.ok) m = { ...m, error: errorAtgo(m.error), sinAtgo: /sesión de ATGO ha caducado/.test(errorAtgo(m.error)) };
   registrarEdicion({ key, num: r.num, accion, detalle: datos.resumen, ok: !!m.ok, error: m.error || '', dif: m.dif || null });
   if (m.hilo) recibirHilos({ [key]: m.hilo });
+  if (m.ok && m.fila) { aplicarFila(key, m.fila); refreshVisible(); }
   if (m.ok) {
     anotarResultado(key, true, accion === 'comentario' ? 'Comentario publicado en ATGO ✓' : accion === 'asignar' ? 'Guardado en ATGO ✓ · comprobado campo a campo' : 'Estado cambiado en ATGO ✓ · ' + (m.estadoActual || ''));
     if (accion === 'comentario' && fichaKey === key) { const ta = document.getElementById('edCom'); if (ta) ta.value = ''; }

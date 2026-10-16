@@ -23,7 +23,7 @@
   const TIMEOUT_MS = 120000;
   // Versión de este script: Despacho la compara con la suya (SYNC_VERSION en app.js) y avisa si esta pestaña
   // sigue con una versión antigua (hay que recargarla). Súbela cuando cambie este archivo.
-  const SYNC_VERSION = '1.22.3';
+  const SYNC_VERSION = '1.23.0';
 
   if (location.hostname !== 'atgo.tier1.es') { alert('Abre primero https://atgo.tier1.es e inicia sesión.'); return; }
 
@@ -96,6 +96,8 @@
       if (l.length && l.length <= 200 && l.slice().sort().join() !== OPERARIOS.slice().sort().join()) { OPERARIOS = l; refreshNow(); }
     } else if (e.data.type === 'despacho-hilo' && Array.isArray(e.data.keys)) {
       enviarHilos(e.data.keys, e.source);
+    } else if (e.data.type === 'despacho-editar-lote' && Array.isArray(e.data.items)) {
+      editarLote(e.data.items.slice(0, 200), e.source);
     } else if (e.data.type === 'despacho-editar' && e.data.id) {
       editar(e.data, e.source);
     } else if (e.data.type === 'despacho-estado' && Array.isArray(e.data.keys)) {
@@ -252,7 +254,7 @@
       // Si falla algún operario se descarta la carga entera: así nunca parece que sus tickets "salieron".
       await Promise.all(Array.from({ length: Math.min(PARALELO, cola.length) }, worker));
       if (stopped) return;
-      lastPayload = { type: 'atgo-data', partial: false, v: SYNC_VERSION, ops: OPERARIOS.slice(), rows: [...found.values()], at: Date.now(), seconds: Math.round((Date.now() - t0) / 1000), caps: ['hilo', 'estado', 'editar', 'asignar', 'pool'], estados: estadosAtgo || [], pool: poolOps ? [...pool.values()] : null, poolOps: poolOps || {} };
+      lastPayload = { type: 'atgo-data', partial: false, v: SYNC_VERSION, ops: OPERARIOS.slice(), rows: [...found.values()], at: Date.now(), seconds: Math.round((Date.now() - t0) / 1000), caps: ['hilo', 'estado', 'editar', 'asignar', 'pool', 'lote'], estados: estadosAtgo || [], pool: poolOps ? [...pool.values()] : null, poolOps: poolOps || {} };
       send(lastPayload);
       const hora = new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
       setStatus(found.size + ' incidencias · ' + hora + ' (' + lastPayload.seconds + ' s) · próxima en ' + refrescoMin() + ' min');
@@ -327,6 +329,18 @@
     } catch (e) {}
     return 'ATGO respondió ' + r.status + (d ? ': ' + d.slice(0, 400) : '');
   }
+  // Tras un cambio se recarga la lista, pero una sola vez aunque lleguen varios seguidos (antes, una recarga completa por cambio)
+  let refT = null;
+  function refrescarPronto() { clearTimeout(refT); refT = setTimeout(refreshNow, 2500); }
+  // Asignación en bloque: LOTE_PARALELO tickets a la vez, cada uno leído, guardado y comprobado como si fuera suelto;
+  // cada resultado se contesta en cuanto está y la lista se recarga una vez al terminar.
+  const LOTE_PARALELO = 4;
+  async function editarLote(items, dest) {
+    let i = 0;
+    const trabajador = async () => { while (i < items.length) { const m = items[i++]; if (m && m.id && m.accion === 'asignar') await editar({ ...m, enLote: true }, dest); } };
+    await Promise.all(Array.from({ length: Math.min(LOTE_PARALELO, items.length) }, trabajador));
+    refreshNow();
+  }
   async function editar(m, dest) {
     const reply = (o) => { try { dest.postMessage({ type: 'atgo-editado', id: m.id, key: m.key, accion: m.accion, ...o }, PWA_ORIGIN); } catch (e) {} };
     try {
@@ -353,7 +367,7 @@
         const esperado = (estadosAtgo || []).find(x => x.estado === est);
         const ok = !esperado || String(st.estado).trim().toUpperCase() === String(esperado.desEstado).trim().toUpperCase();
         reply({ ok, verificado: !!esperado, estadoActual: st.estado, error: ok ? '' : 'ATGO indica ahora el estado ' + (st.estado || 'desconocido') });
-        refreshNow();
+        refrescarPronto();
       } else if (m.accion === 'asignar') {
         // Fase 2: técnico y fecha/hora de visita. ATGO guarda la ficha completa, así que se reenvía tal cual
         // está (leída justo antes) cambiando solo esos campos, y después se comprueba campo a campo.
@@ -383,9 +397,9 @@
         } else if (pedidos.length) {
           reply({ ok: false, dif, error: 'ATGO no aplicó: ' + pedidos.join(', ') });
         } else {
-          reply({ ok: true, verificado: true, dif });
+          reply({ ok: true, verificado: true, dif, fila: { operario: String(despues.codOpe || '').trim().toUpperCase(), desOperario: despues.desOpe || '', fVisita: ymdToEs(despues.fechaVisita), desdeHora: despues.horaInicioVisita || '', hastaHora: despues.horaFinVisita || '' } });
         }
-        refreshNow();
+        if (!m.enLote) refrescarPronto();
       } else throw new Error('acción no permitida');
     } catch (e) {
       reply({ ok: false, error: e.message || String(e) });
