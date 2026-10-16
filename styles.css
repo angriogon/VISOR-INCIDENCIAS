@@ -122,7 +122,6 @@
   kbd{font-family:'IBM Plex Mono',monospace; font-size:10px; border:1px solid var(--line); border-bottom-width:2px; border-radius:4px; padding:0 4px; margin-left:4px; color:var(--ink-faint);}
   .btn.ghost.sm{border-color:transparent;}
   .btn.ghost.sm:hover{border-color:var(--line);}
-  .btn.sm{padding:4px 9px; font-size:11px;}
   a.btn{text-decoration:none; display:inline-flex; align-items:center;}
   /* Indicadores en las listas */
   .nv-dot{display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--amber); margin:0 2px 0 4px; vertical-align:middle;}
@@ -330,9 +329,6 @@
   .tc-extra{display:flex; gap:6px; flex-wrap:wrap; padding:4px 10px; border-bottom:1px solid var(--line); font-size:10.5px;}
   .ch-h{color:var(--ink-dim);} .ch-h.over{color:#b5432f; font-weight:600;}
   .tc-conf{color:#b5432f;}
-  .tk{display:inline-flex; gap:4px; align-items:center; font-size:10.5px; padding:1px 6px; border-radius:6px; background:var(--panel2); border:1px solid var(--line); cursor:grab; white-space:nowrap;}
-  .tk b{color:var(--amber);} .tk.drag{opacity:.4;}
-  .tk i.pool{font-style:normal; color:var(--teal); font-size:9.5px;}
   .tl{display:grid; gap:4px;}
   .tl-row{display:grid; grid-template-columns:52px minmax(0,1fr); gap:6px; align-items:center;}
   .tl-op{font-size:11px; font-weight:600;}
@@ -412,7 +408,7 @@
   .sd-it{display:grid; grid-template-columns:52px auto minmax(0,1fr) auto; gap:8px; align-items:center; font-size:12px; padding:4px 6px; border-radius:6px; cursor:grab;}
   .sd-it:hover{background:var(--panel2);} .sd-it .h{font-family:'IBM Plex Mono',monospace;} .sd-it b{color:var(--amber);}
   .sd-it span{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;} .sd-it em{font-style:normal; font-size:10.5px; color:var(--ink-faint);}
-  .tk.drag,.sp-it.drag,.sd-it.drag{opacity:.4;}
+  .sp-it.drag,.sd-it.drag{opacity:.4;}
   /* Mapa: burbujas por técnico */
   .mapa-burbuja div{display:grid; place-items:center; width:58px; height:38px; border-radius:19px; color:#fff; box-shadow:0 2px 8px rgba(0,0,0,.3); border:2px solid #fff; line-height:1.05; cursor:pointer;}
   .mapa-burbuja b{font-size:11px;} .mapa-burbuja span{font-size:10px; opacity:.9;}
@@ -462,8 +458,6 @@
   .ln-tx{min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
   .ln-tx > *{margin-right:6px;}
   .ln-end{display:flex; gap:8px; align-items:center; justify-content:flex-end;}
-  .ln-f{font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--ink); min-width:74px; text-align:right;}
-  .ln-f.sin{color:var(--ink-faint); font-family:inherit;}
   .vh-st .est-pill{margin-left:4px;}
   /* Sin asignar: fecha y aviso de misma sede */
   .sa-acc input[type=date]{font:inherit; font-size:11.5px; padding:2px 5px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--ink); width:128px;}
@@ -578,16 +572,6 @@
   .pf-pie{display:flex; gap:8px; align-items:center; justify-content:flex-end; font-size:12px; color:var(--ink-faint); border-top:1px solid var(--line); padding-top:10px;}
   .sync-aviso.cargando{color:var(--teal); background:var(--teal-dim); padding-right:10px;}
   /* Resumen por DSP (COORD) */
-  .coord-res{display:grid; gap:8px; margin-bottom:14px;}
-  .cc-tit{font-weight:700; font-size:12px; letter-spacing:.3px; text-transform:uppercase; color:var(--ink-faint);} .cc-tit small{font-weight:500; text-transform:none; letter-spacing:0; margin-left:6px;}
-  .coord-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:10px;}
-  .coord-card{display:grid; gap:8px; text-align:left; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:12px; font:inherit; color:var(--ink); cursor:pointer;}
-  .coord-card:hover{border-color:var(--amber);}
-  .coord-card.hot{border-left:3px solid #d9614f;}
-  .cc-h{display:grid;} .cc-h b{font-size:15px;} .cc-h small{color:var(--ink-faint); font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
-  .cc-prog{display:grid; grid-template-columns:1fr auto; gap:8px; align-items:center; font-size:12px; color:var(--ink-dim);}
-  .cc-kpi{display:flex; flex-wrap:wrap; gap:4px 10px; font-size:11.5px; color:var(--ink-faint);}
-  .cc-kpi .w{color:#d9614f; font-weight:600;} .cc-kpi .a{color:var(--amber); font-weight:600;}
   /* Mis cambios, sin cerrar y olvidadas */
   .md-camb{width:min(860px,100%);}
   table.camb td{vertical-align:top;} table.camb tr.ko td{background:color-mix(in srgb, #d9614f 7%, transparent);}

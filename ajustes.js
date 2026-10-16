@@ -3,47 +3,13 @@
 // asistente de inicio, diagnóstico, resumen matinal, aviso de técnico sin actividad y exportar a Excel.
 // Usa utilidades de app.js, dia.js, herramientas.js, edicion.js y panel.js solo en tiempo de llamada.
 
-const APP_VERSION = '1.24.0';   // súbela a la vez que VERSION en sw.js
+const APP_VERSION = '1.25.0';   // súbela a la vez que VERSION en sw.js
 const NOVEDADES = [
+  { v: '1.25.0', f: '2026-10-16', l: ['Limpieza para la implantación: código y estilos sin uso retirados, datos antiguos borrados del navegador una sola vez y documentación al día.', 'Planificar en ATGO ya no tiene el modo «solo ticket de prueba» de cuando se estaba validando.'] },
   { v: '1.24.0', f: '2026-10-16', l: ['Perfil COORD con su propio panel de CONTROL: cifras de abiertas, sin asignar, caducadas, caducan hoy y en ruta hoy, de todos los DSP.', 'Dos listas: Pendientes de asignar y Caducadas · Caducan hoy · En ruta hoy, con filtros por DSP, cliente y búsqueda.', 'Excel de cada lista y «Informe completo» (resumen por DSP, por estado y una hoja por lista).', 'En COORD las pestañas son CONTROL · INCIDENCIAS · PLANIFICACIÓN; desde la ficha se puede reasignar.'] },
   { v: '1.23.0', f: '2026-10-16', l: ['Asignar varias a la vez es mucho más rápido: se mandan todas de una vez y ATGO las guarda de 4 en 4 (antes, de una en una), cada una comprobada campo a campo.', 'Cada asignación se ve en Despacho en cuanto ATGO la confirma, y la lista completa se recarga una sola vez al final (antes, una recarga entera por cada ticket).', 'Recarga una vez la pestaña de ATGO (F5).'] },
   { v: '1.22.3', f: '2026-10-13', l: ['Corregido: un rechazo de ATGO (error 400) se mostraba como «la sesión de ATGO ha caducado». Ahora se dice que ATGO no acepta el cambio y se muestra su motivo completo.', 'Recarga una vez la pestaña de ATGO (F5).'] },
-  { v: '1.22.2', f: '2026-10-13', l: ['Corregido: «la sesión de ATGO ha caducado» al guardar aunque ATGO funcionara. Pasaba si quedaba abierta otra pestaña de ATGO antigua: Despacho le mandaba los cambios a ella. Ahora solo los recibe la pestaña que sincroniza, y se avisa si hay otra con error.', 'Error 403 de ATGO (sin permiso) separado de la sesión caducada; el aviso de «No se guardaron» ofrece Forzar reconexión.', 'Recarga una vez la pestaña de ATGO (F5).'] },
-  { v: '1.22.1', f: '2026-10-13', l: ['Reincidencias por equipo: 🔁 sale solo si el mismo equipo (IT de la balanza, elemento de ATGO o «caja 131» con su aparato) vuelve a fallar en 10 días, abierto o ya cerrado. Ya no se marcan todas las de una sede con mucho tráfico.', 'Recarga una vez la pestaña de ATGO (F5) para que lea el código del equipo.'] },
-  { v: '1.22.0', f: '2026-10-13', l: ['Incidencias: dentro de cada técnico, agrupadas por estado y cada línea iluminada con el color de su estado.', 'Visita y caducidad justo detrás del Nº, con su etiqueta y color (rojo si caduca en menos de 24 h o ya caducó).', 'Técnicos más visibles: avatar de color e iniciales y nombre más grandes.', 'Al guardar en ATGO, el resultado sale dentro de la ficha y el aviso ya no queda tapado.', '«Forzar reconexión» (⚙ › General, aviso de ATGO sin actualizar o clic en el punto de estado) para cuando ATGO se queda pillado.'] },
-  { v: '1.21.0', f: '2026-10-12', l: ['⚙ › Técnicos: nómina para dar de alta técnicos, cambiar su zona o DSP y marcar bajas (los de baja no se proponen al asignar).', '⚙ › Apariencia: color de la app (azul ATGO, verde, morado, grafito o naranja) y tamaño Compacto · Normal · Amplio, ahora bien distintos.', 'Accesibilidad: «Modo accesible» de un clic (zoom, alto contraste, foco visible, botones grandes, sin animaciones) y cada opción por separado.', 'Cabecera más limpia: pestañas más grandes y en mayúsculas.', 'Novedades más cortas: las 5 últimas versiones y un resumen de las anteriores.'] },
-  { v: '1.20.0', f: '2026-10-12', l: ['Festivos: los nacionales ya cuentan (próximo laborable, Planificación, avisos) y puedes añadir los de cada zona en ⚙ › Festivos.', 'Planificación › detalle de un técnico y día › «Rellenar el día»: propone sus incidencias sin fecha, vencidas y las sin asignar de su zona.', 'Ficha: teléfono y correo del contacto, material con su último comentario y seguimiento GLS, e historial de la sede.', 'Limpieza de estilos sin uso.'] },
-  { v: '1.19.0', f: '2026-10-12', l: ['«Mis cambios» en Mi día: todo lo que has hecho hoy (o en 7 días) en ATGO desde Despacho, con su resultado.', 'Aviso de visitas de hoy sin cerrar a las 19:00 (configurable) y «Recordar» por WhatsApp a cada técnico.', 'Sin asignar: las de tu zona con más de 4 h sin técnico se marcan ⏰ y avisan (configurable).', 'Correcciones de la revisión: arranque con COORD o abriendo directamente otra pestaña, perfiles al restaurar copias, Sin asignar más ligero.'] },
-  { v: '1.18.0', f: '2026-10-12', l: ['Filtro por DSP (Todos · DSP1…DSP5) en Planificación, el día y Sin asignar, igual que en Incidencias, cuando el perfil tiene varios DSP (COORD).', 'Sin asignar ordenado por urgencia: primero las que caducan antes y, después, las más antiguas.', 'Actualización silenciosa: las versiones nuevas se instalan solas cuando no estás haciendo nada.'] },
-  { v: '1.17.2', f: '2026-10-12', l: ['Corregido: al actualizar, Despacho podía quedarse con archivos de la versión anterior (y avisar de recargar ATGO sin motivo).', 'El aviso de versión dice quién está desactualizado y «Actualizar Despacho» lo arregla en un clic.'] },
-  { v: '1.17.1', f: '2026-10-12', l: ['Comodines de Galicia y Guipúzcoa reconocidos (probado con la lista real de ATGO: 37 de 42; los demás son de Canarias o genéricos).', 'Carga medida con ATGO: COORD tarda ~65 s; DSP1, ~20 s.'] },
-  { v: '1.17.0', f: '2026-10-12', l: ['COORD: resumen por DSP en Mi día (visitas de hoy, retrasos, sin asignar, caducidades y escalados); al pulsar uno se ven solo sus incidencias.', 'Sin asignar: los comodines de todas las zonas se reconocen por su nombre en ATGO.', 'Al cambiar de perfil sale «Cargando DSPx…» hasta que llegan sus datos.', 'Perfiles: exportar e importar solo los perfiles para pasarlos a otro equipo.', 'Excel, informe semanal e histórico con el nombre y los técnicos del perfil activo.', 'Carga más rápida con perfiles grandes y su duración visible en ⚙ › General.', 'Corregido: un técnico quitado de un perfil ya no vuelve a aparecer al recargar.'] },
-  { v: '1.16.2', f: '2026-10-12', l: ['Cada DSP queda con su lista matriz de técnicos por zonas; COORD con todos.', 'Perfiles: «Restablecer» (todos o el perfil abierto) vuelve a la lista matriz. Los perfiles cambiados se marcan como «modificado».'] },
-  { v: '1.16.1', f: '2026-10-12', l: ['Zonas de DSP2 (Murcia, Alicante, Valencia/Castellón, Cataluña), DSP3 (Madrid, Ciudad Real), DSP4 (Castilla y León, Aragón, Galicia, Asturias/Cantabria, Norte) y DSP5 (Baleares, Portugal).', 'En esas zonas, Sin asignar ya recomienda técnico y «Mi zona» funciona como en Andalucía.'] },
-  { v: '1.16.0', f: '2026-10-12', l: ['Se puede asignar cualquier técnico de cualquier perfil a cualquier incidencia, también en «Todas las zonas» y en el buzón.', 'Técnicos de DSP2, DSP3, DSP4 y DSP5 dados de alta.', 'Nueva ventana de Perfiles: añadir técnicos por código (o varios a la vez), por zonas o copiándolos de otro perfil, y quitarlos con ×.'] },
-  { v: '1.15.1', f: '2026-10-11', l: ['Extensión 1.1.0: corregido el bloqueo de Chrome/Edge que impedía sincronizar. Hay que volver a cargarla.', 'Si caduca la sesión de ATGO, la sincronización sigue sola al volver a iniciarla.'] },
-  { v: '1.15.0', f: '2026-10-11', l: ['Progreso del día corregido: «en curso» y «terminada» solo cuentan si lo marca el técnico asignado, no el soporte remoto.', 'Tras guardar en ATGO la lista se actualiza enseguida, aunque coincida con una carga.', 'Aviso si la pestaña de ATGO tiene una sincronización antigua y hay que recargarla.', 'Arranque más rápido: el módulo de Excel se carga solo al importar o exportar.', 'Correcciones: Esc en una confirmación cancela, quitar datos refresca todo, notas y copiar ficha en tickets sin asignar.'] },
-  { v: '1.14.0', f: '2026-10-11', l: ['Más estable: la actualización de ATGO ya no borra lo que estás escribiendo ni te mueve la página.', 'Errores de ATGO más claros (sesión caducada, sin respuesta) y aviso si un cambio se confirmó tarde.', 'Limpieza automática de lo guardado en el equipo para que nunca se llene.', 'Mismo selector de técnico y misma confirmación al asignar desde cualquier sitio.', 'La lista de técnicos que sincroniza ATGO sale de Despacho.', '«Quitar datos» pasa a ⚙ › Datos (con confirmación).'] },
-  { v: '1.13.1', f: '2026-10-11', l: ['Sin asignar: asignar en masivo (marca varias, cada una con su técnico y fecha).', 'ATGO se sincroniza siempre cada 2 minutos.'] },
-  { v: '1.13.0', f: '2026-10-11', l: [
-    'Perfiles DSP1–DSP5 y COORD: cada uno ve solo sus técnicos (⚙ › Perfiles).',
-    'Mapa: al pulsar un técnico salen todas sus incidencias; las del día, numeradas en orden de ruta.',
-    'Duración de las visitas leída del hilo; si no se sabe, solo cuenta la hora de inicio.',
-    'Sin asignar: vuelve el campo de fecha y aviso 📍 si un técnico ya va a esa sede.',
-    'Ceuta y Melilla admiten técnicos de Cádiz y Málaga.',
-    'Ficha flotante y más ancha, con pestañas Resumen, Actuar e Historial.',
-    'Estado en color y fecha de visita al final de cada incidencia.',
-    'Planificación une Semana y Mañana; atajos de teclado (?), menú con clic derecho y deshacer asignación.',
-    'Filtros guardados, resumen matinal, enviar todas las rutas, plantillas de WhatsApp y exportar a Excel.'] },
-  { v: '1.12.0', f: '2026-10-10', l: ['Mapa con una burbuja por técnico.', 'Semana y Sin asignar más compactos.', 'Mi día más corto.'] },
-  { v: '1.11.0', f: '2026-10-07', l: ['Sin asignar y buzón.', 'Vista Semana con arrastrar y soltar.', 'Mi día plegable.'] },
-  { v: '1.10.0', f: '2026-10-07', l: ['Planificar en ATGO: técnico y fecha/hora de visita.'] },
-  { v: '1.9.0', f: '2026-10-07', l: ['Comentar en el hilo y cambiar el estado desde Despacho.'] },
-  { v: '1.8.0', f: '2026-10-05', l: ['Cerradas 15 días, material, caducidad, OneDrive, ruta en Maps, técnico sugerido, correos e informe semanal.'] },
-  { v: '1.7.0', f: '2026-10-05', l: ['«Terminada» solo con los estados de cierre; el resto, «En trámite».'] },
-  { v: '1.6.0', f: '2026-10-04', l: ['Incidencias por técnico con el progreso de su ruta de hoy.'] },
-  { v: '1.5.0', f: '2026-10-04', l: ['Motivo de apertura e hilo en la ficha.'] },
-  { v: '1.4.0', f: '2026-10-04', l: ['Mi día, novedades, avisos de Windows y buscador Ctrl+K.'] }
+  { v: '1.22.2', f: '2026-10-13', l: ['Corregido: «la sesión de ATGO ha caducado» al guardar aunque ATGO funcionara. Pasaba si quedaba abierta otra pestaña de ATGO antigua: Despacho le mandaba los cambios a ella. Ahora solo los recibe la pestaña que sincroniza, y se avisa si hay otra con error.', 'Error 403 de ATGO (sin permiso) separado de la sesión caducada; el aviso de «No se guardaron» ofrece Forzar reconexión.', 'Recarga una vez la pestaña de ATGO (F5).'] }
 ];
 // Resumen de lo más importante de las versiones anteriores a las 5 últimas (se ve en ⓘ › Anteriores)
 const ANTERIORES = [
@@ -59,10 +25,14 @@ const ANTERIORES = [
   'WhatsApp con plantillas y envío de todas las rutas',
   'Copia en OneDrive, informe semanal y exportar a Excel',
   'Festivos, «Rellenar el día», «Mis cambios» y aviso de visitas sin cerrar',
+  'Nómina de técnicos con altas, zona/DSP y bajas',
+  'Colores, tamaños y modo accesible',
+  'Incidencias agrupadas por estado, con visita y caducidad junto al Nº',
+  'Reincidencias por equipo (mismo equipo en 10 días) y «Forzar reconexión»',
   'Extensión para Chrome y Edge que sincroniza ATGO sola',
   'Actualización silenciosa y sincronización cada 2 minutos'
 ];
-const NOV_VISIBLES = 5;
+const NOV_VISIBLES = 5, ANTERIORES_HASTA = '1.22';   // al añadir una versión, quita la más antigua de NOVEDADES y resúmela aquí si importa
 const NOV_KEY = 'dispatcher_version_vista_v1', DIAG_KEY = 'dispatcher_diag_v1', BIENV_KEY = 'dispatcher_bienvenida_v1', DATOS_VER_KEY = 'dispatcher_datos_version_v1';
 
 // ---- Novedades de la versión ----
@@ -70,7 +40,7 @@ function abrirNovedades() {
   const m = document.getElementById('modal');
   m.innerHTML = `<div class="md-box md-nov"><div class="dw-head"><div><div class="dw-num" style="color:var(--ink)">Despacho ${esc(APP_VERSION)}</div><div class="dw-sub">Novedades de cada versión</div></div><button class="iconbtn" onclick="cerrarModal()" aria-label="Cerrar">✕</button></div>
     ${NOVEDADES.slice(0, NOV_VISIBLES).map((n, i) => `<details class="nov"${i === 0 ? ' open' : ''}><summary><b>${esc(n.v)}</b><span>${esc(new Date(n.f + 'T12:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }))}</span></summary><ul>${n.l.map(x => `<li>${esc(x)}</li>`).join('')}</ul></details>`).join('')}
-    ${NOVEDADES.length > NOV_VISIBLES ? `<details class="nov nov-ant"><summary><b>Anteriores</b><span>${esc(NOVEDADES[NOVEDADES.length - 1].v)} – ${esc(NOVEDADES[NOV_VISIBLES].v)}</span></summary><ul>${ANTERIORES.map(x => `<li>${esc(x)}</li>`).join('')}</ul></details>` : ''}
+    ${ANTERIORES.length ? `<details class="nov nov-ant"><summary><b>Anteriores</b><span>1.4 – ${esc(ANTERIORES_HASTA)}</span></summary><ul>${ANTERIORES.map(x => `<li>${esc(x)}</li>`).join('')}</ul></details>` : ''}
     <div class="dw-empty">Atajos de teclado: pulsa <kbd>?</kbd></div></div>`;
   m.hidden = false;
   try { localStorage.setItem(NOV_KEY, APP_VERSION); } catch (e) {}
@@ -86,30 +56,6 @@ function setPerfil(p) {
   try { sessionStorage.setItem('despacho_perfil_cambiado', p); } catch (e) {}   // muestra «Cargando DSPx…» hasta que lleguen sus datos
   location.reload();
 }
-// ---- Resumen por DSP (Mi día del coordinador) ----
-// Una tarjeta por DSP: visitas de hoy hechas/total, retrasos, sin asignar de sus zonas, caducidades y escalados.
-// Al pulsarla se abre Incidencias con solo los técnicos de ese DSP.
-function resumenCoordHtml() {
-  const ruta = rutaHoy(), sin = sinListas().pend;
-  const cards = PERFILES.filter(p => p !== 'COORD' && perfilCfg.tecs[p].length).map(p => {
-    const ops = perfilCfg.tecs[p], zonas = ZONAS_BASE.filter(z => dspZona(z) === p).map(z => z.nombre);
-    const r = ruta.filter(x => ops.includes(cleanInitials(x.op)));
-    const hechas = r.filter(x => x.st === 'd').length, tarde = r.filter(x => x.late).length;
-    const mias = rows.filter(x => ops.includes(cleanInitials(x.operario)));
-    const cad = mias.filter(x => { const c = caducidad(x); return c && ['venc', 'urg'].includes(cadNivel(c)); }).length;
-    const esc1 = mias.filter(x => norm(x.estado) === norm('ESCALADO TIER1')).length;
-    const sa = sin.filter(x => zonas.includes(zonaPool(x))).length;
-    const pc = r.length ? Math.round(hechas / r.length * 100) : 0;
-    const hot = tarde || cad || esc1;
-    return `<button class="coord-card${hot ? ' hot' : ''}" onclick="verDsp('${p}')" title="Ver las incidencias de ${p}">
-      <div class="cc-h"><b>${p}</b><small>${esc(zonas.join(' · ') || plural(ops.length, 'técnico'))}</small></div>
-      <div class="cc-prog"><div class="pbar"><i class="d" style="width:${pc}%"></i></div><span>${r.length ? `${hechas}/${r.length} hoy` : 'sin visitas hoy'}</span></div>
-      <div class="cc-kpi"><span${tarde ? ' class="w"' : ''}>${tarde} retraso${tarde === 1 ? '' : 's'}</span><span${sa ? ' class="a"' : ''}>${sa} sin asignar</span><span${cad ? ' class="w"' : ''}>${cad} caducan</span><span${esc1 ? ' class="w"' : ''}>${esc1} escal.</span></div>
-    </button>`;
-  });
-  return cards.length ? `<section class="coord-res"><div class="cc-tit">Resumen por DSP <small>pulsa uno para ver sus incidencias</small></div><div class="coord-grid">${cards.join('')}</div></section>` : '';
-}
-function verDsp(p) { filtroInc = { est: '', cad: false, q: '', dsp: p }; zonaSel = null; showTab('inc'); }
 
 // ---- Exportar / importar solo los perfiles (para pasárselos a otro dispatcher sin el resto de tus datos) ----
 function exportarPerfiles() {
@@ -411,9 +357,7 @@ function renderCfg() {
       <div class="cfg-row"><label><input type="checkbox" ${tecCfg.inactOn !== false ? 'checked' : ''} onchange="setPref('inactOn',this.checked)"> Avisar si un técnico no ha iniciado nada a las</label><input type="time" aria-label="Hora del aviso de técnico sin actividad" value="${esc(tecCfg.inactHora || '11:00')}" onchange="setPref('inactHora',this.value)"></div>
       <div class="cfg-row"><label><input type="checkbox" ${tecCfg.cierreOn !== false ? 'checked' : ''} onchange="setPref('cierreOn',this.checked)"> Avisar de visitas de hoy sin cerrar a las</label><input type="time" aria-label="Hora del aviso de visitas sin cerrar" value="${esc(horaCierre())}" onchange="setPref('cierreHora',this.value)"></div>
       <div class="cfg-row"><label>Sin asignar de tu zona: avisar si llevan más de</label><span><input type="number" aria-label="Horas sin técnico para avisar" min="1" max="72" value="${horasOlvido()}" onchange="setPref('olvidoHoras',Math.max(1,Number(this.value)||4))" style="width:56px"> h</span></div>
-      <div class="cfg-h">Planificar en ATGO (técnico y visita)</div>
-      <div class="cfg-t">${tecCfg.fase2 !== 'prueba' ? 'Activo en todos los tickets (validado).' : 'Limitado al ticket de prueba 2026/00/97784.'}</div>
-      <div class="acts"><button class="btn sm ghost" onclick="tecCfg.fase2=tecCfg.fase2==='prueba'?'todos':'prueba';saveTec();renderCfg();if(fichaKey)renderFicha()">${tecCfg.fase2 !== 'prueba' ? 'Limitar al ticket de prueba' : 'Activar para todos los tickets'}</button></div>`;
+`;
   } else if (cfgTab === 'apa') {
     const a = accCfg(), on = accActivo(), seg = (k, ops, cur) => `<span class="seg mini" role="group">${ops.map(([v, l]) => `<button class="segb${cur === v ? ' on' : ''}" aria-pressed="${cur === v}" onclick="event.stopPropagation();${k}">${l}</button>`.replace(k, k.replace('@', String(v)))).join('')}</span>`;
     h = `<div class="cfg-h">Tema</div>
@@ -457,7 +401,7 @@ function renderCfg() {
     h = `<div class="cfg-h">Copia automática en OneDrive</div>
       ${odCfgHtml()}
       <div class="cfg-h">Copia de seguridad manual</div>
-      <div class="cfg-t">Notas, teléfonos, perfiles, filtros, cerradas, informes y plantillas.</div>
+      <div class="cfg-t">Notas, teléfonos, nómina y perfiles, filtros, preferencias, cerradas e informes.</div>
       <div class="acts"><button class="btn sm" onclick="exportBackup()">Exportar</button><button class="btn sm" onclick="document.getElementById('backupInput').click()">Restaurar</button></div>
       <div class="cfg-h">Exportar a Excel</div>
       <div class="acts"><button class="btn sm" onclick="exportarExcel('inc')">Incidencias</button><button class="btn sm" onclick="exportarExcel('sem')">Planificación de la semana</button><button class="btn sm" onclick="abrirInforme()">Informe semanal</button></div>
@@ -526,6 +470,7 @@ setInterval(() => { try { revisarEspacio(); } catch (e) {} }, 3600000);
 const MIGRACIONES = [
   () => {},   // 1: perfiles (se crean solos en app.js con todos los técnicos en DSP1)
   () => saveTec(),   // 2: separa datos de técnicos (teléfonos, GLS) y preferencias en dos claves
+  () => ['dispatcher_plantillas_v2', 'dispatcher_clientes_v1', 'dispatcher_recordatorios_v1', 'dispatcher_rutina_v1', 'dispatcher_tpl_cliente'].forEach(k => { try { localStorage.removeItem(k); } catch (e) {} }),   // 3: datos de funciones retiradas
 ];
 (function migrar() {
   let v = 0; try { v = Number(localStorage.getItem(DATOS_VER_KEY)) || 0; } catch (e) {}

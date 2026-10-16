@@ -66,14 +66,16 @@ Publicada en GitHub Pages: https://angriogon.github.io/VISOR-INCIDENCIAS/
 ## Reglas al cambiar código
 
 1. **Sube `VERSION` en `sw.js`** en cada cambio publicado; si no, la app instalada no se actualiza.
-   Súbela igual en `APP_VERSION` (`ajustes.js`) y añade la versión a `NOVEDADES`. Si cambias `atgo-sync.js`, sube `SYNC_VERSION`
+   Súbela igual en `APP_VERSION` (`ajustes.js`) y añade la versión a `NOVEDADES`: deja solo las 5 últimas (la más antigua sale y,
+   si era importante, se resume en `ANTERIORES`; actualiza `ANTERIORES_HASTA`). Si cambias `atgo-sync.js`, sube `SYNC_VERSION`
    en él y en `app.js` (Despacho avisará de recargar la pestaña de ATGO).
 2. Si creas un archivo nuevo que carga la app, añádelo a `SHELL` en `sw.js` y a `index.html`.
 3. **Técnicos duplicados:** `ZONAS_BASE` (app.js) manda; `OPERARIOS` (atgo-sync.js) es el respaldo y debe coincidir.
    Asignar: siempre por `asignarLote` (también una sola) y técnico recomendado por `recomendar` (sugerirTecnico lo usa).
    Lo mismo con estados: por nombre en `ESTADOS` (app.js) y por código en `atgo-sync.js`.
 4. Si cambias `extension/`, regenera `despacho-extension.zip`.
-5. No elimines funcionalidades existentes al añadir otras.
+5. No elimines funcionalidades existentes al añadir otras. Si retiras algo, quita también su CSS, sus textos y, si guardaba datos,
+   añade su clave a la migración de limpieza (`MIGRACIONES` en ajustes.js). No dejes archivos ni código sin uso.
 6. Cualquier escritura en ATGO debe pedir confirmación, verificarse después y no reintentarse sola.
 7. Textos de la interfaz en español de España, cortos y claros.
 8. Si cambia el comportamiento visible, actualiza solo la sección afectada del README.

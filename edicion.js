@@ -175,9 +175,7 @@ async function cambiarEstadoAtgo() {
 }
 
 // ---- Fase 2: asignar técnico y fecha/hora de visita ----
-// Hasta que la valides, solo funciona en el ticket de prueba. Luego se activa para todos en ⚙.
-const FASE2_PRUEBA = '2026/00/97784';
-function fase2Activa(key) { return atgoCaps.includes('asignar') && (tecCfg.fase2 !== 'prueba' || key === FASE2_PRUEBA); }
+function fase2Activa() { return atgoCaps.includes('asignar'); }
 function preAsignar(op) { const s = document.getElementById('asOp'); if (s) { s.value = op; s.dispatchEvent(new Event('change')); s.scrollIntoView({ block: 'nearest' }); } }
 function fechaIsoDe(r) { const d = parseEs(r.fVisita); return d ? isoHoy(d) : ''; }
 async function asignarAtgo() {
@@ -222,7 +220,7 @@ function difHtml(dif) {
   return `<details class="ed-dif"><summary>Comprobación en ATGO: ${ks.length} campo${ks.length === 1 ? '' : 's'} cambiado${ks.length === 1 ? '' : 's'}</summary><ul>${ks.map(k => `<li><b>${esc(k)}</b>: ${esc(fmt(dif[k].antes))} → ${esc(fmt(dif[k].despues))}</li>`).join('')}</ul></details>`;
 }
 function asignarHtml(key, r, pend) {
-  if (!fase2Activa(key)) return '';
+  if (!fase2Activa()) return '';
   // Mismo selector que en Sin asignar (opcionesTecnico, panel.js): cualquier técnico de cualquier perfil,
   // con los recomendados de su zona primero. Si el actual es un comodín "PENDIENTE ASIGNAR", sale como primera opción.
   const rec = recomendar(r, nextWorkday()) || [];
@@ -231,7 +229,7 @@ function asignarHtml(key, r, pend) {
   const ult = edicionesDe(key).find(e => e.accion === 'asignar');
   const sug = sugerirTecnico(r, nextWorkday()), best = sug && sug.lista[0] && sug.lista[0].op !== actual ? sug.lista[0].op : '';
   return `<div class="ed-asig">
-    <div class="dw-h" style="margin-top:6px">Planificar en ATGO ${key === FASE2_PRUEBA && tecCfg.fase2 === 'prueba' ? '<small>en prueba: solo este ticket</small>' : ''}</div>
+    <div class="dw-h" style="margin-top:6px">Planificar en ATGO</div>
     ${best && !pend ? `<div class="acts"><button class="btn sm pri" onclick="preAsignar('${jsq(best)}');asignarAtgo()" title="Técnico recomendado: ${esc(sug.lista[0].sede ? 'ya tiene otra incidencia en esta sede' : 'menos carga el próximo laborable')}">Asignar a ★ ${esc(best)}</button>${sedeAvisoHtml(r, actual)}</div>` : sedeAvisoHtml(r, actual)}
     <div class="ed-grid">
       <label>Técnico<select id="asOp"${pend ? ' disabled' : ''} onchange="const a=document.getElementById('asSede');if(a)a.innerHTML=sedeAvisoHtml(ticketDe(fichaKey),this.value)">${opciones}</select><span id="asSede"></span></label>

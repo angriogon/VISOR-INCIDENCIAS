@@ -507,7 +507,7 @@ function replanificarVencidas() {
 }
 
 // ===== Vista Semana: carga por técnico y día, con arrastrar y soltar =====
-let semOff = 0, semAbierta = {}, seleccion = new Set(), loteOp = '', loteDia = '';
+let semOff = 0, seleccion = new Set(), loteOp = '', loteDia = '';
 function diasSemana() {
   const d = new Date(); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7) + (d.getDay() % 6 ? 0 : 7) + semOff * 7);   // sábado y domingo: la semana que viene
   return Array.from({ length: 5 }, (_, i) => { const x = new Date(d); x.setDate(d.getDate() + i); return x; });
@@ -528,7 +528,7 @@ function renderSemana() {
   const root = document.getElementById('viewSem');
   if (!rows.length && !poolRows.length) { root.innerHTML = `<div class="empty"><h2>Sin incidencias cargadas</h2><div>Abre ATGO (⚙ › General › Abrir ATGO) y deja su pestaña abierta: la semana se llena sola.</div></div>`; return; }
   if (!ZONAS_TEC.length) { root.innerHTML = `<div class="empty"><h2>El perfil ${esc(PERFIL)} no tiene técnicos</h2><div>Añádelos en ⚙ › Perfiles.</div></div>`; return; }
-  const dias = diasSemana(), act = fase2Activa('*');
+  const dias = diasSemana(), act = fase2Activa();
   const zonas = zonasVisibles();
   const grupos = semPendGrupos(), nPend = grupos.reduce((s, g) => s + g.l.length, 0), nVenc = grupos[1].l.length;
   const fmtD = d => DIAS[d.getDay()].slice(0, 3) + ' ' + d.getDate();
@@ -619,7 +619,7 @@ function semDetalleHtml(id) {
   const conf = conflictos(f).filter(c => c.op === op);
   return `<div class="sem-det" data-drop="${esc(id)}">
     <div class="sd-h"><b>${esc(op)}</b> · ${esc(diaLargo(d))} · ${vis.length ? plural(vis.length, 'visita') + (cargaMin(op, f) ? ' · ≈ ' + fmtMin(cargaMin(op, f)) : '') : 'libre'}
-      ${fase2Activa('*') ? `<button class="btn sm" onclick="rellenarDia('${jsq(op)}','${iso}')" title="Propone incidencias sin fecha, vencidas o sin asignar de su zona para este día">Rellenar el día</button>` : ''}${vis.length ? `<button class="btn sm ghost" onclick="abrirRuta('${jsq(op)}','${f}')">Ruta</button>` : ''}<button class="iconbtn sm" onclick="semDet=null;renderSemana()" aria-label="Cerrar">✕</button></div>
+      ${fase2Activa() ? `<button class="btn sm" onclick="rellenarDia('${jsq(op)}','${iso}')" title="Propone incidencias sin fecha, vencidas o sin asignar de su zona para este día">Rellenar el día</button>` : ''}${vis.length ? `<button class="btn sm ghost" onclick="abrirRuta('${jsq(op)}','${f}')">Ruta</button>` : ''}<button class="iconbtn sm" onclick="semDet=null;renderSemana()" aria-label="Cerrar">✕</button></div>
     ${conf.map(c => `<div class="sd-conf">⚠ ${esc(c.texto)}</div>`).join('')}
     ${vis.length ? vis.map(r => { const e = estimarMin(r); return `<div class="sd-it" draggable="true" data-drag="${esc(tkey(r))}" data-key="${esc(tkey(r))}"><span class="h">${esc(r.desdeHora || '--:--')}</span><b class="mono">${esc(String(r.num).slice(-5))}</b><span>${esc(r.descSede || '')}</span><em title="${esc(duracionTexto(r))}">${e ? '≈ ' + esc(fmtMin(e)) + ' · ' : ''}${esc(r.tipo || '')}</em></div>`; }).join('') : '<div class="dempty">Sin visitas. Arrastra aquí un ticket para planificarlo.</div>'}
     ${vis.length ? '<div class="sp-hint">Arrastra una visita a otra casilla para moverla de técnico o de día.</div>' : ''}
@@ -634,7 +634,7 @@ document.addEventListener('drop', e => {
   const c = e.target.closest && e.target.closest('[data-drop]'); if (!c) return;
   e.preventDefault(); e.stopPropagation(); c.classList.remove('over');
   const key = e.dataTransfer.getData('text/plain'); if (!key) return;
-  if (!fase2Activa('*')) { toast('Activa «Planificar en ATGO» para todos en ⚙'); return; }
+  if (!fase2Activa()) { toast('Abre ATGO para poder planificar desde aquí'); return; }
   const [op, f] = c.dataset.drop.split('|'), r = ticketDe(key); if (!r) return;
   if (cleanInitials(r.operario) === op && fechaIsoDe(r) === f) return;
   asignarLote([{ key, codOpe: op, fechaVisita: f }], `Planificar Nº ${r.num}`).then(res => { if (res) quitarDeSinAsignar(res.okKeys); });

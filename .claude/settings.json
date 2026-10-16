@@ -1,8 +1,0 @@
-{
-  "permissions": {
-    "deny": [
-      "Read(./despacho-extension.zip)",
-      "Read(./**/*.png)"
-    ]
-  }
-}

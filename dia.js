@@ -659,7 +659,6 @@ function renderDia(force) {
       <div class="acts">${typeof botonesDiaHtml === 'function' ? botonesDiaHtml() : ''}<button class="btn sm" onclick="openPalette()" title="Buscar ticket o acción">Buscar <kbd>Ctrl K</kbd></button><button class="btn sm" onclick="copiarResumenJornada()" title="Texto listo para pegar a tu responsable">Copiar resumen del día</button><button class="btn sm" onclick="abrirInforme()">Informe semanal</button><button class="btn sm ghost" onclick="plegarTodo(true)" title="Plegar todas las secciones">Plegar</button><button class="btn sm ghost" onclick="plegarTodo(false)" title="Desplegar todas las secciones">Desplegar</button></div>
     </div>
     <div class="tiles">${tiles.map(t => `<button class="tile${t.hot ? ' hot' : ''}${!t.n || t.n === '0/0' ? ' zero' : ''}" data-go="${t.go}"><b>${esc(String(t.n))}</b><span>${esc(t.l)}</span><small>${esc(t.s)}</small></button>`).join('')}</div>
-    ${PERFIL === 'COORD' && typeof resumenCoordHtml === 'function' ? resumenCoordHtml() : ''}
     <div class="dia-grid">
       <div class="dcol">
       <section class="dsec" id="secNov">
@@ -721,10 +720,6 @@ function restoreBackup(file) {
       if (d.jornadas && typeof d.jornadas === 'object') { jornadas = { ...d.jornadas, ...jornadas }; lsSet(JORN_KEY, jornadas); }
       if (d.perfiles && d.perfiles.tecs) { try { localStorage.setItem(PERFIL_KEY, JSON.stringify({ ...d.perfiles, activo: PERFIL, matriz1: true, conocidos: Array.isArray(d.perfiles.conocidos) ? d.perfiles.conocidos : BASE_OPS })); hechos.push('perfiles (se aplican al recargar)'); } catch (e) {} }   // matriz1: una copia antigua no vuelve a la lista matriz al recargar
       if (Array.isArray(d.filtros)) { filtrosGuardados = d.filtros; try { localStorage.setItem(FILTROS_KEY, JSON.stringify(d.filtros)); } catch (e) {} }
-      if (Array.isArray(d.plantillas)) {
-        const m = new Map((lsGet('dispatcher_plantillas_v2', []) || []).map(x => [x.id, x])); d.plantillas.forEach(x => x && m.set(x.id, x));
-        lsSet('dispatcher_plantillas_v2', [...m.values()]); hechos.push(d.plantillas.length + ' plantillas guardadas');
-      }
       refreshVisible();
       toast('Restaurado: ' + (hechos.join(', ') || 'nada que restaurar'));
     } catch (err) { toast('No se pudo restaurar: ' + err.message); }
