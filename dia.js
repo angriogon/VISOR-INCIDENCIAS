@@ -619,6 +619,7 @@ function refreshVisible() {
   if (vis('viewMan')) renderManana();
   if (vis('viewSem')) renderSemana();
   if (vis('viewSin')) renderSin();
+  if (vis('viewCtl')) renderControl();
   if (Math.abs(window.scrollY - y) > 2) window.scrollTo(0, y);
   if (fichaKey && !document.getElementById('drawer').hidden && document.activeElement && !['dwNota', 'edCom', 'edEst', 'asOp', 'asFecha', 'asH1', 'asH2'].includes(document.activeElement.id)) renderFicha();
 }

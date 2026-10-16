@@ -4,7 +4,7 @@ Archivo de traspaso entre sesiones. Al empezar una sesión: "lee docs/ESTADO.md 
 Al terminar: "actualiza docs/ESTADO.md". Máximo ~40 líneas: lo antiguo se resume o se borra.
 
 ## Versión actual
-- `sw.js`: despacho-v1.23.0 = `APP_VERSION` en `ajustes.js` (SYNC_VERSION 1.23.0 en atgo-sync.js y app.js).
+- `sw.js`: despacho-v1.24.0 = `APP_VERSION` en `ajustes.js` (SYNC_VERSION 1.23.0 en atgo-sync.js y app.js).
 - Historia resumida (detalle en NOVEDADES de ajustes.js y en git): 1.13 perfiles DSP1–5/COORD, ficha flotante, duración del hilo;
   1.14–1.15 pulido y revisión (asignarLote, SYNC_VERSION, pruebas de arranque); 1.15.1 extensión con "world": "MAIN";
   1.16.x asignar a cualquiera, zonas DSP2–5, lista matriz y «Restablecer»; 1.17.x resumen COORD, comodines por nombre, carga en 6 paralelos;
@@ -30,6 +30,9 @@ Al terminar: "actualiza docs/ESTADO.md". Máximo ~40 líneas: lo antiguo se resu
 - 1.23.0: asignación en bloque en un solo mensaje (despacho-editar-lote, cap "lote"): atgo-sync guarda 4 a la vez (LOTE_PARALELO)
   y recarga una vez al final (refrescarPronto para sueltos); cada respuesta trae "fila" y la PWA la aplica ya (aplicarFila).
   Por validar con ATGO real: tiempo de un lote de ~10.
+
+- 1.24.0: COORD = control (coord.js, pestaña CONTROL; Mi día y Sin asignar ocultas en COORD): cifras, filtros DSP/cliente, pendientes
+  y caducadas/caducan hoy/en ruta, Excel por lista e informe completo. Futuro (pedido): informes por cliente y proyecto (numProy en la ficha).
 
 ## En curso
 - Crear tickets desde Despacho: espera la lista de campos y valores por defecto del usuario (ver docs/estudio-alta-tickets.md).

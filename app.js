@@ -916,11 +916,14 @@ function copyText(s){
 }
 
 function showTab(t){
-  for (const [k, v, tab] of [['dia','viewDia','tabDia'], ['sin','viewSin','tabSin'], ['inc','viewInc','tabInc'], ['sem','viewSem','tabSem'], ['man','viewMan','tabSem']]){
+  if (t === 'ctl' && !esCoord()) t = 'dia';
+  if ((t === 'dia' || t === 'sin') && esCoord()) t = 'ctl';
+  for (const [k, v, tab] of [['ctl','viewCtl','tabCtl'], ['dia','viewDia','tabDia'], ['sin','viewSin','tabSin'], ['inc','viewInc','tabInc'], ['sem','viewSem','tabSem'], ['man','viewMan','tabSem']]){
     document.getElementById(v).style.display = t===k ? '' : 'none';
     if (k !== 'man'){ const on = t===k || (t==='man' && k==='sem'), b = document.getElementById(tab); b.classList.toggle('active', on); if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); }   // el detalle del día va dentro de Planificación
   }
   if (location.hash !== '#'+t) history.replaceState(null, '', '#'+t);
+  if (t==='ctl') renderControl();
   if (t==='dia') renderDia(true);
   if (t==='man') renderManana();
   if (t==='sin') renderSin();
@@ -990,6 +993,8 @@ try{
   if (cached && Array.isArray(cached.rows) && !rows.length){ applyAtgo(cached, true); recibirPool({ ...cached, desdeCache: true }); }
 }catch(e){}
 
-showTab(['#inc','#man','#sin','#sem'].includes(location.hash) ? location.hash.slice(1) : 'dia');
+// COORD: pestañas CONTROL · INCIDENCIAS · PLANIFICACIÓN (Control resume Mi día y Sin asignar)
+if (esCoord()){ document.getElementById('tabCtl').hidden = false; document.getElementById('tabDia').hidden = true; document.getElementById('tabSin').hidden = true; document.getElementById('tabInc').title = 'Incidencias (2)'; document.getElementById('tabSem').title = 'Planificación (3)'; }
+showTab(['#inc','#man','#sin','#sem','#ctl'].includes(location.hash) ? location.hash.slice(1) : esCoord() ? 'ctl' : 'dia');
 updateDiaBadge();
 odIniciar();   // copia automática en OneDrive (herramientas.js)

@@ -19,7 +19,7 @@ Publicada en GitHub Pages: https://angriogon.github.io/VISOR-INCIDENCIAS/
 
 - **Sin build, sin npm, sin framework.** HTML + JS estático. GitHub Pages publica la raíz tal cual.
 - **Scripts clásicos que comparten el ámbito global** (no son módulos ES). Orden de carga en `index.html`:
-  `dia.js` → `herramientas.js` → `edicion.js` → `panel.js` → `app.js` → `ajustes.js`. Excel (XLSX) y Leaflet se cargan
+  `dia.js` → `herramientas.js` → `edicion.js` → `panel.js` → `coord.js` → `app.js` → `ajustes.js`. Excel (XLSX) y Leaflet se cargan
   al usarlos con `cargarLibreria` (app.js).
   El arranque de `ajustes.js` va en `DOMContentLoaded` (cuando ya existe todo).
   Las funciones se llaman entre archivos solo *en tiempo de llamada*: en el nivel superior de un archivo
@@ -57,6 +57,7 @@ Publicada en GitHub Pages: https://angriogon.github.io/VISOR-INCIDENCIAS/
 | `herramientas.js` | Cerradas 15 días, material, caducidad/SLA, ruta Google Maps y GLS, técnico sugerido, correos del día, informe semanal, copia en OneDrive |
 | `edicion.js` | Actuar en ATGO: comentario, cambio de estado, asignar (fase 2) con comprobación campo a campo |
 | `panel.js` | Sin asignar y buzón (`recomendar`, misma sede: `mismaSede`/`sedeAvisoHtml`/`sedeConfirmHtml`), aviso de sincronización, respuestas rápidas, duración (`minutosTexto`, `duracionInfo`, `estimarMin` puede ser null) y carga en horas, conflictos, reincidencias, asignación en bloque, Semana, línea de tiempo, pliegues, mapa (Leaflet + Nominatim + OSRM) |
+| `coord.js` | Perfil COORD: pestaña CONTROL (`renderControl`, `ctlListas`/`ctlFiltradas`, filtros `ctl`), Excel por lista (`ctlExcel`) e informe completo (`ctlInforme`). `esCoord()` decide las pestañas al arrancar (app.js) |
 | `tests/pruebas.js` | Pruebas sin dependencias (duración, caducidad, coherencia de listas y versiones). GitHub Actions las ejecuta |
 | `atgo-sync.js` | Sincronización dentro de ATGO (lista `OPERARIOS`, códigos de `ESTADOS`, `REFRESCO_MIN`, edición) |
 | `sw.js` | Service worker: `VERSION` y lista `SHELL` de archivos cacheados |

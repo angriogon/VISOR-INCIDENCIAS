@@ -18,7 +18,7 @@
 <body>
 <a class="saltar" href="#principal">Saltar al contenido</a>
 <header>
-  <nav class="tabs" aria-label="Secciones"><button class="tab active" id="tabDia" onclick="showTab('dia')" title="Mi día (1)" aria-current="page">Mi día<i class="tbadge" id="diaBadge" hidden></i></button><button class="tab" id="tabSin" onclick="showTab('sin')" title="Sin asignar (2)">Sin asignar<i class="tbadge" id="sinBadge" hidden></i></button><button class="tab" id="tabInc" onclick="showTab('inc')" title="Incidencias (3)">Incidencias</button><button class="tab" id="tabSem" onclick="showTab('sem')" title="Planificación: semana y detalle de cada día (4)">Planificación</button></nav>
+  <nav class="tabs" aria-label="Secciones"><button class="tab" id="tabCtl" onclick="showTab('ctl')" title="Control: sin asignar, caducadas, caducan hoy y en ruta (1)" hidden>Control</button><button class="tab active" id="tabDia" onclick="showTab('dia')" title="Mi día (1)" aria-current="page">Mi día<i class="tbadge" id="diaBadge" hidden></i></button><button class="tab" id="tabSin" onclick="showTab('sin')" title="Sin asignar (2)">Sin asignar<i class="tbadge" id="sinBadge" hidden></i></button><button class="tab" id="tabInc" onclick="showTab('inc')" title="Incidencias (3)">Incidencias</button><button class="tab" id="tabSem" onclick="showTab('sem')" title="Planificación: semana y detalle de cada día (4)">Planificación</button></nav>
   <span class="sync-dot" id="syncDot" tabindex="0" role="button" aria-label="Estado de ATGO: pulsa para conectar o forzar la reconexión" onclick="cfgTab='gen';toggleCfg(event)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();cfgTab='gen';toggleCfg(event)}"><i></i><span class="sync-tip"><span id="fileStatus">Sin datos</span><span id="atgoStatus"></span></span></span>
   <span class="sync-aviso" id="syncAviso" hidden></span>
   <div class="spacer"></div>
@@ -63,6 +63,7 @@
   <div id="viewDia" style="display:none;"></div>
   <div id="viewSin" style="display:none;"></div>
   <div id="viewSem" style="display:none;"></div>
+  <div id="viewCtl" style="display:none;"></div>
 </main>
 
 <div id="drawer" class="drawer" role="dialog" aria-modal="true" aria-label="Ficha del ticket" hidden><div class="dw-back"></div><aside class="dw-panel" id="dwPanel" aria-label="Ficha del ticket"></aside></div>
@@ -76,6 +77,7 @@
 <script src="herramientas.js"></script>
 <script src="edicion.js"></script>
 <script src="panel.js"></script>
+<script src="coord.js"></script>
 <script src="app.js"></script>
 <script src="ajustes.js"></script>
 </body>
