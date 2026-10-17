@@ -11,7 +11,7 @@ Máximo ~40 líneas: lo antiguo se resume o se borra (el detalle está en git y 
 - 1.25.0 (limpieza para implantación): fuera el resumen por DSP de Mi día (COORD ya abre CONTROL), el modo «ticket de prueba» de la fase 2,
   plantillas antiguas de la copia, CSS y variables sin uso; migración 3 borra claves antiguas del navegador; docs reorganizados;
   README reescrito.
-- 1.27.0: Planificación con zonas plegables (semZona/semZonasTodas, pliegues «sem:ZONA») y cabecera de días grande y fija.
+- 1.27.0: Planificación con zonas plegables (semZona/semZonasTodas, pliegues «sem:ZONA») y cabecera de días grande y fija. 1.25.1–1.27.0 probadas por el usuario: funcionan.
 - 1.26.0: no disponibles = baja o vacaciones (nomina[op].vac [{d,h}]; noDisponible/vacacionesDe/ausenciaTexto en app.js): fuera de
   Incidencias (aviso .aus-aviso con «Ver sus incidencias») y Planificación, sin recomendación; aviso al asignar; días marcados.
 - 1.25.1: conflictos sin solape cuando las dos citas son en la misma sede o dirección (mismoSitio en panel.js).
