@@ -11,7 +11,7 @@ Máximo ~40 líneas: lo antiguo se resume o se borra (el detalle está en git y 
 - 1.25.0 (limpieza para implantación): fuera el resumen por DSP de Mi día (COORD ya abre CONTROL), el modo «ticket de prueba» de la fase 2,
   plantillas antiguas de la copia, CSS y variables sin uso; migración 3 borra claves antiguas del navegador; docs reorganizados;
   README reescrito.
-- 1.31.0: proyecto en la ficha (dia.js usa proyDe/proyTexto de coord.js); orden por columna en Control (CTL_COLS, ctl.ord, ctlOrden).
+- 1.31.0: proyecto en la ficha (dia.js usa proyDe/proyTexto de coord.js); orden por columna en Control (CTL_COLS, ctl.ord, ctlOrden). Probada por el usuario: funciona.
 - 1.30.0: proyecto por incidencia (atgo-sync completarProyectos: lista o ficha numProy, 40 por carga; catálogo /proyecto) y filtro
   Proyecto en Control (proyDe/PROY_KEY en coord.js). Probada por el usuario con ATGO real: funciona (1.28.0–1.30.0).
 - 1.29.1: ⚙ › General › ACTUALIZAR (actualizarAhora en app.js: despacho-refresh + reg.update()).
