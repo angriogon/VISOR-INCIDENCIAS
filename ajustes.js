@@ -3,13 +3,13 @@
 // asistente de inicio, diagnóstico, resumen matinal, aviso de técnico sin actividad y exportar a Excel.
 // Usa utilidades de app.js, dia.js, herramientas.js, edicion.js y panel.js solo en tiempo de llamada.
 
-const APP_VERSION = '1.25.0';   // súbela a la vez que VERSION en sw.js
+const APP_VERSION = '1.25.1';   // súbela a la vez que VERSION en sw.js
 const NOVEDADES = [
+  { v: '1.25.1', f: '2026-10-17', l: ['Conflictos: dos citas a la misma hora en la misma sede (o la misma dirección) ya no se marcan como solape; en sedes distintas, sí.'] },
   { v: '1.25.0', f: '2026-10-16', l: ['Limpieza para la implantación: código y estilos sin uso retirados, datos antiguos borrados del navegador una sola vez y documentación al día.', 'Planificar en ATGO ya no tiene el modo «solo ticket de prueba» de cuando se estaba validando.'] },
   { v: '1.24.0', f: '2026-10-16', l: ['Perfil COORD con su propio panel de CONTROL: cifras de abiertas, sin asignar, caducadas, caducan hoy y en ruta hoy, de todos los DSP.', 'Dos listas: Pendientes de asignar y Caducadas · Caducan hoy · En ruta hoy, con filtros por DSP, cliente y búsqueda.', 'Excel de cada lista y «Informe completo» (resumen por DSP, por estado y una hoja por lista).', 'En COORD las pestañas son CONTROL · INCIDENCIAS · PLANIFICACIÓN; desde la ficha se puede reasignar.'] },
   { v: '1.23.0', f: '2026-10-16', l: ['Asignar varias a la vez es mucho más rápido: se mandan todas de una vez y ATGO las guarda de 4 en 4 (antes, de una en una), cada una comprobada campo a campo.', 'Cada asignación se ve en Despacho en cuanto ATGO la confirma, y la lista completa se recarga una sola vez al final (antes, una recarga entera por cada ticket).', 'Recarga una vez la pestaña de ATGO (F5).'] },
-  { v: '1.22.3', f: '2026-10-13', l: ['Corregido: un rechazo de ATGO (error 400) se mostraba como «la sesión de ATGO ha caducado». Ahora se dice que ATGO no acepta el cambio y se muestra su motivo completo.', 'Recarga una vez la pestaña de ATGO (F5).'] },
-  { v: '1.22.2', f: '2026-10-13', l: ['Corregido: «la sesión de ATGO ha caducado» al guardar aunque ATGO funcionara. Pasaba si quedaba abierta otra pestaña de ATGO antigua: Despacho le mandaba los cambios a ella. Ahora solo los recibe la pestaña que sincroniza, y se avisa si hay otra con error.', 'Error 403 de ATGO (sin permiso) separado de la sesión caducada; el aviso de «No se guardaron» ofrece Forzar reconexión.', 'Recarga una vez la pestaña de ATGO (F5).'] }
+  { v: '1.22.3', f: '2026-10-13', l: ['Corregido: un rechazo de ATGO (error 400) se mostraba como «la sesión de ATGO ha caducado». Ahora se dice que ATGO no acepta el cambio y se muestra su motivo completo.', 'Recarga una vez la pestaña de ATGO (F5).'] }
 ];
 // Resumen de lo más importante de las versiones anteriores a las 5 últimas (se ve en ⓘ › Anteriores)
 const ANTERIORES = [

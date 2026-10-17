@@ -47,7 +47,7 @@ Lo que pide acción hoy:
 - Sin asignar de tu zona.
 - Rutas enviadas.
 - **Hoy en directo:** línea de tiempo por técnico.
-- Conflictos del próximo laborable.
+- Conflictos del próximo laborable (dos citas a la misma hora en la misma sede no cuentan como solape).
 - Caducidades y material.
 
 Botones:

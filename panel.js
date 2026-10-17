@@ -402,6 +402,7 @@ function cargaHtml(op, f) {
 }
 
 // ===== Conflictos de planificación =====
+function mismoSitio(a, b) { return (!!(a.descSede || '').trim() && sedeKey(a) === sedeKey(b)) || (!!(a.domicilio || '').trim() && norm(a.domicilio) === norm(b.domicilio)); }
 function conflictos(f) {
   const out = [];
   TECNICOS.forEach(op => {
@@ -411,6 +412,7 @@ function conflictos(f) {
     if (tot > JORNADA_MIN) out.push({ op, tipo: 'sobrecarga', texto: `${fmtMin(tot)} estimadas (más de ${JORNADA_MIN / 60} h)`, keys: vis.map(tkey) });
     const con = vis.filter(x => x.desdeHora).map(x => { const a = horaMin(x.desdeHora), b = x.hastaHora ? horaMin(x.hastaHora) : a + (estimarMin(x) || 1); return { x, a, b }; });
     for (let i = 0; i < con.length; i++) for (let j = i + 1; j < con.length; j++) {
+      if (mismoSitio(con[i].x, con[j].x)) continue;   // misma sede o dirección: el técnico hace las dos en la misma visita, no es un solape
       if (con[j].a < con[i].b && con[i].a < con[j].b && !con[i].x.hastaHora && !con[j].x.hastaHora || (con[i].x.hastaHora && con[j].x.hastaHora && con[j].a < con[i].b && con[i].a < con[j].b && con[i].b - con[i].a < 180 && con[j].b - con[j].a < 180))
         out.push({ op, tipo: 'solape', texto: `${con[i].x.desdeHora} (Nº ${con[i].x.num}) se solapa con ${con[j].x.desdeHora} (Nº ${con[j].x.num})`, keys: [tkey(con[i].x), tkey(con[j].x)] });
     }

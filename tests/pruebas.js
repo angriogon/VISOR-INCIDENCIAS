@@ -83,7 +83,7 @@ vm.runInContext([
   extraer(app, 'function zonaOps('), extraer(app, 'function zonaDe('), extraer(app, 'function opIndex('), extraer(app, 'function esPresencial('), extraer(app, 'function horaMin('), extraer(app, 'function sortByHora('), extraer(app, 'function ddmmyyyy('),
   extraer(dia, 'function tkey('), extraer(dia, 'const ESTADOS_CIERRE'), extraer(dia, 'function esCierre('),
   extraer(herr, 'const PROV_ZONA'), extraer(herr, 'const PROV_RE'), extraer(herr, 'function zonaTicket('), extraer(herr, 'function poblacionDe('),
-  extraer(panel, 'const POOL_ZONA'), extraer(herr, 'function zonaDeTexto('), extraer(panel, 'function zonaComodin('), extraer(panel, 'function zonaPool('), extraer(panel, 'function sedeKey('), extraer(panel, 'function mismaSede('), extraer(panel, 'function recomendar('), extraer(panel, 'function conflictos('), extraer(panel, 'function fmtMin('),
+  extraer(panel, 'const POOL_ZONA'), extraer(herr, 'function zonaDeTexto('), extraer(panel, 'function zonaComodin('), extraer(panel, 'function zonaPool('), extraer(panel, 'function sedeKey('), extraer(panel, 'function mismaSede('), extraer(panel, 'function recomendar('), extraer(panel, 'function mismoSitio('), extraer(panel, 'function conflictos('), extraer(panel, 'function fmtMin('),
   "let rows = [], poolOpsDesc = {}, duracionFija = {}; const JORNADA_MIN = 480; const tecCfg = {}; function cargaMin() { return 0; } function estimarMin(r) { return duracionFija[r.key] || null; } let bajasPrueba = []; function enBaja(op) { return bajasPrueba.includes(op); }"
 ].join('\n'), cr);
 const T = (key, op, sede, extra) => ({ key, num: key.replace(/\//g, ''), operario: op, estado: 'PRESENCIAL', descSede: sede, descCliente: 'CARREFOUR', provincia: 'CEUTA', poblacion: 'CEUTA', fVisita: '', ...(extra || {}) });
@@ -100,6 +100,10 @@ vm.runInContext('rows = ' + JSON.stringify([T('2/00/1', 'DSG', 'A', { fVisita: '
 igual('conflictos: solape por duración del hilo', cr.conflictos('13/10/2026').filter(c => c.tipo === 'solape').length, 1);
 vm.runInContext("duracionFija = {};", cr);
 igual('conflictos: sin duración no inventa solapes', cr.conflictos('13/10/2026').filter(c => c.tipo === 'solape').length, 0);
+vm.runInContext('rows = ' + JSON.stringify([T('3/00/1', 'ADJC', 'CENTROS GUADALINFO VILCHES', { fVisita: '19/10/2026', desdeHora: '11:00' }), T('3/00/2', 'ADJC', 'CENTROS GUADALINFO VILCHES', { fVisita: '19/10/2026', desdeHora: '11:00' })]), cr);
+igual('conflictos: misma hora y misma sede no es solape', cr.conflictos('19/10/2026').filter(c => c.tipo === 'solape').length, 0);
+vm.runInContext('rows = ' + JSON.stringify([T('3/00/1', 'ADJC', 'GUADALINFO VILCHES', { fVisita: '19/10/2026', desdeHora: '11:00' }), T('3/00/2', 'ADJC', 'GUADALINFO LINARES', { fVisita: '19/10/2026', desdeHora: '11:00' })]), cr);
+igual('conflictos: misma hora en sedes distintas sí es solape', cr.conflictos('19/10/2026').filter(c => c.tipo === 'solape').length, 1);
 // Zonas por provincia (palabra completa) y recomendación en las zonas de DSP2–DSP5
 const zt = (provincia, poblacion, domicilio) => cr.zonaTicket({ provincia, poblacion, domicilio, operario: 'XXX-PRUEBA' });
 igual('provincia: zonas de DSP2–DSP5', [zt('Murcia'), zt('ALICANTE'), zt('Castellón'), zt('BARCELONA'), zt('Madrid'), zt('Ciudad Real'), zt('Valladolid'), zt('Zaragoza'), zt('A Coruña'), zt('Asturias'), zt('Navarra'), zt('Illes Balears'), zt('Portugal')],

@@ -4,13 +4,14 @@ Archivo de traspaso entre sesiones. Al empezar una sesión: «lee docs/ESTADO.md
 Máximo ~40 líneas: lo antiguo se resume o se borra (el detalle está en git y en `NOVEDADES` de `ajustes.js`).
 
 ## Versión actual
-- `sw.js` despacho-v1.25.0 = `APP_VERSION` (ajustes.js). `SYNC_VERSION` 1.23.0 (atgo-sync.js = app.js). Publicada en GitHub Pages.
+- `sw.js` despacho-v1.25.1 = `APP_VERSION` (ajustes.js). `SYNC_VERSION` 1.23.0 (atgo-sync.js = app.js). Publicada en GitHub Pages.
 - Funciones principales: perfiles DSP1–5 y COORD (panel de CONTROL con Excel), nómina, Mi día, Sin asignar, Incidencias por estado,
   Planificación (arrastrar, en bloque de 4 en 4, rellenar el día, mapa), ficha con escrituras en ATGO comprobadas, reincidencias por equipo,
   festivos, apariencia y accesibilidad, avisos de Windows, copia en OneDrive.
 - 1.25.0 (limpieza para implantación): fuera el resumen por DSP de Mi día (COORD ya abre CONTROL), el modo «ticket de prueba» de la fase 2,
   plantillas antiguas de la copia, CSS y variables sin uso; migración 3 borra claves antiguas del navegador; docs reorganizados;
   README reescrito.
+- 1.25.1: conflictos sin solape cuando las dos citas son en la misma sede o dirección (mismoSitio en panel.js).
 
 ## Pendiente (espera al usuario)
 - Crear tickets desde Despacho: lista de campos y valores por defecto (`docs/estudio-alta-tickets.md`; viable: POST /incidencias/alta).
