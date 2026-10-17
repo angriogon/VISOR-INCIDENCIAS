@@ -12,7 +12,7 @@ Máximo ~40 líneas: lo antiguo se resume o se borra (el detalle está en git y 
   plantillas antiguas de la copia, CSS y variables sin uso; migración 3 borra claves antiguas del navegador; docs reorganizados;
   README reescrito.
 - 1.30.0: proyecto por incidencia (atgo-sync completarProyectos: lista o ficha numProy, 40 por carga; catálogo /proyecto) y filtro
-  Proyecto en Control (proyDe/PROY_KEY en coord.js). Por validar con ATGO real: nombres de campos del catálogo y de la lista.
+  Proyecto en Control (proyDe/PROY_KEY en coord.js). Probada por el usuario con ATGO real: funciona (1.28.0–1.30.0).
 - 1.29.1: ⚙ › General › ACTUALIZAR (actualizarAhora en app.js: despacho-refresh + reg.update()).
 - 1.29.0: Control con vistas pres/todas (CTL_VISTAS), cifra Presencial, cliente → vista «todas»; Excel e informe con Presencial.
 - 1.28.1: Control (COORD) excluye FUERA DE MANTENIMIENTO de caducadas y caducan hoy (ESTADOS_SIN_SLA en coord.js).
