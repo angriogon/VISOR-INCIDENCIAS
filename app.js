@@ -997,6 +997,21 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:'){
   });
 }
 
+// ⚙ › General › «Actualizar»: trae ya los datos de ATGO (sin esperar a los 2 min ni recargar la página)
+// y busca una versión nueva de Despacho (si la hay, se instala sola cuando no estás haciendo nada).
+async function actualizarAhora(){
+  const partes = [], src = hiloFuente();
+  if (src && !src.closed){
+    try{ src.postMessage({ type:'despacho-refresh' }, ATGO_ORIGIN); setAtgoStatus('Cargando: actualizando…'); partes.push('pidiendo los datos a ATGO'); }
+    catch(e){ partes.push('no se pudo contactar con ATGO: usa «Forzar reconexión»'); }
+  } else partes.push('ATGO no está conectado: pulsa «Abrir ATGO»');
+  try{
+    const reg = 'serviceWorker' in navigator ? await navigator.serviceWorker.getRegistration() : null;
+    if (reg){ await reg.update(); partes.push(reg.waiting || reg.installing ? 'hay una versión nueva: se instalará sola en unos segundos' : 'Despacho está al día (' + APP_VERSION + ')'); }
+  }catch(e){}
+  toast('Actualizar: ' + partes.join(' · '));
+}
+
 // Al abrir, mostramos la última carga de ATGO mientras llega la nueva.
 try{
   const cached = JSON.parse(localStorage.getItem(ATGO_KEY));

@@ -130,7 +130,7 @@ No se avisa en fines de semana ni en festivos.
 
 ## Ajustes (⚙)
 
-- **General:** conexión con ATGO (*Abrir ATGO*, *Forzar reconexión*, *Importar Excel*) y horas de los avisos del día.
+- **General:** **ACTUALIZAR** (trae al momento los datos de ATGO sin recargar la página y busca versión nueva), conexión con ATGO (*Abrir ATGO*, *Forzar reconexión*, *Importar Excel*) y horas de los avisos del día.
 - **Apariencia:**
   - **Tema:** como Windows, claro u oscuro.
   - **Color:** naranja, azul ATGO, verde, morado o grafito.

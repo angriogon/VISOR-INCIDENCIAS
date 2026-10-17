@@ -3,13 +3,13 @@
 // asistente de inicio, diagnóstico, resumen matinal, aviso de técnico sin actividad y exportar a Excel.
 // Usa utilidades de app.js, dia.js, herramientas.js, edicion.js y panel.js solo en tiempo de llamada.
 
-const APP_VERSION = '1.29.0';   // súbela a la vez que VERSION en sw.js
+const APP_VERSION = '1.29.1';   // súbela a la vez que VERSION en sw.js
 const NOVEDADES = [
+  { v: '1.29.1', f: '2026-10-17', l: ['⚙ › General › ACTUALIZAR: trae al momento los datos de ATGO, sin esperar a los 2 minutos ni recargar la página, y comprueba si hay versión nueva de Despacho.'] },
   { v: '1.29.0', f: '2026-10-17', l: ['Control (COORD): la cifra «Abiertas» pasa a «Presencial», como el estado de ATGO, con el total de abiertas debajo.', 'Pulsar una cifra muestra su lista en el propio panel (nuevas pestañas Presencial y Todas), sin ir a Incidencias.', 'Al elegir un cliente se ven todas sus incidencias abiertas, también las ya asignadas.'] },
   { v: '1.28.1', f: '2026-10-17', l: ['Control (COORD): «Caducadas» y «Caducan hoy» ya no cuentan las incidencias en FUERA DE MANTENIMIENTO (son peticiones de clientes sin SLA). También en el Excel.'] },
   { v: '1.28.0', f: '2026-10-17', l: ['Mapa mucho más rápido: se abre al momento con las direcciones ya conocidas y las nuevas van apareciendo solas.', 'Despacho sitúa en segundo plano las visitas de los próximos 7 días, así que el mapa suele abrir ya completo.'] },
-  { v: '1.27.0', f: '2026-10-17', l: ['Planificación: cada zona se pliega y despliega pulsando su nombre, y dos iconos arriba pliegan o despliegan todas. Una zona plegada muestra el total de visitas y horas de cada día.', 'Días más visibles: día de la semana, número y mes en grande, hoy resaltado y la cabecera fija al desplazarse.', 'Corregido el aviso de Planificación sin ATGO: ahora indica abrir ATGO.'] },
-  { v: '1.26.0', f: '2026-10-17', l: ['Vacaciones de técnicos (⚙ › Técnicos): pon las fechas y, mientras duren, el técnico desaparece de los paneles y no se propone al asignar; vuelve solo al terminar.', 'Los técnicos de baja tampoco salen en Incidencias ni en Planificación. Si les quedan incidencias, un aviso arriba las cuenta y permite verlas para reasignarlas.', 'Al asignar, aviso si el técnico está de vacaciones ese día; en Planificación sus días salen marcados.'] }
+  { v: '1.27.0', f: '2026-10-17', l: ['Planificación: cada zona se pliega y despliega pulsando su nombre, y dos iconos arriba pliegan o despliegan todas. Una zona plegada muestra el total de visitas y horas de cada día.', 'Días más visibles: día de la semana, número y mes en grande, hoy resaltado y la cabecera fija al desplazarse.', 'Corregido el aviso de Planificación sin ATGO: ahora indica abrir ATGO.'] }
 ];
 // Resumen de lo más importante de las versiones anteriores a las 5 últimas (se ve en ⓘ › Anteriores)
 const ANTERIORES = [
@@ -31,10 +31,11 @@ const ANTERIORES = [
   'Reincidencias por equipo (mismo equipo en 10 días) y «Forzar reconexión»',
   'Asignación en bloque de 4 en 4 con una sola recarga',
   'Panel de CONTROL para COORD con informes en Excel',
+  'Vacaciones y bajas de técnicos fuera de los paneles',
   'Extensión para Chrome y Edge que sincroniza ATGO sola',
   'Actualización silenciosa y sincronización cada 2 minutos'
 ];
-const NOV_VISIBLES = 5, ANTERIORES_HASTA = '1.25.1';   // al añadir una versión, quita la más antigua de NOVEDADES y resúmela aquí si importa
+const NOV_VISIBLES = 5, ANTERIORES_HASTA = '1.26';   // al añadir una versión, quita la más antigua de NOVEDADES y resúmela aquí si importa
 const NOV_KEY = 'dispatcher_version_vista_v1', DIAG_KEY = 'dispatcher_diag_v1', BIENV_KEY = 'dispatcher_bienvenida_v1', DATOS_VER_KEY = 'dispatcher_datos_version_v1';
 
 // ---- Novedades de la versión ----
@@ -369,7 +370,7 @@ function renderCfg() {
     h = `<div class="cfg-h">Conexión</div>
       <div class="cfg-t">${esc(document.getElementById('fileStatus').textContent)}${esc(document.getElementById('atgoStatus').textContent)}</div>
       ${ultimaCarga && ultimaCarga.s != null ? `<div class="cfg-t">Última carga: ${ultimaCarga.ops != null ? plural(ultimaCarga.ops, 'técnico') + ' en ' : ''}${ultimaCarga.s} s${ultimaCarga.s > 90 ? ' · lenta: avisa si pasa a menudo' : ''}</div>` : ''}
-      <div class="acts"><button class="btn sm pri" onclick="document.getElementById('atgoBtn').click()">Abrir ATGO</button><button class="btn sm" onclick="forzarAtgo()" title="Si ATGO se queda pillado: lo recarga desde cero y rehace la conexión">⟳ Forzar reconexión</button><button class="btn sm" onclick="document.getElementById('importBtn').click()">Importar Excel</button><button class="btn sm ghost" onclick="abrirAsistente()">Asistente de inicio</button></div>
+      <div class="acts"><button class="btn sm pri" onclick="event.stopPropagation();actualizarAhora()" title="Trae ya los datos de ATGO, sin esperar a los 2 minutos ni recargar, y busca una versión nueva de Despacho">⟳ ACTUALIZAR</button><button class="btn sm" onclick="document.getElementById('atgoBtn').click()">Abrir ATGO</button><button class="btn sm" onclick="forzarAtgo()" title="Si ATGO se queda pillado: lo recarga desde cero y rehace la conexión">⟳ Forzar reconexión</button><button class="btn sm" onclick="document.getElementById('importBtn').click()">Importar Excel</button><button class="btn sm ghost" onclick="abrirAsistente()">Asistente de inicio</button></div>
       <div class="cfg-t">Tema, color, tamaño y accesibilidad: en la pestaña <a href="#" onclick="event.preventDefault();event.stopPropagation();cfgTab='apa';renderCfg()">Apariencia</a>.</div>
       <div class="cfg-h">Resúmenes y avisos del día</div>
       <div class="cfg-row"><label><input type="checkbox" ${tecCfg.resumenOn !== false ? 'checked' : ''} onchange="setPref('resumenOn',this.checked)"> Resumen matinal a las</label><input type="time" aria-label="Hora del resumen matinal" value="${esc(tecCfg.resumenHora || '08:00')}" onchange="setPref('resumenHora',this.value)"></div>
