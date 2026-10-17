@@ -3,13 +3,13 @@
 // asistente de inicio, diagnóstico, resumen matinal, aviso de técnico sin actividad y exportar a Excel.
 // Usa utilidades de app.js, dia.js, herramientas.js, edicion.js y panel.js solo en tiempo de llamada.
 
-const APP_VERSION = '1.26.0';   // súbela a la vez que VERSION en sw.js
+const APP_VERSION = '1.27.0';   // súbela a la vez que VERSION en sw.js
 const NOVEDADES = [
+  { v: '1.27.0', f: '2026-10-17', l: ['Planificación: cada zona se pliega y despliega pulsando su nombre, y dos iconos arriba pliegan o despliegan todas. Una zona plegada muestra el total de visitas y horas de cada día.', 'Días más visibles: día de la semana, número y mes en grande, hoy resaltado y la cabecera fija al desplazarse.', 'Corregido el aviso de Planificación sin ATGO: ahora indica abrir ATGO.'] },
   { v: '1.26.0', f: '2026-10-17', l: ['Vacaciones de técnicos (⚙ › Técnicos): pon las fechas y, mientras duren, el técnico desaparece de los paneles y no se propone al asignar; vuelve solo al terminar.', 'Los técnicos de baja tampoco salen en Incidencias ni en Planificación. Si les quedan incidencias, un aviso arriba las cuenta y permite verlas para reasignarlas.', 'Al asignar, aviso si el técnico está de vacaciones ese día; en Planificación sus días salen marcados.'] },
   { v: '1.25.1', f: '2026-10-17', l: ['Conflictos: dos citas a la misma hora en la misma sede (o la misma dirección) ya no se marcan como solape; en sedes distintas, sí.'] },
   { v: '1.25.0', f: '2026-10-16', l: ['Limpieza para la implantación: código y estilos sin uso retirados, datos antiguos borrados del navegador una sola vez y documentación al día.', 'Planificar en ATGO ya no tiene el modo «solo ticket de prueba» de cuando se estaba validando.'] },
-  { v: '1.24.0', f: '2026-10-16', l: ['Perfil COORD con su propio panel de CONTROL: cifras de abiertas, sin asignar, caducadas, caducan hoy y en ruta hoy, de todos los DSP.', 'Dos listas: Pendientes de asignar y Caducadas · Caducan hoy · En ruta hoy, con filtros por DSP, cliente y búsqueda.', 'Excel de cada lista y «Informe completo» (resumen por DSP, por estado y una hoja por lista).', 'En COORD las pestañas son CONTROL · INCIDENCIAS · PLANIFICACIÓN; desde la ficha se puede reasignar.'] },
-  { v: '1.23.0', f: '2026-10-16', l: ['Asignar varias a la vez es mucho más rápido: se mandan todas de una vez y ATGO las guarda de 4 en 4 (antes, de una en una), cada una comprobada campo a campo.', 'Cada asignación se ve en Despacho en cuanto ATGO la confirma, y la lista completa se recarga una sola vez al final (antes, una recarga entera por cada ticket).', 'Recarga una vez la pestaña de ATGO (F5).'] }
+  { v: '1.24.0', f: '2026-10-16', l: ['Perfil COORD con su propio panel de CONTROL: cifras de abiertas, sin asignar, caducadas, caducan hoy y en ruta hoy, de todos los DSP.', 'Dos listas: Pendientes de asignar y Caducadas · Caducan hoy · En ruta hoy, con filtros por DSP, cliente y búsqueda.', 'Excel de cada lista y «Informe completo» (resumen por DSP, por estado y una hoja por lista).', 'En COORD las pestañas son CONTROL · INCIDENCIAS · PLANIFICACIÓN; desde la ficha se puede reasignar.'] }
 ];
 // Resumen de lo más importante de las versiones anteriores a las 5 últimas (se ve en ⓘ › Anteriores)
 const ANTERIORES = [
@@ -29,10 +29,11 @@ const ANTERIORES = [
   'Colores, tamaños y modo accesible',
   'Incidencias agrupadas por estado, con visita y caducidad junto al Nº',
   'Reincidencias por equipo (mismo equipo en 10 días) y «Forzar reconexión»',
+  'Asignación en bloque de 4 en 4 con una sola recarga',
   'Extensión para Chrome y Edge que sincroniza ATGO sola',
   'Actualización silenciosa y sincronización cada 2 minutos'
 ];
-const NOV_VISIBLES = 5, ANTERIORES_HASTA = '1.22';   // al añadir una versión, quita la más antigua de NOVEDADES y resúmela aquí si importa
+const NOV_VISIBLES = 5, ANTERIORES_HASTA = '1.23';   // al añadir una versión, quita la más antigua de NOVEDADES y resúmela aquí si importa
 const NOV_KEY = 'dispatcher_version_vista_v1', DIAG_KEY = 'dispatcher_diag_v1', BIENV_KEY = 'dispatcher_bienvenida_v1', DATOS_VER_KEY = 'dispatcher_datos_version_v1';
 
 // ---- Novedades de la versión ----

@@ -73,7 +73,7 @@ Un bloque por técnico, agrupados por zona:
 - **Cerradas · últimos 15 días** en cada técnico.
 
 ### Planificación
-La semana por técnico y día, con número de visitas, **carga en horas** (verde, ámbar o rojo) y ⚠ cuando hay conflicto. Respeta los festivos.
+La semana por técnico y día (cada zona se pliega pulsando su nombre; los iconos de arriba pliegan o despliegan todas, y plegada muestra el total por día), con número de visitas, **carga en horas** (verde, ámbar o rojo) y ⚠ cuando hay conflicto. Respeta los festivos.
 - **Arrastrar y soltar** desde *Por planificar* (sin asignar, vencidas y sin fecha) o entre casillas.
 - **Asignar en bloque** y **Replanificar vencidas**: se envían de una vez y ATGO las guarda de 4 en 4.
 - **Clic en una casilla:** sus visitas, la ruta en Google Maps (recogida en GLS de 9:00 a 10:00) y **Rellenar el día**, que propone hasta 6 visitas.

@@ -527,6 +527,10 @@ function semPendGrupos() {
   ];
 }
 function nivelCarga(m, n) { return !m ? (n ? 'l1' : 'l0') : m > JORNADA_MIN ? 'l3' : m > JORNADA_MIN * 0.75 ? 'l2' : 'l1'; }
+// Zonas plegables en Planificación (se recuerda en pliegues con la clave «sem:ZONA»; por defecto, desplegadas)
+function semZonaPlegada(n) { return !!pliegues['sem:' + n]; }
+function semZona(n) { pliegues['sem:' + n] = !semZonaPlegada(n); lsSet(PLIEGUE_KEY, pliegues); renderSemana(); }
+function semZonasTodas(v) { zonasVisibles().forEach(z => { pliegues['sem:' + z.nombre] = v; }); lsSet(PLIEGUE_KEY, pliegues); semDet = null; renderSemana(); }
 function renderSemana() {
   const root = document.getElementById('viewSem');
   if (!rows.length && !poolRows.length) { root.innerHTML = `<div class="empty"><h2>Sin incidencias cargadas</h2><div>Abre ATGO (⚙ › General › Abrir ATGO) y deja su pestaña abierta: la semana se llena sola.</div></div>`; return; }
@@ -542,9 +546,9 @@ function renderSemana() {
         <button class="iconbtn" onclick="semOff++;semDet=null;renderSemana()" aria-label="Semana siguiente">▶</button>
         ${semOff ? '<button class="btn sm ghost" onclick="semOff=0;semDet=null;renderSemana()">Hoy</button>' : ''}</div>
       ${dspChipsHtml('semDet=null;renderSemana()')}<div id="semChips"></div>
-      <div class="acts">${nVenc && act ? `<button class="btn sm" onclick="replanificarVencidas()" title="Técnico con menos carga de la zona y el próximo laborable">Replanificar ${nVenc} vencidas</button>` : ''}<button class="btn sm" onclick="abrirMapa(manDate)">Mapa</button></div>
+      <div class="acts"><span class="sem-plg" role="group" aria-label="Zonas"><button class="iconbtn" onclick="semZonasTodas(true)" title="Plegar todas las zonas" aria-label="Plegar todas las zonas"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 20 5-5 5 5M7 4l5 5 5-5"/></svg></button><button class="iconbtn" onclick="semZonasTodas(false)" title="Desplegar todas las zonas" aria-label="Desplegar todas las zonas"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 15 5 5 5-5M7 9l5-5 5 5"/></svg></button></span>${nVenc && act ? `<button class="btn sm" onclick="replanificarVencidas()" title="Técnico con menos carga de la zona y el próximo laborable">Replanificar ${nVenc} vencidas</button>` : ''}<button class="btn sm" onclick="abrirMapa(manDate)">Mapa</button></div>
     </div>
-    ${act ? '' : '<div class="od-aviso">Para planificar desde aquí, activa «Planificar en ATGO» para todos los tickets en ⚙.</div>'}
+    ${act ? '' : '<div class="od-aviso">Para planificar desde aquí, abre ATGO (⚙ › General) y espera a que conecte.</div>'}
     <div class="sem">
       <aside class="sem-pend">
         <div class="sp-head">Por planificar <b>${nPend}</b></div>
@@ -563,15 +567,15 @@ function renderSemana() {
       </aside>
       <div class="sem-main">
         <div class="sem-grid">
-          <div class="sg-row sg-head"><div></div>${dias.map(d => { const fe = festivo(d); return `<div class="sg-dia${isoHoy(d) === isoHoy() ? ' hoy' : ''}${fe ? ' fest' : ''}" onclick="verDia('${isoHoy(d)}')" title="${esc(fe ? 'Festivo: ' + fe : 'Ver el día: técnicos, rutas, WhatsApp y correos')}">${esc(fmtD(d))}${fe ? ' · festivo' : ' ›'}</div>`; }).join('')}</div>
-          ${zonas.map(z => `<div class="sg-zona">${esc(z.nombre)}</div>` + z.ops.map(op => `<div class="sg-row"><div class="sg-op">${esc(op)}</div>${dias.map(d => {
+          <div class="sg-row sg-head"><div></div>${dias.map(d => { const fe = festivo(d), hoy = isoHoy(d) === isoHoy(); return `<div class="sg-dia${hoy ? ' hoy' : ''}${fe ? ' fest' : ''}" role="button" tabindex="0" onclick="verDia('${isoHoy(d)}')" onkeydown="if(event.key==='Enter')verDia('${isoHoy(d)}')" title="${esc(fe ? 'Festivo: ' + fe : 'Ver el día: técnicos, rutas, WhatsApp y correos')}"><span class="sg-dn">${esc(DIAS[d.getDay()].slice(0, 3))}${hoy ? ' · hoy' : ''}</span><b>${d.getDate()}</b><small>${esc(fe ? 'festivo' : d.toLocaleDateString('es-ES', { month: 'short' }))}</small></div>`; }).join('')}</div>
+          ${zonas.map(z => { const pl = semZonaPlegada(z.nombre); return `<button class="sg-zona" onclick="semZona('${jsq(z.nombre)}')" aria-expanded="${!pl}" title="${pl ? 'Desplegar' : 'Plegar'} ${esc(z.nombre)}"><span class="pl-chev"${pl ? ' style="transform:rotate(-90deg)"' : ''}>▾</span>${esc(z.nombre)} <i>${plural(z.ops.length, 'técnico')}</i></button>` + (pl ? `<div class="sg-row sg-zsum"><div class="sg-op">Total</div>${dias.map(d => { const f = ddmmyyyy(d), n = rows.filter(x => esPresencial(x) && x.fVisita === f && z.ops.includes(x.operario)).length, m = z.ops.reduce((t, op) => t + cargaInfo(op, f).min, 0); return `<div class="sg-cell zs" onclick="semZona('${jsq(z.nombre)}')" title="${esc(z.nombre)}: ${plural(n, 'visita')}${m ? ' · ≈ ' + fmtMin(m) : ''}. Pulsa para desplegar">${n ? `<b>${n}</b>${m ? `<small>${esc(fmtMin(m))}</small>` : ''}` : '<span class="lib">·</span>'}</div>`; }).join('')}</div>` : z.ops.map(op => `<div class="sg-row"><div class="sg-op">${esc(op)}</div>${dias.map(d => {
             const f = ddmmyyyy(d), n = rows.filter(x => esPresencial(x) && x.fVisita === f && x.operario === op).length;
             const ci = cargaInfo(op, f), m = ci.min, conf = confDia[isoHoy(d)].filter(c => c.op === op), id = op + '|' + isoHoy(d);
             const durTx = m ? '≈ ' + fmtMin(m) + (ci.sin ? ' + ' + ci.sin + ' sin estimar' : '') : 'duración sin estimar';
             const fe = festivo(d, z.nombre) || (vacacionesDe(op, d) ? 'vacaciones de ' + op : '');
             return `<div class="sg-cell ${nivelCarga(m, n)}${semDet === id ? ' on' : ''}${fe ? ' fest' : ''}" data-drop="${esc(id)}" onclick="semDet=semDet==='${jsq(id)}'?null:'${jsq(id)}';renderSemana()" title="${esc((fe ? 'Festivo: ' + fe + '\n' : '') + (n ? plural(n, 'visita') + ' · ' + durTx : 'Libre') + (conf.length ? '\n⚠ ' + conf.map(c => c.texto).join('\n⚠ ') : ''))}">
               ${n ? `<b>${n}</b>${m ? `<small>${esc(fmtMin(m))}${ci.sin ? '+' : ''}</small>` : ''}` : '<span class="lib">·</span>'}${conf.length ? '<i class="cf">⚠</i>' : ''}</div>`;
-          }).join('')}</div>`).join('')).join('')}
+          }).join('')}</div>`).join('')); }).join('')}
         </div>
         <div class="sg-ley"><span><i class="l1"></i>holgado</span><span><i class="l2"></i>más del 75 % de la jornada</span><span><i class="l3"></i>más de ${JORNADA_MIN / 60} h</span><span><i class="cf">⚠</i> conflicto</span></div>
         ${semDet ? semDetalleHtml(semDet) : ''}
