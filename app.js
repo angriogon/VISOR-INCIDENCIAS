@@ -369,6 +369,7 @@ function aplicarDatosAtgo(m){
   const y = window.scrollY;
   applyAtgo(m, false); recibirPool(m);
   if (Math.abs(window.scrollY - y) > 2) window.scrollTo(0, y);   // mantener el sitio de la página
+  setTimeout(() => { try { precargarGeo(); } catch (e) {} }, 8000);   // sitúa en segundo plano las visitas de la semana (el mapa abre ya situado)
 }
 function aplicarPendiente(){
   if (ocupado()) return;

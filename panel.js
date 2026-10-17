@@ -704,14 +704,42 @@ document.addEventListener('click', e => {
 function cargarLeaflet() {
   return cargarLibreria('https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js', () => window.L, 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css');
 }
-async function geocodificar(dir) {
-  const k = norm(dir); if (k in geoCache) return geoCache[k];
-  await new Promise(r => setTimeout(r, 1100));   // límite de uso de Nominatim: 1 petición por segundo
+// Todas las búsquedas (mapa y precarga) pasan por una sola cola: como mucho 1 por segundo (límite de Nominatim),
+// sin esperar si la anterior fue hace más de un segundo. Lo encontrado (y lo no encontrado) se guarda para siempre.
+let geoCola = Promise.resolve(), geoUltima = 0;
+function geocodificar(dir) {
+  const k = norm(dir); if (k in geoCache) return Promise.resolve(geoCache[k]);
+  const p = geoCola.then(async () => {
+    if (k in geoCache) return geoCache[k];   // otra búsqueda en cola ya la encontró
+    const espera = geoUltima + 1100 - Date.now(); if (espera > 0) await new Promise(r => setTimeout(r, espera));
+    geoUltima = Date.now();
+    try {
+      const r = await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=es,pt&q=' + encodeURIComponent(dir), { headers: { 'Accept-Language': 'es' } });
+      const d = await r.json(); geoCache[k] = d && d[0] ? [+d[0].lat, +d[0].lon] : null;
+    } catch (e) { return null; }
+    lsSet(GEO_KEY, geoCache); return geoCache[k];
+  });
+  geoCola = p.catch(() => {});
+  return p;
+}
+// ¿Ya se sabe dónde está, sin preguntar a Nominatim?
+function situadoYa(r) { const k = norm(direccionMaps(r)); if (geoCache[k]) return true; const pob = norm([r.poblacion, r.provincia].filter(Boolean).join(', ')); return k in geoCache && (!pob || pob in geoCache); }
+// Precarga en segundo plano: las visitas de los próximos 7 días, para que el mapa abra ya situado.
+// Una sola a la vez, como mucho 150 por sesión, y nunca con el mapa abierto (el mapa tiene prioridad).
+let geoPrecargando = false, geoPrecargadas = 0;
+async function precargarGeo() {
+  if (geoPrecargando || geoPrecargadas >= 150 || !navigator.onLine) return;
+  const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+  const lim = hoy.getTime() + 7 * 86400000;
+  const l = rows.filter(r => { if (!esPresencial(r)) return false; const d = parseEs(r.fVisita); return d && d.getTime() >= hoy.getTime() && d.getTime() < lim; }).filter(r => !situadoYa(r));
+  if (!l.length) return;
+  geoPrecargando = true;
   try {
-    const r = await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=es,pt&q=' + encodeURIComponent(dir), { headers: { 'Accept-Language': 'es' } });
-    const d = await r.json(); geoCache[k] = d && d[0] ? [+d[0].lat, +d[0].lon] : null;
-  } catch (e) { return null; }
-  lsSet(GEO_KEY, geoCache); return geoCache[k];
+    for (const r of l) {
+      if (geoPrecargadas >= 150 || document.getElementById('mapa')) break;
+      await situar(r); geoPrecargadas++;
+    }
+  } finally { geoPrecargando = false; }
 }
 const COLORES_MAPA = ['#2f8f87', '#c9862b', '#5b8dd9', '#a97fd1', '#c9527a', '#5ea86f', '#d9614f', '#7a6f5a', '#3b8bba', '#b07d2b'];
 // Dirección completa; si Nominatim no la encuentra, la población (se marca como aproximada).
@@ -751,17 +779,7 @@ async function abrirMapa(fecha) {
   try { await cargarLeaflet(); } catch (e) { est('No se pudo cargar el mapa (sin conexión).'); return; }
   const datos = {}, noSit = {}, completo = {};
   const conDia = ops.filter(op => diaDe(op).length);
-  const total = conDia.reduce((s, op) => s + diaDe(op).length, 0);
-  let hechos = 0;
-  for (const op of conDia) {
-    datos[op] = []; noSit[op] = [];
-    for (const [n, x] of diaDe(op).entries()) {
-      const s = await situar(x.r);
-      hechos++; est(`Situando direcciones ${hechos}/${total}…`);
-      if (!document.getElementById('mapa')) return;
-      if (s) datos[op].push({ ...s, r: x.r, n: n + 1, dia: true }); else noSit[op].push(x.r);
-    }
-  }
+  conDia.forEach(op => { datos[op] = []; noSit[op] = []; });
   const mapa = L.map('mapa', { zoomControl: true }).setView([37.4, -4.5], 7);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18, attribution: '© OpenStreetMap' }).addTo(mapa);
   setTimeout(() => mapa.invalidateSize(), 150);
@@ -771,14 +789,14 @@ async function abrirMapa(fecha) {
   function leyenda(sel) {
     document.getElementById('mapaLeg').innerHTML = ops.map(op => { const nd = diaDe(op).length; return `<button class="mapa-tec${sel === op ? ' on' : ''}" onclick="window.__mapaVer('${jsq(op)}')" title="${esc(plural(nd, 'visita') + ' este día · ' + plural(delOp(op).length, 'incidencia') + ' asignadas')}"><i style="background:${color(op)}"></i>${esc(op)} <small>${nd}/${delOp(op).length}</small></button>`; }).join('') + (sel ? '<button class="mapa-tec" onclick="window.__mapaVer(null)">Ver todos</button>' : '');
   }
-  function verTodos() {
+  function verTodos(ajustar) {
     modo = 'todos'; capa.clearLayers(); nota(''); const pts = [];
     conDia.filter(op => datos[op].some(p => p.dia)).forEach(op => {
       const dia = datos[op].filter(p => p.dia), c = centro(dia); pts.push(c);
       L.marker(c, { icon: L.divIcon({ className: 'mapa-burbuja', html: `<div style="background:${color(op)}"><b>${esc(op)}</b><span>${dia.length}</span></div>`, iconSize: [58, 38], iconAnchor: [29, 19] }), bubblingMouseEvents: false })
         .on('click', ev => { L.DomEvent.stopPropagation(ev); verTecnico(op); }).addTo(capa);
     });
-    if (pts.length) mapa.fitBounds(pts, { padding: [60, 60], maxZoom: 11 });
+    if (pts.length && ajustar !== false) mapa.fitBounds(pts, { padding: [60, 60], maxZoom: 11 });
     est(`${plural(conDia.length, 'técnico')} con visitas este día · pulsa una burbuja o un técnico para ver todas sus incidencias`); leyenda(null);
   }
   async function verTecnico(op) {
@@ -825,5 +843,20 @@ async function abrirMapa(fecha) {
   window.__mapaVer = op => op ? verTecnico(op) : verTodos();
   mapa.on('click', () => { if (modo !== 'todos') verTodos(); });
   mapa.invalidateSize();
+  // Primero, al momento, lo que ya está situado (precarga o mapas anteriores); después, lo nuevo según llega
+  const pendientes = [];
+  conDia.forEach(op => diaDe(op).forEach((x, n) => pendientes.push({ op, n: n + 1, r: x.r })));
+  const anota = (p, s) => { if (s) datos[p.op].push({ ...s, r: p.r, n: p.n, dia: true }); else noSit[p.op].push(p.r); };
+  const faltan = [];
+  for (const p of pendientes) { if (situadoYa(p.r)) anota(p, await situar(p.r)); else faltan.push(p); }
   verTodos();
+  let encuadrado = conDia.some(op => datos[op].length);
+  for (const [i, p] of faltan.entries()) {
+    if (modo === 'todos') est(`Situando direcciones nuevas ${i + 1}/${faltan.length}… el mapa se completa solo (se guardan para la próxima vez)`);
+    const s = await situar(p.r);
+    if (!document.getElementById('mapa')) return;
+    anota(p, s);
+    if (modo === 'todos') { verTodos(!encuadrado); encuadrado = encuadrado || !!s; if (i < faltan.length - 1) est(`Situando direcciones nuevas ${i + 2}/${faltan.length}… el mapa se completa solo (se guardan para la próxima vez)`); }
+  }
+  if (faltan.length && modo === 'todos') verTodos();
 }

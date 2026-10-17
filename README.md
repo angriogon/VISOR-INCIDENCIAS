@@ -77,7 +77,7 @@ La semana por técnico y día (cada zona se pliega pulsando su nombre; los icono
 - **Arrastrar y soltar** desde *Por planificar* (sin asignar, vencidas y sin fecha) o entre casillas.
 - **Asignar en bloque** y **Replanificar vencidas**: se envían de una vez y ATGO las guarda de 4 en 4.
 - **Clic en una casilla:** sus visitas, la ruta en Google Maps (recogida en GLS de 9:00 a 10:00) y **Rellenar el día**, que propone hasta 6 visitas.
-- **Clic en un día:** su detalle, con **WhatsApp** de la ruta a cada técnico («Enviar todas las rutas»), **Correos del día** y **Mapa** con las rutas, los km y los minutos entre visitas.
+- **Clic en un día:** su detalle, con **WhatsApp** de la ruta a cada técnico («Enviar todas las rutas»), **Correos del día** y **Mapa** con las rutas, los km y los minutos entre visitas. El mapa abre al momento: las direcciones de la semana se sitúan antes, en segundo plano, y las que falten aparecen solas.
 
 ### Control (perfil COORD)
 - **Cinco cifras** que se pueden pulsar: **Abiertas** (el bloque total), **Sin asignar**, **Caducadas**, **Caducan hoy** y **En ruta hoy** (hechas/total y retrasos).
