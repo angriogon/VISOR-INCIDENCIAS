@@ -8,21 +8,11 @@ Máximo ~40 líneas: lo antiguo se resume o se borra (el detalle está en git y 
 - Funciones principales: perfiles DSP1–5 y COORD (panel de CONTROL con Excel), nómina, Mi día, Sin asignar, Incidencias por estado,
   Planificación (arrastrar, en bloque de 4 en 4, rellenar el día, mapa), ficha con escrituras en ATGO comprobadas, reincidencias por equipo,
   festivos, apariencia y accesibilidad, avisos de Windows, copia en OneDrive.
-- 1.25.0 (limpieza para implantación): fuera el resumen por DSP de Mi día (COORD ya abre CONTROL), el modo «ticket de prueba» de la fase 2,
-  plantillas antiguas de la copia, CSS y variables sin uso; migración 3 borra claves antiguas del navegador; docs reorganizados;
-  README reescrito.
-- 1.31.0: proyecto en la ficha (dia.js usa proyDe/proyTexto de coord.js); orden por columna en Control (CTL_COLS, ctl.ord, ctlOrden). Probada por el usuario: funciona.
-- 1.30.0: proyecto por incidencia (atgo-sync completarProyectos: lista o ficha numProy, 40 por carga; catálogo /proyecto) y filtro
-  Proyecto en Control (proyDe/PROY_KEY en coord.js). Probada por el usuario con ATGO real: funciona (1.28.0–1.30.0).
-- 1.29.1: ⚙ › General › ACTUALIZAR (actualizarAhora en app.js: despacho-refresh + reg.update()).
-- 1.29.0: Control con vistas pres/todas (CTL_VISTAS), cifra Presencial, cliente → vista «todas»; Excel e informe con Presencial.
-- 1.28.1: Control (COORD) excluye FUERA DE MANTENIMIENTO de caducadas y caducan hoy (ESTADOS_SIN_SLA en coord.js).
-- 1.28.0: mapa progresivo (se pinta con lo ya situado y completa según llega); geocodificar con cola única (1/s sin esperas de más);
-  precargarGeo sitúa en segundo plano las visitas de 7 días (máx. 150 por sesión, tras cada carga de ATGO).
-- 1.27.0: Planificación con zonas plegables (semZona/semZonasTodas, pliegues «sem:ZONA») y cabecera de días grande y fija. 1.25.1–1.27.0 probadas por el usuario: funcionan.
-- 1.26.0: no disponibles = baja o vacaciones (nomina[op].vac [{d,h}]; noDisponible/vacacionesDe/ausenciaTexto en app.js): fuera de
-  Incidencias (aviso .aus-aviso con «Ver sus incidencias») y Planificación, sin recomendación; aviso al asignar; días marcados.
-- 1.25.1: conflictos sin solape cuando las dos citas son en la misma sede o dirección (mismoSitio en panel.js).
+- 1.25–1.31 (todas probadas por el usuario): limpieza para implantación; solapes en la misma sede no cuentan (mismoSitio);
+  bajas y vacaciones fuera de los paneles (noDisponible, nomina[op].vac); Planificación con zonas plegables; mapa progresivo con
+  precarga de direcciones (precargarGeo, cola única de Nominatim); Control (coord.js): FUERA DE MANTENIMIENTO sin SLA (ESTADOS_SIN_SLA),
+  vistas Presencial/Todas, filtro por proyecto (atgo-sync completarProyectos + proyDe/PROY_KEY), orden por columna (CTL_COLS);
+  ⚙ › General › ACTUALIZAR (actualizarAhora); proyecto en la ficha.
 
 ## Pendiente (espera al usuario)
 - Crear tickets desde Despacho: lista de campos y valores por defecto (`docs/estudio-alta-tickets.md`; viable: POST /incidencias/alta).
