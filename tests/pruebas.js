@@ -203,6 +203,11 @@ const csla = {}; vm.createContext(csla);
 vm.runInContext([extraer(app, 'function norm('), extraer(leer('coord.js'), 'const ESTADOS_SIN_SLA'), extraer(leer('coord.js'), 'function sinSla(')].join(String.fromCharCode(10)), csla);
 igual('COORD: fuera de mantenimiento sin SLA; presencial y escalado sí', ['FUERA DE MANTENIMIENTO', 'Fuera de mantenimiento', 'PRESENCIAL', 'ESCALADO TIER1'].map(e => csla.sinSla({ estado: e })), [true, true, false, false]);
 
+// ---- Proyecto de cada incidencia (atgo-sync) ----
+const cpr = {}; vm.createContext(cpr);
+vm.runInContext(extraer(leer('atgo-sync.js'), 'function proyectoDe('), cpr);
+igual('proyecto: numProy o codProyecto; vacío o NULL = sin proyecto', [cpr.proyectoDe({ numProy: 1234 }), cpr.proyectoDe({ codProyecto: ' P-7 ' }), cpr.proyectoDe({ numProy: 'NULL' }), cpr.proyectoDe({})], ['1234', 'P-7', null, null]);
+
 // ---- Coherencia de configuración ----
 const vSyncA = (leer('atgo-sync.js').match(/SYNC_VERSION = '([\d.]+)'/) || [])[1], vSyncP = (app.match(/SYNC_VERSION = '([\d.]+)'/) || [])[1];
 igual('SYNC_VERSION igual en atgo-sync.js y app.js', vSyncA, vSyncP);

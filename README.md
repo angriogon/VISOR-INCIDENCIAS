@@ -81,7 +81,7 @@ La semana por técnico y día (cada zona se pliega pulsando su nombre; los icono
 
 ### Control (perfil COORD)
 - **Cinco cifras** que se pueden pulsar: **Presencial** (con el total de abiertas debajo), **Sin asignar**, **Caducadas**, **Caducan hoy** (sin las de FUERA DE MANTENIMIENTO, que no tienen SLA) y **En ruta hoy** (hechas/total y retrasos).
-- **Filtros:** DSP, cliente y búsqueda.
+- **Filtros:** DSP, cliente, **proyecto** (los del cliente elegido, con cuántas incidencias tiene cada uno) y búsqueda.
 - **Dos listas:** *Pendientes de asignar* (caducidad, zona y tiempo esperando) y *Presencial · Caducadas · Caducan hoy · En ruta hoy · Todas*. Pulsar una cifra abre su lista ahí mismo, y elegir un cliente muestra todas sus incidencias abiertas, también las asignadas.
 - **Excel de cada lista** e **Informe completo**: un Excel con un resumen por DSP, el desglose por estado y una hoja por lista, respetando los filtros puestos.
 - Al pulsar una incidencia se abre su ficha, desde donde se puede reasignar.

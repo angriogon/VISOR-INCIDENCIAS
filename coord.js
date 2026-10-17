@@ -5,8 +5,24 @@
 // Usa utilidades de los demás archivos solo en tiempo de llamada.
 
 const CTL_VISTAS = [['pres', 'Presencial'], ['cad', 'Caducadas'], ['hoy', 'Caducan hoy'], ['ruta', 'En ruta hoy'], ['todas', 'Todas']];
-let ctl = { vista: 'cad', dsp: '', cli: '', q: '' };
+let ctl = { vista: 'cad', dsp: '', cli: '', proy: '', q: '' };
 function esCoord() { return PERFIL === 'COORD'; }
+// Proyecto de cada incidencia: el que manda ATGO y, si no viene, el último conocido (se guarda en el equipo)
+const PROY_KEY = 'dispatcher_proyectos_v1';
+let proyGuardados = null;
+function proyDe(r) {
+  if (!proyGuardados) proyGuardados = lsGet(PROY_KEY, {}) || {};
+  const k = tkey(r);
+  if (r.proyecto) { const g = proyGuardados[k]; if (!g || g[0] !== r.proyecto || (r.desProyecto && g[1] !== r.desProyecto)) { proyGuardados[k] = [r.proyecto, r.desProyecto || (g && g[1]) || '']; proyCambiado = true; } return proyGuardados[k]; }
+  return proyGuardados[k] || null;
+}
+let proyCambiado = false;
+function guardarProyectos() {
+  if (!proyCambiado || !proyGuardados) return; proyCambiado = false;
+  const vivas = new Set(todasAbiertas().map(tkey)); Object.keys(proyGuardados).forEach(k => { if (!vivas.has(k)) delete proyGuardados[k]; });   // solo las abiertas
+  lsSet(PROY_KEY, proyGuardados);
+}
+function proyTexto(p) { return p ? (p[1] ? p[1] + ' (' + p[0] + ')' : 'Proyecto ' + p[0]) : 'Sin proyecto'; }
 
 // DSP de un ticket: el de su técnico o, si está sin asignar, el de la zona de su comodín/provincia
 function dspTicket(r) {
@@ -31,14 +47,15 @@ function ctlListas() {
 function ctlPasa(r) {
   if (ctl.dsp && dspTicket(r) !== ctl.dsp) return false;
   if (ctl.cli && (r.descCliente || '') !== ctl.cli) return false;
-  if (ctl.q) { const t = norm([r.num, r.descSede, r.descCliente, r.operario, r.poblacion, r.provincia, r.referencia].join(' ')); if (!norm(ctl.q).split(/\s+/).every(w => t.includes(w))) return false; }
+  if (ctl.proy) { const p = proyDe(r); if (ctl.proy === '-' ? !!p : !p || p[0] !== ctl.proy) return false; }
+  if (ctl.q) { const pq = proyDe(r); const t = norm([r.num, r.descSede, r.descCliente, r.operario, r.poblacion, r.provincia, r.referencia, pq && pq[0], pq && pq[1]].join(' ')); if (!norm(ctl.q).split(/\s+/).every(w => t.includes(w))) return false; }
   return true;
 }
 function ctlFiltradas() {
   const L = ctlListas();
   return { todas: L.todas.filter(ctlPasa), pres: L.pres.filter(ctlPasa), pend: L.pend.filter(ctlPasa), cad: L.cad.filter(ctlPasa), hoy: L.hoy.filter(ctlPasa), ruta: L.ruta.filter(x => ctlPasa(x.r)), clientes: L.todas };
 }
-function ctlSet(k, v) { ctl[k] = v; if (k === 'cli' && v) ctl.vista = 'todas'; renderControl(); }
+function ctlSet(k, v) { ctl[k] = v; if (k === 'cli') ctl.proy = ''; if ((k === 'cli' || k === 'proy') && v) ctl.vista = 'todas'; renderControl(); }
 
 // ---- Filas ----
 function fechaCorta(ts) { return new Date(ts).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' }) + ' ' + hhmm(ts); }
@@ -49,9 +66,10 @@ function ctlCadHtml(r) {
 }
 function ctlTecHtml(r) { return /^XXX/i.test(r.operario || '') ? '<span class="ctl-sin">Sin asignar</span>' : `<b>${esc(r.operario)}</b>`; }
 function ctlFila(r) {
+  const pr = proyDe(r);
   return `<tr data-key="${esc(tkey(r))}" style="--c:${estadoColor(r.estado)}">
     <td class="mono ctl-n">${esc(r.num || '—')}</td><td>${ctlCadHtml(r)}</td>
-    <td class="ctl-sede"><b>${esc(r.descCliente || '—')}</b><small>${esc(r.descSede || '')}${r.poblacion ? ' · ' + esc(r.poblacion) : ''}</small></td>
+    <td class="ctl-sede"><b>${esc(r.descCliente || '—')}</b><small>${esc(r.descSede || '')}${r.poblacion ? ' · ' + esc(r.poblacion) : ''}${pr ? ' · ' + esc(proyTexto(pr)) : ''}</small></td>
     <td>${ctlTecHtml(r)}</td><td class="ctl-dsp">${esc(dspTicket(r))}</td><td>${estadoPill(r.estado)}</td></tr>`;
 }
 function ctlFilaRuta(x) {
@@ -76,6 +94,10 @@ function renderControl() {
   if (!rows.length && !poolRows.length) { root.innerHTML = `<div class="empty"><h2>Esperando los datos de ATGO</h2><div>Abre ATGO (⚙ › General) para cargar las incidencias de todos los DSP.</div></div>`; return; }
   const F = ctlFiltradas(), L = ctlListas();
   const hechas = F.ruta.filter(x => x.st === 'd').length;
+  const baseProy = L.todas.filter(r => (!ctl.cli || (r.descCliente || '') === ctl.cli) && (!ctl.dsp || dspTicket(r) === ctl.dsp));
+  const proyectos = {}; let sinProy = 0; baseProy.forEach(r => { const p = proyDe(r); if (!p) { sinProy++; return; } (proyectos[p[0]] = proyectos[p[0]] || { p, n: 0 }).n++; });
+  guardarProyectos();
+  const listaProy = Object.values(proyectos).sort((a, b) => b.n - a.n);
   const clientes = Object.entries(L.todas.reduce((m, r) => { const c = r.descCliente || ''; if (c) m[c] = (m[c] || 0) + 1; return m; }, {})).sort((a, b) => b[1] - a[1]);
   const kpi = (id, n, t, sub, cls) => `<button class="ctl-kpi ${cls || ''}${ctl.vista === id ? ' on' : ''}" onclick="${id === 'pend' ? "document.getElementById('ctlPend').scrollIntoView({behavior:'smooth',block:'start'})" : `ctlSet('vista','${id}')`}"><b>${n}</b><span>${t}</span>${sub ? `<small>${sub}</small>` : ''}</button>`;
   const vista = ctl.vista;
@@ -93,9 +115,10 @@ function renderControl() {
     </div>
     <div class="ctl-filtros">
       <span class="seg mini" role="group" aria-label="DSP">${[['', 'Todos'], ...PERFILES.filter(p => p !== 'COORD').map(p => [p, p])].map(([v, t]) => `<button class="segb${ctl.dsp === v ? ' on' : ''}" aria-pressed="${ctl.dsp === v}" onclick="ctlSet('dsp','${v}')">${t}</button>`).join('')}</span>
-      <select aria-label="Cliente" onchange="ctlSet('cli',this.value)"><option value="">Todos los clientes</option>${clientes.map(([c, n]) => `<option value="${esc(c)}"${ctl.cli === c ? ' selected' : ''}>${esc(c)} (${n})</option>`).join('')}</select>
-      <input type="search" placeholder="Buscar Nº, sede, técnico, población…" aria-label="Buscar" value="${esc(ctl.q)}" oninput="ctl.q=this.value;clearTimeout(window.ctlT);window.ctlT=setTimeout(()=>{renderControl();const i=document.querySelector('.ctl-filtros input');if(i){i.focus();i.setSelectionRange(i.value.length,i.value.length)}},250)">
-      ${ctl.dsp || ctl.cli || ctl.q ? `<button class="btn sm ghost" onclick="ctl.dsp='';ctl.cli='';ctl.q='';renderControl()">Quitar filtros</button>` : ''}
+      <select class="ctl-cli" aria-label="Cliente" onchange="ctlSet('cli',this.value)"><option value="">Todos los clientes</option>${clientes.map(([c, n]) => `<option value="${esc(c)}"${ctl.cli === c ? ' selected' : ''}>${esc(c)} (${n})</option>`).join('')}</select>
+      <select class="ctl-proy" aria-label="Proyecto" onchange="ctlSet('proy',this.value)"${listaProy.length || sinProy ? '' : ' disabled'} title="${listaProy.length ? 'Proyectos de las incidencias' + (ctl.cli ? ' de ' + esc(ctl.cli) : '') : 'Aún no se conoce el proyecto de estas incidencias: llega con las próximas cargas de ATGO'}"><option value="">${listaProy.length ? 'Todos los proyectos (' + listaProy.length + ')' : 'Proyecto: sin datos aún'}</option>${listaProy.map(x => `<option value="${esc(x.p[0])}"${ctl.proy === x.p[0] ? ' selected' : ''}>${esc(proyTexto(x.p))} · ${x.n}</option>`).join('')}${listaProy.length && sinProy ? `<option value="-"${ctl.proy === '-' ? ' selected' : ''}>Sin proyecto conocido · ${sinProy}</option>` : ''}</select>
+      <input type="search" placeholder="Buscar Nº, sede, técnico…" aria-label="Buscar" value="${esc(ctl.q)}" oninput="ctl.q=this.value;clearTimeout(window.ctlT);window.ctlT=setTimeout(()=>{renderControl();const i=document.querySelector('.ctl-filtros input');if(i){i.focus();i.setSelectionRange(i.value.length,i.value.length)}},250)">
+      ${ctl.dsp || ctl.cli || ctl.proy || ctl.q ? `<button class="btn sm ghost" onclick="ctl.dsp='';ctl.cli='';ctl.proy='';ctl.q='';renderControl()">Quitar filtros</button>` : ''}
     </div>
     <div class="ctl-cols">
       <section class="ctl-card" id="ctlPend">
@@ -115,7 +138,7 @@ function renderControl() {
 function ctlFilaExcel(r) {
   const c = caducidad(r), d = registro(r);
   return { 'Nº': r.num, Cliente: r.descCliente, Sede: r.descSede, Población: r.poblacion, Provincia: r.provincia, Técnico: /^XXX/i.test(r.operario || '') ? 'Sin asignar' : r.operario,
-    DSP: dspTicket(r), Zona: /^XXX/i.test(r.operario || '') ? zonaPool(r) : zonaDe(r.operario), Estado: r.estado, Caducidad: c ? new Date(c.ts).toLocaleString('es-ES') : '', 'Caduca': c ? cadTexto(c) : '',
+    DSP: dspTicket(r), Zona: /^XXX/i.test(r.operario || '') ? zonaPool(r) : zonaDe(r.operario), Estado: r.estado, Proyecto: (p => p ? p[0] : '')(proyDe(r)), 'Nombre del proyecto': (p => p ? p[1] : '')(proyDe(r)), Caducidad: c ? new Date(c.ts).toLocaleString('es-ES') : '', 'Caduca': c ? cadTexto(c) : '',
     Visita: r.fVisita, Desde: r.desdeHora, Hasta: r.hastaHora, Registro: d ? d.toLocaleString('es-ES') : '', Tipo: r.tipo, Referencia: r.referencia,
     Motivo: (typeof motivoTexto === 'function' ? motivoTexto(tkey(r)) : '').slice(0, 300), Enlace: r.url || ATGO_URL + tkey(r) };
 }
@@ -143,7 +166,7 @@ async function ctlInforme() {
   const cuenta = (l, p, f) => l.filter(x => dspTicket(x.r || x) === p && (!f || f(x))).length;
   const resumen = dsps.map(p => ({ DSP: p === '—' ? 'Sin DSP' : p, Abiertas: cuenta(F.todas, p), Presencial: cuenta(F.pres, p), 'Sin asignar': cuenta(F.pend, p), Caducadas: cuenta(F.cad, p), 'Caducan hoy': cuenta(F.hoy, p), 'En ruta hoy': cuenta(F.ruta, p), 'Hechas hoy': cuenta(F.ruta, p, x => x.st === 'd'), 'Con retraso': cuenta(F.ruta, p, x => x.late) })).filter(x => x.Abiertas || x['Sin asignar'] || x['En ruta hoy']);
   const tot = { DSP: 'TOTAL' }; Object.keys(resumen[0] || { Abiertas: 0 }).filter(k => k !== 'DSP').forEach(k => tot[k] = resumen.reduce((s, x) => s + x[k], 0)); resumen.push(tot);
-  const filtros = [ctl.dsp && 'DSP ' + ctl.dsp, ctl.cli && 'Cliente ' + ctl.cli, ctl.q && 'Búsqueda «' + ctl.q + '»'].filter(Boolean).join(' · ') || 'sin filtros';
+  const filtros = [ctl.dsp && 'DSP ' + ctl.dsp, ctl.cli && 'Cliente ' + ctl.cli, ctl.proy && 'Proyecto ' + (ctl.proy === '-' ? 'sin proyecto' : ctl.proy), ctl.q && 'Búsqueda «' + ctl.q + '»'].filter(Boolean).join(' · ') || 'sin filtros';
   const ws0 = XLSX.utils.json_to_sheet(resumen); XLSX.utils.sheet_add_aoa(ws0, [[], [`Informe de control · ${new Date().toLocaleString('es-ES')} · ${filtros}`]], { origin: -1 }); ctlAnchos(ws0, resumen);
   XLSX.utils.book_append_sheet(wb, ws0, 'Resumen');
   // Por estado: el bloque total desglosado

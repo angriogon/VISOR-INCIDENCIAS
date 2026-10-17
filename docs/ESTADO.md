@@ -4,13 +4,15 @@ Archivo de traspaso entre sesiones. Al empezar una sesión: «lee docs/ESTADO.md
 Máximo ~40 líneas: lo antiguo se resume o se borra (el detalle está en git y en `NOVEDADES` de `ajustes.js`).
 
 ## Versión actual
-- `sw.js` despacho-v1.29.1 = `APP_VERSION` (ajustes.js). `SYNC_VERSION` 1.23.0 (atgo-sync.js = app.js). Publicada en GitHub Pages.
+- `sw.js` despacho-v1.30.0 = `APP_VERSION` (ajustes.js). `SYNC_VERSION` 1.30.0 (atgo-sync.js = app.js). Publicada en GitHub Pages.
 - Funciones principales: perfiles DSP1–5 y COORD (panel de CONTROL con Excel), nómina, Mi día, Sin asignar, Incidencias por estado,
   Planificación (arrastrar, en bloque de 4 en 4, rellenar el día, mapa), ficha con escrituras en ATGO comprobadas, reincidencias por equipo,
   festivos, apariencia y accesibilidad, avisos de Windows, copia en OneDrive.
 - 1.25.0 (limpieza para implantación): fuera el resumen por DSP de Mi día (COORD ya abre CONTROL), el modo «ticket de prueba» de la fase 2,
   plantillas antiguas de la copia, CSS y variables sin uso; migración 3 borra claves antiguas del navegador; docs reorganizados;
   README reescrito.
+- 1.30.0: proyecto por incidencia (atgo-sync completarProyectos: lista o ficha numProy, 40 por carga; catálogo /proyecto) y filtro
+  Proyecto en Control (proyDe/PROY_KEY en coord.js). Por validar con ATGO real: nombres de campos del catálogo y de la lista.
 - 1.29.1: ⚙ › General › ACTUALIZAR (actualizarAhora en app.js: despacho-refresh + reg.update()).
 - 1.29.0: Control con vistas pres/todas (CTL_VISTAS), cifra Presencial, cliente → vista «todas»; Excel e informe con Presencial.
 - 1.28.1: Control (COORD) excluye FUERA DE MANTENIMIENTO de caducadas y caducan hoy (ESTADOS_SIN_SLA en coord.js).
@@ -23,7 +25,6 @@ Máximo ~40 líneas: lo antiguo se resume o se borra (el detalle está en git y 
 
 ## Pendiente (espera al usuario)
 - Crear tickets desde Despacho: lista de campos y valores por defecto (`docs/estudio-alta-tickets.md`; viable: POST /incidencias/alta).
-- Informes de COORD por cliente y proyecto: hay que leer el proyecto (`numProy`) de cada ticket.
 - Recogida GLS de las zonas DSP2–5 y si Canarias pertenece a algún DSP.
 - Propuestas DSP, COORD y API (docs/propuestas-dsp-coord-api.md): espera a que el usuario elija cuáles.
 - Implantación en empresa: decisiones en `docs/implantacion-empresa.md`. Versión móvil: `docs/propuesta-ios.md`.

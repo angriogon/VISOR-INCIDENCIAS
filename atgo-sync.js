@@ -23,7 +23,7 @@
   const TIMEOUT_MS = 120000;
   // Versión de este script: Despacho la compara con la suya (SYNC_VERSION en app.js) y avisa si esta pestaña
   // sigue con una versión antigua (hay que recargarla). Súbela cuando cambie este archivo.
-  const SYNC_VERSION = '1.23.0';
+  const SYNC_VERSION = '1.30.0';
 
   if (location.hostname !== 'atgo.tier1.es') { alert('Abre primero https://atgo.tier1.es e inicia sesión.'); return; }
 
@@ -190,6 +190,34 @@
   }
   const ymdToEs = (s) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s || ''); return m ? m[3] + '/' + m[2] + '/' + m[1] : ''; };
   const hhmm = (iso) => { if (!iso) return ''; const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }); };
+  // ===== Proyecto de cada incidencia (para filtrar por proyecto en Control) =====
+  // Si la lista de ATGO lo trae, se usa; si no, se lee de la ficha (numProy), como mucho PROY_POR_CARGA por carga,
+  // y se recuerda mientras la pestaña siga abierta. Los nombres salen del catálogo de proyectos de ATGO (una vez).
+  const PROY_POR_CARGA = 40;
+  const proyCache = {};
+  let proyNombres = null;
+  function proyectoDe(t) { const v = t.numProy ?? t.codProyecto ?? t.codProy ?? null; return v === null || v === undefined || v === 'NULL' ? null : String(v).trim(); }
+  async function completarProyectos(lista, viva) {
+    const H = { Authorization: 'Bearer ' + token(), Accept: 'application/json' };
+    if (!proyNombres) {
+      proyNombres = {};
+      try {
+        const r = await fetch('/api/v1/atgo/proyecto', { headers: H });
+        if (r.ok) { const d = await r.json(); (Array.isArray(d) ? d : d.content || []).forEach(p => { const k = p.numProy ?? p.codProyecto ?? p.codProy ?? p.id; const n = p.desProyecto ?? p.descripcion ?? p.nombre ?? p.desProy; if (k != null && n) proyNombres[String(k).trim()] = String(n).trim(); }); }
+      } catch (e) {}
+    }
+    lista.forEach(m => { if (m.proyecto != null) proyCache[m.key] = m.proyecto; });
+    const faltan = lista.filter(m => !(m.key in proyCache)).slice(0, PROY_POR_CARGA);
+    let i = 0;
+    const trabajador = async () => {
+      while (i < faltan.length && viva()) {
+        const m = faltan[i++], [p, s2, c] = m.key.split('/').map(encodeURIComponent);
+        try { const r = await fetch('/api/v1/atgo/incidencias/' + p + '/' + s2 + '/' + c, { headers: H }); if (r.ok) { const f = await r.json(); proyCache[m.key] = proyectoDe(f) || ''; } } catch (e) {}
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(4, faltan.length) }, trabajador));
+    lista.forEach(m => { const k = proyCache[m.key]; m.proyecto = k || ''; m.desProyecto = k ? (proyNombres[k] || '') : ''; });
+  }
   function mapTicket(t) {
     const id = t.incidenciaId || {};
     const dir = [t.direccion || t.domicilio, t.poblacion].filter(v => v && v !== 'NULL').join(', ');
@@ -213,6 +241,7 @@
       estado: t.desEstado || '',
       descCliente: t.desCli || '',
       tipo: t.desTipoEle || '',
+      proyecto: proyectoDe(t),
       elemento: t.codElemento && t.codElemento !== 'NULL' ? String(t.codElemento) : '',   // código IT del equipo (reincidencias)
       domicilio: dir
     };
@@ -254,6 +283,8 @@
       // Si falla algún operario se descarta la carga entera: así nunca parece que sus tickets "salieron".
       await Promise.all(Array.from({ length: Math.min(PARALELO, cola.length) }, worker));
       if (stopped) return;
+      try { await completarProyectos([...found.values(), ...pool.values()], viva); } catch (e) {}
+      if (stopped || !viva()) return;
       lastPayload = { type: 'atgo-data', partial: false, v: SYNC_VERSION, ops: OPERARIOS.slice(), rows: [...found.values()], at: Date.now(), seconds: Math.round((Date.now() - t0) / 1000), caps: ['hilo', 'estado', 'editar', 'asignar', 'pool', 'lote'], estados: estadosAtgo || [], pool: poolOps ? [...pool.values()] : null, poolOps: poolOps || {} };
       send(lastPayload);
       const hora = new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });

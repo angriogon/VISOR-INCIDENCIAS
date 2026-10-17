@@ -812,3 +812,7 @@
   .sem-plg{display:inline-flex; gap:4px; margin-right:4px;}
   button.sg-zona .pl-chev{font-size:13px; width:14px; color:var(--ink-dim);}
   .ctl-card-h .seg{flex-wrap:wrap;}
+  /* ===== v1.30: filtro por proyecto en Control ===== */
+  .ctl-filtros select.ctl-cli{flex:0 1 460px; min-width:300px; max-width:none;}
+  .ctl-filtros select.ctl-proy{flex:0 1 340px; min-width:220px; max-width:none;}
+  .ctl-filtros input{flex:1 1 180px; min-width:160px;}
