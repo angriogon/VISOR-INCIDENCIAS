@@ -816,3 +816,8 @@
   .ctl-filtros select.ctl-cli{flex:0 1 460px; min-width:300px; max-width:none;}
   .ctl-filtros select.ctl-proy{flex:0 1 340px; min-width:220px; max-width:none;}
   .ctl-filtros input{flex:1 1 180px; min-width:160px;}
+  /* ===== v1.31: orden por columna en Control ===== */
+  .ctl-ord{border:none; background:none; font:inherit; font-weight:600; color:inherit; cursor:pointer; padding:0; display:inline-flex; gap:4px; align-items:center; white-space:nowrap;}
+  .ctl-ord i{font-style:normal; font-size:10px; color:var(--ink-faint);}
+  .ctl-ord:hover, .ctl-ord.on{color:var(--amber);} .ctl-ord.on i{color:var(--amber);}
+  .ctl-sede{max-width:290px;}

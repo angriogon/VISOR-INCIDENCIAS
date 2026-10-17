@@ -5,7 +5,7 @@
 // Usa utilidades de los demás archivos solo en tiempo de llamada.
 
 const CTL_VISTAS = [['pres', 'Presencial'], ['cad', 'Caducadas'], ['hoy', 'Caducan hoy'], ['ruta', 'En ruta hoy'], ['todas', 'Todas']];
-let ctl = { vista: 'cad', dsp: '', cli: '', proy: '', q: '' };
+let ctl = { vista: 'cad', dsp: '', cli: '', proy: '', q: '', ord: { main: null, ruta: null, pend: null } };
 function esCoord() { return PERFIL === 'COORD'; }
 // Proyecto de cada incidencia: el que manda ATGO y, si no viene, el último conocido (se guarda en el equipo)
 const PROY_KEY = 'dispatcher_proyectos_v1';
@@ -51,9 +51,23 @@ function ctlPasa(r) {
   if (ctl.q) { const pq = proyDe(r); const t = norm([r.num, r.descSede, r.descCliente, r.operario, r.poblacion, r.provincia, r.referencia, pq && pq[0], pq && pq[1]].join(' ')); if (!norm(ctl.q).split(/\s+/).every(w => t.includes(w))) return false; }
   return true;
 }
+const ctlCadTs = r => (caducidad(r) || { ts: 9e15 }).ts;
+const ctlCliSede = r => norm((r.descCliente || '') + ' ' + (r.descSede || ''));
+const CTL_COLS = {
+  main: [r => Number(r.num) || 0, ctlCadTs, ctlCliSede, r => /^XXX/i.test(r.operario || '') ? '~' : r.operario, r => dspTicket(r), r => norm(r.estado)],
+  ruta: [x => horaMin(x.r.desdeHora), x => ['c', 'p', 't', 'd'].indexOf(x.st), x => Number(x.r.num) || 0, x => ctlCliSede(x.r), x => x.r.operario, x => dspTicket(x.r)],
+  pend: [r => Number(r.num) || 0, ctlCadTs, ctlCliSede, r => norm(zonaPool(r) || '~'), r => { const d = registro(r); return d ? d.getTime() : 9e15; }]
+};
+function ctlOrdenar(lista, t) {
+  const o = ctl.ord[t]; if (!o) return lista;
+  const f = CTL_COLS[t][o.i];
+  return lista.map((x, i) => [f(x), i, x]).sort((a, b) => (typeof a[0] === 'number' && typeof b[0] === 'number' ? a[0] - b[0] : String(a[0]).localeCompare(String(b[0]), 'es')) * o.dir || a[1] - b[1]).map(x => x[2]);
+}
+function ctlOrden(t, i) { const o = ctl.ord[t]; ctl.ord[t] = o && o.i === i ? (o.dir === 1 ? { i, dir: -1 } : null) : { i, dir: 1 }; renderControl(); }
 function ctlFiltradas() {
   const L = ctlListas();
-  return { todas: L.todas.filter(ctlPasa), pres: L.pres.filter(ctlPasa), pend: L.pend.filter(ctlPasa), cad: L.cad.filter(ctlPasa), hoy: L.hoy.filter(ctlPasa), ruta: L.ruta.filter(x => ctlPasa(x.r)), clientes: L.todas };
+  const m = l => ctlOrdenar(l.filter(ctlPasa), 'main');
+  return { todas: m(L.todas), pres: m(L.pres), pend: ctlOrdenar(L.pend.filter(ctlPasa), 'pend'), cad: m(L.cad), hoy: m(L.hoy), ruta: ctlOrdenar(L.ruta.filter(x => ctlPasa(x.r)), 'ruta'), clientes: L.todas };
 }
 function ctlSet(k, v) { ctl[k] = v; if (k === 'cli') ctl.proy = ''; if ((k === 'cli' || k === 'proy') && v) ctl.vista = 'todas'; renderControl(); }
 
@@ -84,8 +98,10 @@ function ctlFilaPend(r) {
     <td class="ctl-sede"><b>${esc(r.descCliente || '—')}</b><small>${esc(r.descSede || '')}${r.poblacion ? ' · ' + esc(r.poblacion) : ''}</small></td>
     <td class="ctl-zona">${esc(zonaPool(r) || '—')}<small>${esc(dspTicket(r))}</small></td><td class="ctl-esp${h != null && h >= (typeof horasOlvido === 'function' ? horasOlvido() : 4) ? ' late' : ''}">${h == null ? '—' : h < 48 ? h + ' h' : Math.round(h / 24) + ' d'}</td></tr>`;
 }
-function ctlTabla(cab, filas, vacio) {
-  return filas.length ? `<div class="ctl-tabla"><table><thead><tr>${cab.map(c => `<th scope="col">${c}</th>`).join('')}</tr></thead><tbody>${filas.join('')}</tbody></table></div>` : `<div class="dempty">${vacio}</div>`;
+function ctlTabla(cab, filas, vacio, t) {
+  const o = t && ctl.ord[t];
+  const th = (c, i) => !t ? `<th scope="col">${c}</th>` : `<th scope="col" aria-sort="${o && o.i === i ? (o.dir === 1 ? 'ascending' : 'descending') : 'none'}"><button class="ctl-ord${o && o.i === i ? ' on' : ''}" onclick="ctlOrden('${t}',${i})" title="Ordenar por ${esc(c)}${o && o.i === i ? (o.dir === 1 ? ' (otra vez: al revés)' : ' (otra vez: orden normal)') : ''}">${c}<i>${o && o.i === i ? (o.dir === 1 ? '▲' : '▼') : '↕'}</i></button></th>`;
+  return filas.length ? `<div class="ctl-tabla"><table><thead><tr>${cab.map(th).join('')}</tr></thead><tbody>${filas.join('')}</tbody></table></div>` : `<div class="dempty">${vacio}</div>`;
 }
 
 // ---- Vista ----
@@ -101,8 +117,8 @@ function renderControl() {
   const clientes = Object.entries(L.todas.reduce((m, r) => { const c = r.descCliente || ''; if (c) m[c] = (m[c] || 0) + 1; return m; }, {})).sort((a, b) => b[1] - a[1]);
   const kpi = (id, n, t, sub, cls) => `<button class="ctl-kpi ${cls || ''}${ctl.vista === id ? ' on' : ''}" onclick="${id === 'pend' ? "document.getElementById('ctlPend').scrollIntoView({behavior:'smooth',block:'start'})" : `ctlSet('vista','${id}')`}"><b>${n}</b><span>${t}</span>${sub ? `<small>${sub}</small>` : ''}</button>`;
   const vista = ctl.vista;
-  const lista = vista === 'ruta' ? ctlTabla(['Hora', 'Situación', 'Nº', 'Cliente · sede', 'Técnico', 'DSP'], F.ruta.map(ctlFilaRuta), 'Nadie en ruta hoy con estos filtros.')
-    : ctlTabla(['Nº', 'Caducidad', 'Cliente · sede', 'Técnico', 'DSP', 'Estado'], (F[vista] || F.cad).map(ctlFila), { cad: 'Ninguna caducada con estos filtros. 👍', hoy: 'Ninguna caduca hoy con estos filtros.', pres: 'Ninguna en PRESENCIAL con estos filtros.', todas: 'Ninguna incidencia abierta con estos filtros.' }[vista] || 'Nada con estos filtros.');
+  const lista = vista === 'ruta' ? ctlTabla(['Hora', 'Situación', 'Nº', 'Cliente · sede', 'Técnico', 'DSP'], F.ruta.map(ctlFilaRuta), 'Nadie en ruta hoy con estos filtros.', 'ruta')
+    : ctlTabla(['Nº', 'Caducidad', 'Cliente · sede', 'Técnico', 'DSP', 'Estado'], (F[vista] || F.cad).map(ctlFila), { cad: 'Ninguna caducada con estos filtros. 👍', hoy: 'Ninguna caduca hoy con estos filtros.', pres: 'Ninguna en PRESENCIAL con estos filtros.', todas: 'Ninguna incidencia abierta con estos filtros.' }[vista] || 'Nada con estos filtros.', 'main');
   root.innerHTML = `
     <div class="ctl-cab"><div><h2>Control</h2><span>${esc(diaLargo(new Date()))} · todos los DSP${syncUltima ? ' · ATGO ' + esc(hhmm(syncUltima)) : ''}</span></div>
       <button class="btn pri" onclick="ctlInforme()" title="Un Excel con el resumen por DSP y una hoja por lista (con los filtros puestos)">↓ Informe completo (Excel)</button></div>
@@ -123,7 +139,7 @@ function renderControl() {
     <div class="ctl-cols">
       <section class="ctl-card" id="ctlPend">
         <div class="ctl-card-h"><h3>Pendientes de asignar <small>${F.pend.length}</small></h3><button class="btn sm" onclick="ctlExcel('pend')">↓ Excel</button></div>
-        ${ctlTabla(['Nº', 'Caducidad', 'Cliente · sede', 'Zona · DSP', 'Esperando'], F.pend.map(ctlFilaPend), 'Nada pendiente de asignar con estos filtros. 👍')}
+        ${ctlTabla(['Nº', 'Caducidad', 'Cliente · sede', 'Zona · DSP', 'Esperando'], F.pend.map(ctlFilaPend), 'Nada pendiente de asignar con estos filtros. 👍', 'pend')}
       </section>
       <section class="ctl-card">
         <div class="ctl-card-h"><span class="seg" role="tablist">${CTL_VISTAS.map(([v, t]) => `<button class="segb${vista === v ? ' on' : ''}" role="tab" aria-selected="${vista === v}" onclick="ctlSet('vista','${v}')">${t} <small>${v === 'ruta' ? F.ruta.length : v !== 'cad' && v !== 'hoy' ? F[v].length : v === 'cad' ? F.cad.length : v === 'hoy' ? F.hoy.length : F.ruta.length}</small></button>`).join('')}</span>

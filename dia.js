@@ -230,7 +230,8 @@ function fichaCampos(r) {
   const d = parseEs(r.fVisita);
   const vis = d ? `${DIAS[d.getDay()]} ${r.fVisita}${r.desdeHora ? (r.hastaHora ? ` de ${r.desdeHora} a ${r.hastaHora}` : ` a las ${r.desdeHora}`) : ''}` : '';
   const tec = nombreTecnico(r);
-  return [['Nº incidencia', r.num], ['Cliente', r.descCliente], ['Sede', r.descSede], ['Dirección', r.domicilio], ['Estado', r.estado], ['Visita', vis],
+  const pr = typeof proyDe === 'function' ? proyDe(r) : null;
+  return [['Nº incidencia', r.num], ['Cliente', r.descCliente], ['Proyecto', pr ? proyTexto(pr) : ''], ['Sede', r.descSede], ['Dirección', r.domicilio], ['Estado', r.estado], ['Visita', vis],
     ['Técnico', tec ? `${tec} (${r.operario})` : r.operario], ['Tipo', r.tipo], ['Referencia', r.referencia]].filter(x => x[1]);
 }
 async function copiarFicha(key) {
@@ -430,7 +431,7 @@ function renderFicha() {
   const base = r || (cz ? { num: cz.num, estado: cz.estado, operario: cz.op, descSede: cz.sede } : { num: (s && s.num) || n.num || key, estado: s ? s.e : '', operario: s ? s.op : n.op, descSede: s ? s.sede : n.sede });
   const reg = r && registro(r);
   const campos = r ? [
-    ['Cliente', r.descCliente], ['Sede', r.descSede], ['Dirección', r.domicilio], ['Tipo', r.tipo], ['Referencia', r.referencia],
+    ['Cliente', r.descCliente], ['Proyecto', (p => p ? proyTexto(p) : '')(typeof proyDe === 'function' ? proyDe(r) : null)], ['Sede', r.descSede], ['Dirección', r.domicilio], ['Tipo', r.tipo], ['Referencia', r.referencia],
     ['Técnico', [nombreTecnico(r), r.operario, zonaDe(r.operario)].filter(Boolean).join(' · ')],
     ['Visita', visTxt(r.fVisita, r.desdeHora, r.hastaHora) || 'Sin fecha'],
     ['Duración', esPresencial(r) ? duracionTexto(r) : ''],

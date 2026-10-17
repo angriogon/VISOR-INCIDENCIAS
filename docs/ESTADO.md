@@ -4,13 +4,14 @@ Archivo de traspaso entre sesiones. Al empezar una sesión: «lee docs/ESTADO.md
 Máximo ~40 líneas: lo antiguo se resume o se borra (el detalle está en git y en `NOVEDADES` de `ajustes.js`).
 
 ## Versión actual
-- `sw.js` despacho-v1.30.0 = `APP_VERSION` (ajustes.js). `SYNC_VERSION` 1.30.0 (atgo-sync.js = app.js). Publicada en GitHub Pages.
+- `sw.js` despacho-v1.31.0 = `APP_VERSION` (ajustes.js). `SYNC_VERSION` 1.30.0 (atgo-sync.js = app.js). Publicada en GitHub Pages.
 - Funciones principales: perfiles DSP1–5 y COORD (panel de CONTROL con Excel), nómina, Mi día, Sin asignar, Incidencias por estado,
   Planificación (arrastrar, en bloque de 4 en 4, rellenar el día, mapa), ficha con escrituras en ATGO comprobadas, reincidencias por equipo,
   festivos, apariencia y accesibilidad, avisos de Windows, copia en OneDrive.
 - 1.25.0 (limpieza para implantación): fuera el resumen por DSP de Mi día (COORD ya abre CONTROL), el modo «ticket de prueba» de la fase 2,
   plantillas antiguas de la copia, CSS y variables sin uso; migración 3 borra claves antiguas del navegador; docs reorganizados;
   README reescrito.
+- 1.31.0: proyecto en la ficha (dia.js usa proyDe/proyTexto de coord.js); orden por columna en Control (CTL_COLS, ctl.ord, ctlOrden).
 - 1.30.0: proyecto por incidencia (atgo-sync completarProyectos: lista o ficha numProy, 40 por carga; catálogo /proyecto) y filtro
   Proyecto en Control (proyDe/PROY_KEY en coord.js). Probada por el usuario con ATGO real: funciona (1.28.0–1.30.0).
 - 1.29.1: ⚙ › General › ACTUALIZAR (actualizarAhora en app.js: despacho-refresh + reg.update()).
