@@ -35,7 +35,8 @@ Web: **https://angriogon.github.io/VISOR-INCIDENCIAS/**. Son archivos estáticos
   - **Exportar e importar** los pasa a otro equipo.
 - **Técnicos (nómina)** (⚙ › Técnicos):
   - Da de alta técnicos y cambia su zona o DSP; entran en ese perfil y en COORD.
-  - Marca a un técnico **de baja**: ya no se propone al asignar. Sus incidencias se siguen viendo con la etiqueta BAJA para reasignarlas.
+  - Marca a un técnico **de baja** o pon sus **vacaciones** (fechas de inicio y fin). Mientras dure, no sale en Incidencias ni en Planificación y no se propone al asignar; vuelve solo al acabar las vacaciones.
+  - Si le quedan incidencias, un aviso en Incidencias las cuenta y permite verlas para reasignarlas. Al asignar a alguien de vacaciones ese día, la confirmación lo avisa.
   - Las altas y los cambios de zona se aplican al recargar.
 
 ## Pestañas

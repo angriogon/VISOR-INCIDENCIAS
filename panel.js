@@ -110,7 +110,7 @@ function recomendar(r, fecha) {
   const z = zonaPool(r), zona = ZONAS_BASE.find(x => x.nombre === z);
   if (!zona) return null;
   const f = ddmmyyyy(fecha), pob = poblacionDe(r), ms = mismaSede(r);
-  return zonaOps(z).filter(op => !enBaja(op)).map(op => {
+  return zonaOps(z).filter(op => !noDisponible(op, fecha)).map(op => {
     const vis = rows.filter(x => esPresencial(x) && x.fVisita === f && x.operario === op && tkey(x) !== tkey(r));
     const abiertas = rows.filter(x => x.operario === op).length;
     const juntos = pob ? vis.filter(x => poblacionDe(x) === pob).length : 0;
@@ -165,7 +165,7 @@ function opcionesTecnico(rec, elegido, vacia) {
   const lab = op => { const x = recOp[op]; return x ? `${x.i === 0 ? '★ ' : ''}${op} · ${x.sede ? 'ya va a la sede' : x.carga ? plural(x.carga, 'visita') : 'libre'}${x.apoyo ? ' · apoyo' : ''}` : op; };
   const vistos = new Set();
   const grupo = (titulo, ops) => {
-    const l = ops.filter(op => !vistos.has(op) && (!enBaja(op) || op === elegido)); l.forEach(op => vistos.add(op));   // los de baja no se proponen
+    const l = ops.filter(op => !vistos.has(op) && (!noDisponible(op) || op === elegido)); l.forEach(op => vistos.add(op));   // los de baja o de vacaciones no se proponen
     const o = l.map(op => `<option value="${esc(op)}"${op === elegido ? ' selected' : ''}>${esc(lab(op))}</option>`).join('');
     return !l.length ? '' : titulo ? `<optgroup label="${esc(titulo)}">${o}</optgroup>` : o;
   };
@@ -466,9 +466,10 @@ let loteEnCurso = false;
 async function asignarLote(items, titulo) {
   if (loteEnCurso || !items.length) return;
   // 📍 si otro técnico ya tiene abierta una incidencia de esa sede
+  const ausLote = (op, f) => { const d = f ? new Date(f + 'T12:00') : new Date(); return op && noDisponible(op, d) ? ` <span class="sede-aviso warn">🏖 ${esc(op)} ${esc(ausenciaTexto(op, d))}</span>` : ''; };
   const sedeLote = (r, op) => { const ms = mismaSede(r), ops = Object.keys(ms); return ops.length && op && !ops.includes(op) ? ` <span class="sede-aviso warn" title="${esc(ops.map(o => mismaSedeTexto(o, ms[o])).join('\n'))}">📍 ${esc(ops.join(', '))}</span>` : ''; };
   const ok = await confirmar(`<b>${esc(titulo || 'Planificar en ATGO')}</b><p>${plural(items.length, 'ticket')}:</p>
-    <table class="md-tab">${items.slice(0, 25).map(it => { const r = ticketDe(it.key) || {}; return `<tr><td>Nº ${esc(r.num || it.key)}</td><td><span>${esc(r.operario || '')}${r.fVisita ? ' · ' + esc(r.fVisita) : ''}</span> → <b>${esc(it.codOpe || r.operario)}${it.fechaVisita ? ' · ' + esc(it.fechaVisita.split('-').reverse().join('/')) : ''}</b>${sedeLote(r, it.codOpe)}</td></tr>`; }).join('')}${items.length > 25 ? `<tr><td colspan="2">…y ${items.length - 25} más</td></tr>` : ''}</table>
+    <table class="md-tab">${items.slice(0, 25).map(it => { const r = ticketDe(it.key) || {}; return `<tr><td>Nº ${esc(r.num || it.key)}</td><td><span>${esc(r.operario || '')}${r.fVisita ? ' · ' + esc(r.fVisita) : ''}</span> → <b>${esc(it.codOpe || r.operario)}${it.fechaVisita ? ' · ' + esc(it.fechaVisita.split('-').reverse().join('/')) : ''}</b>${sedeLote(r, it.codOpe)}${ausLote(it.codOpe, it.fechaVisita)}</td></tr>`; }).join('')}${items.length > 25 ? `<tr><td colspan="2">…y ${items.length - 25} más</td></tr>` : ''}</table>
     <p class="hint">${items.length > 1 && puedeLote() ? 'Se guardan de 4 en 4' : 'Se guardan uno a uno'}, comprobando cada ficha campo a campo. Si alguno falla, los demás siguen.</p>`, 'Guardar ' + plural(items.length, 'cambio'));
   if (!ok) return;
   loteEnCurso = true;
@@ -567,7 +568,7 @@ function renderSemana() {
             const f = ddmmyyyy(d), n = rows.filter(x => esPresencial(x) && x.fVisita === f && x.operario === op).length;
             const ci = cargaInfo(op, f), m = ci.min, conf = confDia[isoHoy(d)].filter(c => c.op === op), id = op + '|' + isoHoy(d);
             const durTx = m ? '≈ ' + fmtMin(m) + (ci.sin ? ' + ' + ci.sin + ' sin estimar' : '') : 'duración sin estimar';
-            const fe = festivo(d, z.nombre);
+            const fe = festivo(d, z.nombre) || (vacacionesDe(op, d) ? 'vacaciones de ' + op : '');
             return `<div class="sg-cell ${nivelCarga(m, n)}${semDet === id ? ' on' : ''}${fe ? ' fest' : ''}" data-drop="${esc(id)}" onclick="semDet=semDet==='${jsq(id)}'?null:'${jsq(id)}';renderSemana()" title="${esc((fe ? 'Festivo: ' + fe + '\n' : '') + (n ? plural(n, 'visita') + ' · ' + durTx : 'Libre') + (conf.length ? '\n⚠ ' + conf.map(c => c.texto).join('\n⚠ ') : ''))}">
               ${n ? `<b>${n}</b>${m ? `<small>${esc(fmtMin(m))}${ci.sin ? '+' : ''}</small>` : ''}` : '<span class="lib">·</span>'}${conf.length ? '<i class="cf">⚠</i>' : ''}</div>`;
           }).join('')}</div>`).join('')).join('')}

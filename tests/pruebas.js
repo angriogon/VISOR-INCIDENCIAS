@@ -84,7 +84,7 @@ vm.runInContext([
   extraer(dia, 'function tkey('), extraer(dia, 'const ESTADOS_CIERRE'), extraer(dia, 'function esCierre('),
   extraer(herr, 'const PROV_ZONA'), extraer(herr, 'const PROV_RE'), extraer(herr, 'function zonaTicket('), extraer(herr, 'function poblacionDe('),
   extraer(panel, 'const POOL_ZONA'), extraer(herr, 'function zonaDeTexto('), extraer(panel, 'function zonaComodin('), extraer(panel, 'function zonaPool('), extraer(panel, 'function sedeKey('), extraer(panel, 'function mismaSede('), extraer(panel, 'function recomendar('), extraer(panel, 'function mismoSitio('), extraer(panel, 'function conflictos('), extraer(panel, 'function fmtMin('),
-  "let rows = [], poolOpsDesc = {}, duracionFija = {}; const JORNADA_MIN = 480; const tecCfg = {}; function cargaMin() { return 0; } function estimarMin(r) { return duracionFija[r.key] || null; } let bajasPrueba = []; function enBaja(op) { return bajasPrueba.includes(op); }"
+  "let rows = [], poolOpsDesc = {}, duracionFija = {}; const JORNADA_MIN = 480; const tecCfg = {}; function cargaMin() { return 0; } function estimarMin(r) { return duracionFija[r.key] || null; } let bajasPrueba = []; function enBaja(op) { return bajasPrueba.includes(op); } function noDisponible(op) { return enBaja(op); }"
 ].join('\n'), cr);
 const T = (key, op, sede, extra) => ({ key, num: key.replace(/\//g, ''), operario: op, estado: 'PRESENCIAL', descSede: sede, descCliente: 'CARREFOUR', provincia: 'CEUTA', poblacion: 'CEUTA', fVisita: '', ...(extra || {}) });
 vm.runInContext('rows = ' + JSON.stringify([T('1/00/1', 'EACL', '4416-Ceuta-Hiper'), T('1/00/2', 'JIFC', 'Otra sede')]), cr);
@@ -153,7 +153,7 @@ const so = { esc: s => String(s), plural: (n, w) => n + ' ' + w + (n === 1 ? '' 
 vm.runInContext(extraer(panel, 'function opcionesTecnico(') + `
   const PERFILES = ['DSP1','DSP2','COORD'], PERFIL = 'DSP1', TECNICOS = ['DSG','ACAB'], TODOS_OPS = ['AMRG','DSG','ACAB','RUFB','GAS'];
   const perfilCfg = { tecs: { DSP1: ['AMRG','DSG','ACAB'], DSP2: ['RUFB','GAS'], COORD: TODOS_OPS } };
-  function dispatcherOps() { return ['AMRG']; } let bajasPrueba = []; function enBaja(op) { return bajasPrueba.includes(op); }`, so);
+  function dispatcherOps() { return ['AMRG']; } let bajasPrueba = []; function enBaja(op) { return bajasPrueba.includes(op); } function noDisponible(op) { return enBaja(op); }`, so);
 const selHtml = so.opcionesTecnico([{ op: 'ACAB', carga: 0 }], 'RUFB', false);
 const valores = [...selHtml.matchAll(/value="([^"]*)"/g)].map(m => m[1]);
 igual('selector: todos los técnicos de todos los perfiles, una vez cada uno', valores.slice().sort(), ['ACAB', 'AMRG', 'DSG', 'GAS', 'RUFB']);
@@ -191,6 +191,12 @@ vm.runInContext(extraer(leer('edicion.js'), 'function errorAtgo('), cer);
 const tipoErr = s => { const t = cer.errorAtgo(s); return /sesión de ATGO ha caducado/.test(t) ? 'sesion' : /\(400\)/.test(t) ? '400' : /\(403\)/.test(t) ? '403' : 'otro'; };
 igual('errores ATGO: 400 con «fechaCaducidad» en el detalle no es sesión caducada', tipoErr('ATGO respondió 400: Bad Request · Failed to convert fechaCaducidad'), '400');
 igual('errores ATGO: 401, 403 y sin token', [tipoErr('ATGO respondió 401: Unauthorized'), tipoErr('ATGO respondió 403: Forbidden'), tipoErr('la sesión de ATGO ha caducado: vuelve a iniciar sesión')], ['sesion', '403', 'sesion']);
+
+// ---- Vacaciones: no disponible solo dentro de sus fechas ----
+const cvac = { perfilCfg: { nomina: { DSG: { vac: [{ d: '2026-10-20', h: '2026-10-24' }] }, ACAB: { baja: true } } } }; vm.createContext(cvac);
+vm.runInContext([extraer(app, 'function cleanInitials('), extraer(dia, 'function isoHoy('), extraer(app, 'function enBaja('), extraer(app, 'function vacacionesDe('), extraer(app, 'function noDisponible(')].join('\n'), cvac);
+igual('vacaciones: dentro, en los extremos y fuera de las fechas', [19, 20, 24, 25].map(d => cvac.noDisponible('DSG', new Date(2026, 9, d, 12))), [false, true, true, false]);
+igual('vacaciones: la baja cuenta siempre', cvac.noDisponible('ACAB', new Date(2026, 9, 1, 12)), true);
 
 // ---- Coherencia de configuración ----
 const vSyncA = (leer('atgo-sync.js').match(/SYNC_VERSION = '([\d.]+)'/) || [])[1], vSyncP = (app.match(/SYNC_VERSION = '([\d.]+)'/) || [])[1];

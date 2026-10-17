@@ -32,7 +32,7 @@ Publicada en GitHub Pages: https://angriogon.github.io/VISOR-INCIDENCIAS/
   que pueden atender una zona. Los técnicos fuera de ZONAS_BASE se agrupan en una zona con el nombre de su perfil (`perfilDeOp`).
   Selector de técnico único: `opcionesTecnico` (panel.js). Ventana de perfiles: `abrirPerfiles` (ajustes.js).
   Nómina (⚙ › Técnicos, `abrirNomina` en ajustes.js): altas, zona/DSP y bajas en `perfilCfg.nomina`; se aplica sobre `ZONAS_BASE`
-  al arrancar (`NOMINA`/`moverEnZonas` en app.js). Los de baja (`enBaja(op)`) no se proponen al asignar (recomendar, opcionesTecnico, zonasVisibles).
+  al arrancar (`NOMINA`/`moverEnZonas` en app.js). Los no disponibles (`noDisponible(op, fecha)` = baja o vacaciones `nomina[op].vac`) no salen en los paneles ni se proponen al asignar (recomendar, opcionesTecnico, zonasVisibles, render).
   A atgo-sync se manda `operarios` (perfil activo, lo que se sincroniza) y `permitidos` (todos, a quién se puede asignar).
 - **Persistencia:** `localStorage` con claves `dispatcher_<nombre>_v1`, siempre vía `lsGet`/`lsSet` (dia.js).
   Si añades datos nuevos, inclúyelos en `exportBackup`/`restoreBackup` (dia.js).

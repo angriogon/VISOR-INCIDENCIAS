@@ -3,13 +3,13 @@
 // asistente de inicio, diagnóstico, resumen matinal, aviso de técnico sin actividad y exportar a Excel.
 // Usa utilidades de app.js, dia.js, herramientas.js, edicion.js y panel.js solo en tiempo de llamada.
 
-const APP_VERSION = '1.25.1';   // súbela a la vez que VERSION en sw.js
+const APP_VERSION = '1.26.0';   // súbela a la vez que VERSION en sw.js
 const NOVEDADES = [
+  { v: '1.26.0', f: '2026-10-17', l: ['Vacaciones de técnicos (⚙ › Técnicos): pon las fechas y, mientras duren, el técnico desaparece de los paneles y no se propone al asignar; vuelve solo al terminar.', 'Los técnicos de baja tampoco salen en Incidencias ni en Planificación. Si les quedan incidencias, un aviso arriba las cuenta y permite verlas para reasignarlas.', 'Al asignar, aviso si el técnico está de vacaciones ese día; en Planificación sus días salen marcados.'] },
   { v: '1.25.1', f: '2026-10-17', l: ['Conflictos: dos citas a la misma hora en la misma sede (o la misma dirección) ya no se marcan como solape; en sedes distintas, sí.'] },
   { v: '1.25.0', f: '2026-10-16', l: ['Limpieza para la implantación: código y estilos sin uso retirados, datos antiguos borrados del navegador una sola vez y documentación al día.', 'Planificar en ATGO ya no tiene el modo «solo ticket de prueba» de cuando se estaba validando.'] },
   { v: '1.24.0', f: '2026-10-16', l: ['Perfil COORD con su propio panel de CONTROL: cifras de abiertas, sin asignar, caducadas, caducan hoy y en ruta hoy, de todos los DSP.', 'Dos listas: Pendientes de asignar y Caducadas · Caducan hoy · En ruta hoy, con filtros por DSP, cliente y búsqueda.', 'Excel de cada lista y «Informe completo» (resumen por DSP, por estado y una hoja por lista).', 'En COORD las pestañas son CONTROL · INCIDENCIAS · PLANIFICACIÓN; desde la ficha se puede reasignar.'] },
-  { v: '1.23.0', f: '2026-10-16', l: ['Asignar varias a la vez es mucho más rápido: se mandan todas de una vez y ATGO las guarda de 4 en 4 (antes, de una en una), cada una comprobada campo a campo.', 'Cada asignación se ve en Despacho en cuanto ATGO la confirma, y la lista completa se recarga una sola vez al final (antes, una recarga entera por cada ticket).', 'Recarga una vez la pestaña de ATGO (F5).'] },
-  { v: '1.22.3', f: '2026-10-13', l: ['Corregido: un rechazo de ATGO (error 400) se mostraba como «la sesión de ATGO ha caducado». Ahora se dice que ATGO no acepta el cambio y se muestra su motivo completo.', 'Recarga una vez la pestaña de ATGO (F5).'] }
+  { v: '1.23.0', f: '2026-10-16', l: ['Asignar varias a la vez es mucho más rápido: se mandan todas de una vez y ATGO las guarda de 4 en 4 (antes, de una en una), cada una comprobada campo a campo.', 'Cada asignación se ve en Despacho en cuanto ATGO la confirma, y la lista completa se recarga una sola vez al final (antes, una recarga entera por cada ticket).', 'Recarga una vez la pestaña de ATGO (F5).'] }
 ];
 // Resumen de lo más importante de las versiones anteriores a las 5 últimas (se ve en ⓘ › Anteriores)
 const ANTERIORES = [
@@ -214,6 +214,22 @@ function nomBaja(op, si) {
   const abiertas = rows.filter(r => r.operario === op).length;
   toast(si ? `${op} de baja: ya no se propone al asignar${abiertas ? ` · tiene ${plural(abiertas, 'incidencia')} abierta${abiertas === 1 ? '' : 's'}` : ''}` : `${op} activo de nuevo`);
 }
+// Vacaciones: se añaden con fecha de inicio y fin; los periodos ya pasados se borran solos
+function nomVacAnadir(op) {
+  const d = (document.getElementById('vd-' + op) || {}).value, h = (document.getElementById('vh-' + op) || {}).value;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(d || '') || !/^\d{4}-\d{2}-\d{2}$/.test(h || '')) { toast('Pon la fecha de inicio y la de fin'); return; }
+  if (h < d) { toast('La fecha de fin es anterior a la de inicio'); return; }
+  const n = nomDato(op); n.vac = [...(n.vac || []).filter(v => v.h >= isoHoy()), { d, h }].sort((a, b) => a.d < b.d ? -1 : 1);
+  guardarPerfiles(); renderNomina(); refreshVisible();
+  const fecha = x => x.slice(8) + '/' + x.slice(5, 7);
+  const vis = rows.filter(r => r.operario === op && esPresencial(r) && (() => { const f = parseEs(r.fVisita); return f && isoHoy(f) >= d && isoHoy(f) <= h; })()).length;
+  toast(`${op} de vacaciones del ${fecha(d)} al ${fecha(h)}${vis ? ` · tiene ${plural(vis, 'visita')} esos días: reasígnalas` : ''}`);
+}
+function nomVacQuitar(op, d, h) {
+  const n = nomDato(op); n.vac = (n.vac || []).filter(v => !(v.d === d && v.h === h)); if (!n.vac.length) delete n.vac;
+  if (!Object.keys(n).length) delete perfilCfg.nomina[op];
+  guardarPerfiles(); renderNomina(); refreshVisible();
+}
 function abrirNomina() {
   const cfg = document.getElementById('cfgMenu'); if (cfg) cfg.hidden = true;
   const m = document.getElementById('modal');
@@ -224,19 +240,20 @@ function renderNomina() {
   const box = document.getElementById('nomBox'); if (!box) return;
   const nom = nombresTecnicos(), q = nomBusca.trim().toUpperCase();
   const atgoBaja = {}; rows.forEach(r => { if (/\bBAJA\b/i.test(r.desOperario || '')) atgoBaja[r.operario] = 1; });   // ATGO pone «BAJA» en el nombre
-  const todos = nomTodos().map(op => ({ op, nombre: nom[op] || (perfilCfg.nomina[op] || {}).n || '', zona: nomZona(op), dsp: nomDsp(op), baja: enBaja(op), abiertas: rows.filter(r => r.operario === op).length, n: perfilCfg.nomina[op] || {} }));
-  const l = todos.filter(t => (!q || (t.op + ' ' + t.nombre + ' ' + t.zona).toUpperCase().includes(q)) && (!nomFiltro || (nomFiltro === 'BAJA' ? t.baja : t.dsp === nomFiltro)))
+  const todos = nomTodos().map(op => ({ op, nombre: nom[op] || (perfilCfg.nomina[op] || {}).n || '', zona: nomZona(op), dsp: nomDsp(op), baja: enBaja(op), vac: ((perfilCfg.nomina[op] || {}).vac || []).filter(v => v.h >= isoHoy()), vacHoy: vacacionesDe(op), abiertas: rows.filter(r => r.operario === op).length, n: perfilCfg.nomina[op] || {} }));
+  const l = todos.filter(t => (!q || (t.op + ' ' + t.nombre + ' ' + t.zona).toUpperCase().includes(q)) && (!nomFiltro || (nomFiltro === 'BAJA' ? t.baja || t.vacHoy : t.dsp === nomFiltro)))
     .sort((a, b) => (PERFILES.indexOf(a.dsp) - PERFILES.indexOf(b.dsp)) || a.zona.localeCompare(b.zona) || a.op.localeCompare(b.op));
-  const bajas = todos.filter(t => t.baja).length;
-  const fila = t => `<tr class="${t.baja ? 'nm-baja' : ''}">
+  const bajas = todos.filter(t => t.baja || t.vacHoy).length;
+  const fila = t => `<tr class="${t.baja ? 'nm-baja' : t.vacHoy ? 'nm-vac-hoy' : ''}">
       <td><b class="mono">${esc(t.op)}</b>${t.n.alta ? ' <span class="nm-tag" title="Dado de alta por ti">alta</span>' : ''}${t.nombre ? `<small>${esc(t.nombre)}</small>` : ''}</td>
       <td><select aria-label="Zona de ${esc(t.op)}" onchange="nomCambiarZona('${jsq(t.op)}',this.value)">${t.zona ? '' : t.dsp ? '' : '<option value="">Sin zona…</option>'}${nomOpciones(t.zona || (t.dsp ? '@' + t.dsp : ''))}</select></td>
       <td class="nm-perf">${esc(PERFILES.filter(p => perfilCfg.tecs[p].includes(t.op)).join(' · ') || '—')}</td>
       <td>${t.abiertas ? plural(t.abiertas, 'abierta') : '<span class="dim">—</span>'}${!t.baja && atgoBaja[t.op] ? '<br><small class="nm-aviso">ATGO lo marca de baja</small>' : ''}</td>
-      <td><button class="nm-est ${t.baja ? 'off' : 'on'}" onclick="nomBaja('${jsq(t.op)}',${!t.baja})" aria-pressed="${t.baja}" title="${t.baja ? 'Volver a activo' : 'Marcar de baja: no se propone al asignar'}">${t.baja ? 'De baja' : 'Activo'}</button></td>
+      <td><button class="nm-est ${t.baja ? 'off' : 'on'}" onclick="nomBaja('${jsq(t.op)}',${!t.baja})" aria-pressed="${t.baja}" title="${t.baja ? 'Volver a activo' : 'Marcar de baja: no se propone al asignar'}">${t.baja ? 'De baja' : t.vacHoy ? 'De vacaciones' : 'Activo'}</button>
+        <details class="nm-vac"${t.vac.length ? ' open' : ''}><summary>🏖 Vacaciones${t.vac.length ? ' (' + t.vac.length + ')' : ''}</summary>${t.vac.map(v => `<span class="nm-vac-p">${esc(v.d.slice(8) + '/' + v.d.slice(5, 7))}–${esc(v.h.slice(8) + '/' + v.h.slice(5, 7))}<button onclick="nomVacQuitar('${jsq(t.op)}','${v.d}','${v.h}')" aria-label="Quitar vacaciones">×</button></span>`).join('')}<span class="nm-vac-n"><input type="date" id="vd-${esc(t.op)}" aria-label="Inicio de vacaciones de ${esc(t.op)}"><input type="date" id="vh-${esc(t.op)}" aria-label="Fin de vacaciones de ${esc(t.op)}"><button class="btn sm" onclick="nomVacAnadir('${jsq(t.op)}')">Añadir</button></span></details></td>
       <td>${t.n.alta ? `<button class="iconbtn sm" onclick="nomQuitar('${jsq(t.op)}')" aria-label="Quitar ${esc(t.op)} de la nómina" title="Quitar de la nómina">×</button>` : ''}</td></tr>`;
   box.innerHTML = `
-    <div class="dw-head"><div><div class="dw-num" style="color:var(--ink)">Técnicos (nómina)</div><div class="dw-sub">Da de alta técnicos, cambia su zona o DSP y marca las bajas. Los de baja no se proponen al asignar, pero sus incidencias se siguen viendo.</div></div>
+    <div class="dw-head"><div><div class="dw-num" style="color:var(--ink)">Técnicos (nómina)</div><div class="dw-sub">Da de alta técnicos, cambia su zona o DSP, marca las bajas y pon sus vacaciones. Mientras esté de baja o de vacaciones, el técnico no sale en los paneles ni se propone al asignar; sus incidencias se avisan en Incidencias para reasignarlas.</div></div>
       <button class="iconbtn" onclick="cerrarModal()" aria-label="Cerrar">✕</button></div>
     <fieldset class="nm-alta"><legend>Dar de alta</legend>
       <input id="nomCod" placeholder="Código ATGO (p. ej. RUFB)" aria-label="Código del técnico en ATGO" maxlength="12" onkeydown="if(event.key==='Enter')nomAlta()">
@@ -245,7 +262,7 @@ function renderNomina() {
       <button class="btn sm pri" onclick="nomAlta()">Dar de alta</button></fieldset>
     <div class="nm-filtros">
       <input type="search" placeholder="Buscar código, nombre o zona" aria-label="Buscar técnico" value="${esc(nomBusca)}" oninput="nomBusca=this.value;renderNomina()" id="nomQ">
-      <span class="seg mini">${[['', 'Todos'], ...PERFILES.filter(p => p !== 'COORD').map(p => [p, p]), ['BAJA', `De baja${bajas ? ' (' + bajas + ')' : ''}`]].map(([v, t]) => `<button class="segb${nomFiltro === v ? ' on' : ''}" onclick="nomFiltro='${v}';renderNomina()" aria-pressed="${nomFiltro === v}">${t}</button>`).join('')}</span>
+      <span class="seg mini">${[['', 'Todos'], ...PERFILES.filter(p => p !== 'COORD').map(p => [p, p]), ['BAJA', `No disponibles${bajas ? ' (' + bajas + ')' : ''}`]].map(([v, t]) => `<button class="segb${nomFiltro === v ? ' on' : ''}" onclick="nomFiltro='${v}';renderNomina()" aria-pressed="${nomFiltro === v}">${t}</button>`).join('')}</span>
       <span class="dim">${plural(l.length, 'técnico')}</span></div>
     <div class="nm-tabla"><table><thead><tr><th scope="col">Técnico</th><th scope="col">Zona / DSP</th><th scope="col">Perfiles</th><th scope="col">Incidencias</th><th scope="col">Estado</th><th scope="col"><span class="sr">Quitar</span></th></tr></thead>
       <tbody>${l.map(fila).join('') || '<tr><td colspan="6" class="dempty">Ningún técnico con ese filtro.</td></tr>'}</tbody></table></div>

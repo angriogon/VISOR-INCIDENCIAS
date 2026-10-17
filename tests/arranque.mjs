@@ -91,6 +91,12 @@ try {
     out.sede = sedeOtras('2026/00/3', rows.find(r => r.key === '2026/00/3')).length;
     // Nómina: baja (sale del selector), apariencia y modo accesible
     abrirNomina(); out.nomina = document.querySelectorAll('#nomBox tbody tr').length;
+    // Vacaciones desde hoy: fuera de Incidencias y Planificación, con aviso, y no se propone
+    { const hoy = isoHoy(); document.getElementById('vd-DSG').value = hoy; document.getElementById('vh-DSG').value = hoy; nomVacAnadir('DSG');
+      showTab('inc'); const sinDsg = !document.querySelector('#groupsPanel .tg[data-op="DSG"]'), aviso = /DSG de vacaciones/.test((document.querySelector('.aus-aviso') || {}).textContent || '');
+      showTab('sem'); const semSin = !zonasVisibles().some(z => z.ops.includes('DSG'));
+      out.vacaciones = sinDsg && aviso && semSin && !/value="DSG"/.test(opcionesTecnico([], '', true));
+      perfilCfg.nomina.DSG.vac = []; guardarPerfiles(); abrirNomina(); }
     nomBaja('ACAB', true); out.bajaSelector = !/value="ACAB"/.test(opcionesTecnico([], '', true)); nomBaja('ACAB', false); cerrarModal();
     setPref('acento', 'atgo'); out.acento = getComputedStyle(document.documentElement).getPropertyValue('--acento').trim();
     modoAccesible(true); out.accesible = document.documentElement.classList.contains('acc-contraste') && document.body.style.zoom === '1.15';
@@ -108,7 +114,7 @@ try {
     out.errores = diagLista().map(d => d.msg);
     return out;
   }, payload);
-  const esperado = { lote: 'despacho-editar-lote:3 · 3 · true', nomina: 69, bajaSelector: true, acento: '#0b8ad6', accesible: true, amplia: true, novedades: 6, sinNombre: 0, festivo: 'Fiesta Nacional', proxLab: '2026-10-13', viernesSanto: 'Viernes Santo', rellenar: true, contacto: true, sede: 4, misCambios: 1, sinCerrar: 1, olvidada: true, botonMisCambios: true, zonasDsp1: true, zonasDsp2: 0, ordenSin: '93,91,92', filtroDsp: 'DSP1', perfilDSP2: 16, perfilDSP5: 5, selectorCorto: true, selectorTodos: 70, filas: 6, sinAsignar: 1, avisoVersion: 'atgo', enCurso: 'c', marcadas: 1, buscador: true, duracion: true };
+  const esperado = { vacaciones: true, lote: 'despacho-editar-lote:3 · 3 · true', nomina: 69, bajaSelector: true, acento: '#0b8ad6', accesible: true, amplia: true, novedades: 6, sinNombre: 0, festivo: 'Fiesta Nacional', proxLab: '2026-10-13', viernesSanto: 'Viernes Santo', rellenar: true, contacto: true, sede: 4, misCambios: 1, sinCerrar: 1, olvidada: true, botonMisCambios: true, zonasDsp1: true, zonasDsp2: 0, ordenSin: '93,91,92', filtroDsp: 'DSP1', perfilDSP2: 16, perfilDSP5: 5, selectorCorto: true, selectorTodos: 70, filas: 6, sinAsignar: 1, avisoVersion: 'atgo', enCurso: 'c', marcadas: 1, buscador: true, duracion: true };
   for (const [k, v] of Object.entries(esperado)) if (r[k] !== v) errores.push(`${k}: esperado ${JSON.stringify(v)}, obtenido ${JSON.stringify(r[k])}`);
   for (const t of ['dia', 'sin', 'inc', 'sem', 'man']) if (!r['vista_' + t]) errores.push('La vista ' + t + ' está vacía');
   r.errores.forEach(e => errores.push('Diagnóstico: ' + e));

@@ -75,6 +75,12 @@ let perfilCfg = (() => {
 })();
 // Técnicos de baja (⚙ › Técnicos): siguen sincronizándose (por si les quedan incidencias), pero no se proponen para asignar
 function enBaja(op){ const n = perfilCfg.nomina[cleanInitials(op)]; return !!(n && n.baja); }
+// Vacaciones (⚙ › Técnicos): periodos { d, h } en ISO, ambos días incluidos. Mientras dura uno, el técnico no está disponible.
+function vacacionesDe(op, d){ const n = perfilCfg.nomina[cleanInitials(op)], iso = isoHoy(d || new Date()); return (n && Array.isArray(n.vac) ? n.vac : []).find(v => v.d <= iso && iso <= v.h) || null; }
+// No disponible = de baja o de vacaciones ese día (hoy si no se indica): no sale en los paneles ni se propone al asignar
+function noDisponible(op, d){ return enBaja(op) || !!vacacionesDe(op, d); }
+function ausenciaTexto(op, d){ if (enBaja(op)) return 'de baja'; const v = vacacionesDe(op, d); return v ? 'de vacaciones hasta el ' + v.h.slice(8) + '/' + v.h.slice(5, 7) : ''; }
+let verAusentes = false;   // Incidencias: mostrar también a los no disponibles que aún tienen incidencias
 const PERFIL = perfilCfg.activo;
 // Todos los técnicos conocidos (de cualquier perfil): se puede asignar a cualquiera desde cualquier perfil
 const TODOS_OPS = [...new Set([...BASE_OPS, ...PERFILES.flatMap(p => perfilCfg.tecs[p])])];
@@ -303,8 +309,8 @@ function zonaEnDsp(nombre){ if (!filtroInc.dsp) return true; const z = ZONAS_BAS
 function zonasVisibles(){
   let z = zonaSel ? ZONAS_TEC.filter(x => x.nombre === zonaSel) : ZONAS_TEC;
   if (filtroInc.dsp){ const l = perfilCfg.tecs[filtroInc.dsp] || []; z = z.map(x => ({ ...x, ops: x.ops.filter(op => l.includes(op)) })).filter(x => x.ops.length); }
-  // De baja: solo se ven si aún tienen incidencias (para reasignarlas)
-  if (Object.keys(perfilCfg.nomina).length) z = z.map(x => ({ ...x, ops: x.ops.filter(op => !enBaja(op) || rows.some(r => r.operario === op)) })).filter(x => x.ops.length);
+  // De baja o de vacaciones hoy: no salen (sus incidencias se avisan en Incidencias para reasignarlas)
+  if (Object.keys(perfilCfg.nomina).length) z = z.map(x => ({ ...x, ops: x.ops.filter(op => !noDisponible(op)) })).filter(x => x.ops.length);
   return z;
 }
 function dspChipsHtml(alCambiar){
@@ -497,12 +503,15 @@ function render(){
 
   const byOp = {}; data.forEach(r => { (byOp[r.operario] = byOp[r.operario] || []).push(r); });
   const rutaOp = {}; rutaZona.filter(x => !filtroActivo() || (!x.salio && pasaFiltro(x.r))).forEach(x => { (rutaOp[x.op] = rutaOp[x.op] || []).push(x); });
-  const ops = [...new Set([...Object.keys(byOp), ...Object.keys(rutaOp)])];
+  const todosOps = [...new Set([...Object.keys(byOp), ...Object.keys(rutaOp)])];
+  const ausentes = todosOps.filter(op => noDisponible(op) && !ZONAS.some(z => z.dispatcher && z.ops.includes(op)));
+  const ops = verAusentes ? todosOps : todosOps.filter(op => !ausentes.includes(op));
+  const ausHtml = ausentes.length ? `<div class="aus-aviso">🏖 <span>${plural(ausentes.length, 'técnico')} no disponible${ausentes.length === 1 ? '' : 's'} (${esc(ausentes.map(op => op + ' ' + ausenciaTexto(op)).join(' · '))}) con ${plural(ausentes.reduce((n, op) => n + (byOp[op] || []).length, 0), 'incidencia')} por reasignar</span><button class="btn sm" onclick="verAusentes=!verAusentes;render()">${verAusentes ? 'Ocultarlos' : 'Ver sus incidencias'}</button></div>` : '';
   renderedOps = ops;
   updToggle();
   if (!ops.length){ panel.innerHTML = `<div class="empty"><h2>Nada con este filtro</h2>${filtroActivo() || zonaSel ? `<div class="acts" style="justify-content:center;margin-top:10px"><button class="btn" onclick="filtroInc={est:'',cad:false,q:''};zonaSel=null;renderFilters();render()">Quitar filtros</button></div>` : '<div>Este perfil no tiene incidencias abiertas ahora mismo.</div>'}</div>`; return; }
 
-  panel.innerHTML = ZONAS.map(z => {
+  panel.innerHTML = ausHtml + ZONAS.map(z => {
     const zops = ops.filter(op => zonaDe(op) === z.nombre).sort((a, b) => opIndex(a) - opIndex(b));
     if (!zops.length) return '';
     const zr = zops.flatMap(op => rutaOp[op] || []);
@@ -526,7 +535,7 @@ function tecRow(op, items, ruta, esDisp){
   return `<div class="tg${isCol(op) ? ' collapsed' : ''}" data-op="${esc(op)}">
     <div class="tg-h" onclick="toggleGroup('${jsq(op)}')">
       <div class="av" style="--c:${colorTec(op)}">${esc(op)}</div>
-      <div class="tg-n"><b>${esc(op)}${enBaja(op) ? ' <span class="baja-tag" title="De baja (⚙ › Técnicos): reasigna sus incidencias">BAJA</span>' : ''}</b><span>${esc(nombreTecnico(ref) || zonaDe(op))}</span></div>
+      <div class="tg-n"><b>${esc(op)}${noDisponible(op) ? ` <span class="baja-tag" title="${esc(ausenciaTexto(op))} (⚙ › Técnicos): reasigna sus incidencias">${enBaja(op) ? 'BAJA' : 'VACACIONES'}</span>` : ''}</b><span>${esc(nombreTecnico(ref) || zonaDe(op))}</span></div>
       <div class="tg-m">
         ${esDisp ? '<span class="tg-none">Pendientes de asignar</span>'
           : tot ? `<div class="pbar"><i class="d" style="width:${pc(d)}%"></i><i class="t" style="width:${pc(t)}%"></i><i class="c" style="width:${pc(c)}%"></i></div>`
