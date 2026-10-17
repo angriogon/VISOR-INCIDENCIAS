@@ -80,9 +80,9 @@ La semana por técnico y día (cada zona se pliega pulsando su nombre; los icono
 - **Clic en un día:** su detalle, con **WhatsApp** de la ruta a cada técnico («Enviar todas las rutas»), **Correos del día** y **Mapa** con las rutas, los km y los minutos entre visitas. El mapa abre al momento: las direcciones de la semana se sitúan antes, en segundo plano, y las que falten aparecen solas.
 
 ### Control (perfil COORD)
-- **Cinco cifras** que se pueden pulsar: **Abiertas** (el bloque total), **Sin asignar**, **Caducadas**, **Caducan hoy** (sin las de FUERA DE MANTENIMIENTO, que no tienen SLA) y **En ruta hoy** (hechas/total y retrasos).
+- **Cinco cifras** que se pueden pulsar: **Presencial** (con el total de abiertas debajo), **Sin asignar**, **Caducadas**, **Caducan hoy** (sin las de FUERA DE MANTENIMIENTO, que no tienen SLA) y **En ruta hoy** (hechas/total y retrasos).
 - **Filtros:** DSP, cliente y búsqueda.
-- **Dos listas:** *Pendientes de asignar* (caducidad, zona y tiempo esperando) y *Caducadas · Caducan hoy · En ruta hoy*.
+- **Dos listas:** *Pendientes de asignar* (caducidad, zona y tiempo esperando) y *Presencial · Caducadas · Caducan hoy · En ruta hoy · Todas*. Pulsar una cifra abre su lista ahí mismo, y elegir un cliente muestra todas sus incidencias abiertas, también las asignadas.
 - **Excel de cada lista** e **Informe completo**: un Excel con un resumen por DSP, el desglose por estado y una hoja por lista, respetando los filtros puestos.
 - Al pulsar una incidencia se abre su ficha, desde donde se puede reasignar.
 

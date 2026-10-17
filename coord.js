@@ -4,7 +4,7 @@
 // Solo se ve con el perfil COORD (pestaña CONTROL). Se puede reasignar desde la ficha, Incidencias o Planificación.
 // Usa utilidades de los demás archivos solo en tiempo de llamada.
 
-const CTL_VISTAS = [['cad', 'Caducadas'], ['hoy', 'Caducan hoy'], ['ruta', 'En ruta hoy']];
+const CTL_VISTAS = [['pres', 'Presencial'], ['cad', 'Caducadas'], ['hoy', 'Caducan hoy'], ['ruta', 'En ruta hoy'], ['todas', 'Todas']];
 let ctl = { vista: 'cad', dsp: '', cli: '', q: '' };
 function esCoord() { return PERFIL === 'COORD'; }
 
@@ -25,7 +25,8 @@ function ctlListas() {
   const ahora = Date.now(), hoy = isoHoy(), todas = todasAbiertas(), cad = [], hoyL = [];
   todas.forEach(r => { if (sinSla(r)) return; const c = caducidad(r); if (!c) return; if (c.ts < ahora) cad.push(r); else if (isoHoy(new Date(c.ts)) === hoy) hoyL.push(r); });
   const porCad = (a, b) => (caducidad(a) || { ts: 0 }).ts - (caducidad(b) || { ts: 0 }).ts;
-  return { todas, pend: sinListas().pend, cad: cad.sort(porCad), hoy: hoyL.sort(porCad), ruta: rutaHoy().sort((a, b) => horaMin(a.r.desdeHora) - horaMin(b.r.desdeHora)) };
+  const porCadF = (a, b) => ((caducidad(a) || { ts: 9e15 }).ts - (caducidad(b) || { ts: 9e15 }).ts);
+  return { todas: todas.slice().sort(porCadF), pres: todas.filter(esPresencial).sort(porCadF), pend: sinListas().pend, cad: cad.sort(porCad), hoy: hoyL.sort(porCad), ruta: rutaHoy().sort((a, b) => horaMin(a.r.desdeHora) - horaMin(b.r.desdeHora)) };
 }
 function ctlPasa(r) {
   if (ctl.dsp && dspTicket(r) !== ctl.dsp) return false;
@@ -35,9 +36,9 @@ function ctlPasa(r) {
 }
 function ctlFiltradas() {
   const L = ctlListas();
-  return { todas: L.todas.filter(ctlPasa), pend: L.pend.filter(ctlPasa), cad: L.cad.filter(ctlPasa), hoy: L.hoy.filter(ctlPasa), ruta: L.ruta.filter(x => ctlPasa(x.r)), clientes: L.todas };
+  return { todas: L.todas.filter(ctlPasa), pres: L.pres.filter(ctlPasa), pend: L.pend.filter(ctlPasa), cad: L.cad.filter(ctlPasa), hoy: L.hoy.filter(ctlPasa), ruta: L.ruta.filter(x => ctlPasa(x.r)), clientes: L.todas };
 }
-function ctlSet(k, v) { ctl[k] = v; renderControl(); }
+function ctlSet(k, v) { ctl[k] = v; if (k === 'cli' && v) ctl.vista = 'todas'; renderControl(); }
 
 // ---- Filas ----
 function fechaCorta(ts) { return new Date(ts).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' }) + ' ' + hhmm(ts); }
@@ -76,15 +77,15 @@ function renderControl() {
   const F = ctlFiltradas(), L = ctlListas();
   const hechas = F.ruta.filter(x => x.st === 'd').length;
   const clientes = Object.entries(L.todas.reduce((m, r) => { const c = r.descCliente || ''; if (c) m[c] = (m[c] || 0) + 1; return m; }, {})).sort((a, b) => b[1] - a[1]);
-  const kpi = (id, n, t, sub, cls) => `<button class="ctl-kpi ${cls || ''}${ctl.vista === id ? ' on' : ''}" onclick="${id === 'pend' ? "document.getElementById('ctlPend').scrollIntoView({behavior:'smooth',block:'start'})" : id === 'todas' ? "showTab('inc')" : `ctlSet('vista','${id}')`}"><b>${n}</b><span>${t}</span>${sub ? `<small>${sub}</small>` : ''}</button>`;
+  const kpi = (id, n, t, sub, cls) => `<button class="ctl-kpi ${cls || ''}${ctl.vista === id ? ' on' : ''}" onclick="${id === 'pend' ? "document.getElementById('ctlPend').scrollIntoView({behavior:'smooth',block:'start'})" : `ctlSet('vista','${id}')`}"><b>${n}</b><span>${t}</span>${sub ? `<small>${sub}</small>` : ''}</button>`;
   const vista = ctl.vista;
   const lista = vista === 'ruta' ? ctlTabla(['Hora', 'Situación', 'Nº', 'Cliente · sede', 'Técnico', 'DSP'], F.ruta.map(ctlFilaRuta), 'Nadie en ruta hoy con estos filtros.')
-    : ctlTabla(['Nº', 'Caducidad', 'Cliente · sede', 'Técnico', 'DSP', 'Estado'], (vista === 'cad' ? F.cad : F.hoy).map(ctlFila), vista === 'cad' ? 'Ninguna caducada con estos filtros. 👍' : 'Ninguna caduca hoy con estos filtros.');
+    : ctlTabla(['Nº', 'Caducidad', 'Cliente · sede', 'Técnico', 'DSP', 'Estado'], (F[vista] || F.cad).map(ctlFila), { cad: 'Ninguna caducada con estos filtros. 👍', hoy: 'Ninguna caduca hoy con estos filtros.', pres: 'Ninguna en PRESENCIAL con estos filtros.', todas: 'Ninguna incidencia abierta con estos filtros.' }[vista] || 'Nada con estos filtros.');
   root.innerHTML = `
     <div class="ctl-cab"><div><h2>Control</h2><span>${esc(diaLargo(new Date()))} · todos los DSP${syncUltima ? ' · ATGO ' + esc(hhmm(syncUltima)) : ''}</span></div>
       <button class="btn pri" onclick="ctlInforme()" title="Un Excel con el resumen por DSP y una hoja por lista (con los filtros puestos)">↓ Informe completo (Excel)</button></div>
     <div class="ctl-kpis">
-      ${kpi('todas', F.todas.length, 'Abiertas', 'el bloque total')}
+      ${kpi('pres', F.pres.length, 'Presencial', `de ${F.todas.length} abiertas en total`)}
       ${kpi('pend', F.pend.length, 'Sin asignar', '', F.pend.length ? 'warn' : '')}
       ${kpi('cad', F.cad.length, 'Caducadas', 'sin fuera de mantenimiento', F.cad.length ? 'mal' : 'bien')}
       ${kpi('hoy', F.hoy.length, 'Caducan hoy', 'sin fuera de mantenimiento', F.hoy.length ? 'warn' : '')}
@@ -102,7 +103,7 @@ function renderControl() {
         ${ctlTabla(['Nº', 'Caducidad', 'Cliente · sede', 'Zona · DSP', 'Esperando'], F.pend.map(ctlFilaPend), 'Nada pendiente de asignar con estos filtros. 👍')}
       </section>
       <section class="ctl-card">
-        <div class="ctl-card-h"><span class="seg" role="tablist">${CTL_VISTAS.map(([v, t]) => `<button class="segb${vista === v ? ' on' : ''}" role="tab" aria-selected="${vista === v}" onclick="ctlSet('vista','${v}')">${t} <small>${v === 'cad' ? F.cad.length : v === 'hoy' ? F.hoy.length : F.ruta.length}</small></button>`).join('')}</span>
+        <div class="ctl-card-h"><span class="seg" role="tablist">${CTL_VISTAS.map(([v, t]) => `<button class="segb${vista === v ? ' on' : ''}" role="tab" aria-selected="${vista === v}" onclick="ctlSet('vista','${v}')">${t} <small>${v === 'ruta' ? F.ruta.length : v !== 'cad' && v !== 'hoy' ? F[v].length : v === 'cad' ? F.cad.length : v === 'hoy' ? F.hoy.length : F.ruta.length}</small></button>`).join('')}</span>
           <button class="btn sm" onclick="ctlExcel('${vista}')">↓ Excel</button></div>
         ${lista}
       </section>
@@ -122,7 +123,7 @@ function ctlHoja(que, F) {
   if (que === 'ruta') return F.ruta.map(x => ({ Hora: x.r.desdeHora, Hasta: x.r.hastaHora, Situación: x.label || ST_LAB[x.st], Retraso: x.late ? 'Sí' : '', ...ctlFilaExcel(x.r) }));
   return (F[que] || []).map(ctlFilaExcel);
 }
-const CTL_NOMBRES = { pend: 'Pendientes de asignar', cad: 'Caducadas', hoy: 'Caducan hoy', ruta: 'En ruta hoy', todas: 'Abiertas' };
+const CTL_NOMBRES = { pres: 'Presencial', pend: 'Pendientes de asignar', cad: 'Caducadas', hoy: 'Caducan hoy', ruta: 'En ruta hoy', todas: 'Todas abiertas' };
 function ctlArchivo(nombre) { const d = new Date(); return `despacho-COORD-${nombre}-${isoHoy()}-${String(d.getHours()).padStart(2, '0')}${String(d.getMinutes()).padStart(2, '0')}${ctl.dsp ? '-' + ctl.dsp : ''}.xlsx`; }
 function ctlAnchos(ws, datos) { if (datos.length) ws['!cols'] = Object.keys(datos[0]).map(k => ({ wch: Math.min(50, Math.max(k.length, ...datos.slice(0, 200).map(x => String(x[k] == null ? '' : x[k]).length)) + 2) })); }
 async function ctlExcel(que) {
@@ -140,7 +141,7 @@ async function ctlInforme() {
   const F = ctlFiltradas(), wb = XLSX.utils.book_new();
   const dsps = [...PERFILES.filter(p => p !== 'COORD'), '—'];
   const cuenta = (l, p, f) => l.filter(x => dspTicket(x.r || x) === p && (!f || f(x))).length;
-  const resumen = dsps.map(p => ({ DSP: p === '—' ? 'Sin DSP' : p, Abiertas: cuenta(F.todas, p), 'Sin asignar': cuenta(F.pend, p), Caducadas: cuenta(F.cad, p), 'Caducan hoy': cuenta(F.hoy, p), 'En ruta hoy': cuenta(F.ruta, p), 'Hechas hoy': cuenta(F.ruta, p, x => x.st === 'd'), 'Con retraso': cuenta(F.ruta, p, x => x.late) })).filter(x => x.Abiertas || x['Sin asignar'] || x['En ruta hoy']);
+  const resumen = dsps.map(p => ({ DSP: p === '—' ? 'Sin DSP' : p, Abiertas: cuenta(F.todas, p), Presencial: cuenta(F.pres, p), 'Sin asignar': cuenta(F.pend, p), Caducadas: cuenta(F.cad, p), 'Caducan hoy': cuenta(F.hoy, p), 'En ruta hoy': cuenta(F.ruta, p), 'Hechas hoy': cuenta(F.ruta, p, x => x.st === 'd'), 'Con retraso': cuenta(F.ruta, p, x => x.late) })).filter(x => x.Abiertas || x['Sin asignar'] || x['En ruta hoy']);
   const tot = { DSP: 'TOTAL' }; Object.keys(resumen[0] || { Abiertas: 0 }).filter(k => k !== 'DSP').forEach(k => tot[k] = resumen.reduce((s, x) => s + x[k], 0)); resumen.push(tot);
   const filtros = [ctl.dsp && 'DSP ' + ctl.dsp, ctl.cli && 'Cliente ' + ctl.cli, ctl.q && 'Búsqueda «' + ctl.q + '»'].filter(Boolean).join(' · ') || 'sin filtros';
   const ws0 = XLSX.utils.json_to_sheet(resumen); XLSX.utils.sheet_add_aoa(ws0, [[], [`Informe de control · ${new Date().toLocaleString('es-ES')} · ${filtros}`]], { origin: -1 }); ctlAnchos(ws0, resumen);
@@ -148,7 +149,7 @@ async function ctlInforme() {
   // Por estado: el bloque total desglosado
   const est = Object.entries(F.todas.reduce((m, r) => { m[r.estado || '—'] = (m[r.estado || '—'] || 0) + 1; return m; }, {})).sort((a, b) => b[1] - a[1]).map(([e, n]) => ({ Estado: e, Incidencias: n }));
   if (est.length) { const w = XLSX.utils.json_to_sheet(est); ctlAnchos(w, est); XLSX.utils.book_append_sheet(wb, w, 'Por estado'); }
-  ['pend', 'cad', 'hoy', 'ruta', 'todas'].forEach(q => { const d = ctlHoja(q, F); const w = XLSX.utils.json_to_sheet(d.length ? d : [{ 'Nº': 'Ninguna' }]); ctlAnchos(w, d); XLSX.utils.book_append_sheet(wb, w, CTL_NOMBRES[q].slice(0, 31)); });
+  ['pres', 'pend', 'cad', 'hoy', 'ruta', 'todas'].forEach(q => { const d = ctlHoja(q, F); const w = XLSX.utils.json_to_sheet(d.length ? d : [{ 'Nº': 'Ninguna' }]); ctlAnchos(w, d); XLSX.utils.book_append_sheet(wb, w, CTL_NOMBRES[q].slice(0, 31)); });
   XLSX.writeFile(wb, ctlArchivo('informe'));
   toast('Informe de control descargado');
 }

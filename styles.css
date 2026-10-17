@@ -811,3 +811,4 @@
   .sg-cell.zs{background:var(--panel2); border:1px dashed var(--line);}
   .sem-plg{display:inline-flex; gap:4px; margin-right:4px;}
   button.sg-zona .pl-chev{font-size:13px; width:14px; color:var(--ink-dim);}
+  .ctl-card-h .seg{flex-wrap:wrap;}

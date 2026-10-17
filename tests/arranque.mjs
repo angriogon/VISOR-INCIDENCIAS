@@ -137,7 +137,7 @@ try {
       for (const d of dspsDelPerfil()) { filtroInc.dsp = d; showTab('sem'); showTab('sin'); showTab('inc'); await paso(30); }
       filtroInc.dsp = ''; abrirPerfiles(); cerrarModal(); abrirMisCambios(); cerrarModal(); abrirSinCerrar(); cerrarModal();
       // COORD abre CONTROL (Mi día y Sin asignar no aplican); cada filtro de DSP y cada lista se pintan sin errores
-      if (esCoord()) { showTab('ctl'); for (const v of ['cad', 'hoy', 'ruta']) for (const d of ['', 'DSP1', 'DSP2']) { ctl.dsp = d; ctlSet('vista', v); } ctl.dsp = ''; o.ctlKpis = document.querySelectorAll('#viewCtl .ctl-kpi').length; o.ctlPend = !!document.getElementById('ctlPend'); }
+      if (esCoord()) { showTab('ctl'); for (const v of ['pres', 'cad', 'hoy', 'ruta', 'todas']) for (const d of ['', 'DSP1', 'DSP2']) { ctl.dsp = d; ctlSet('vista', v); } ctl.dsp = ''; o.ctlKpis = document.querySelectorAll('#viewCtl .ctl-kpi').length; o.ctlPend = !!document.getElementById('ctlPend'); const c1 = (rows.find(r => r.descCliente && !/^XXX/.test(r.operario)) || {}).descCliente; if (c1) { ctlSet('cli', c1); o.ctlCliente = ctl.vista === 'todas' && document.querySelectorAll('#viewCtl .ctl-cols section:last-child tbody tr').length === ctlFiltradas().todas.length && ctlFiltradas().todas.length > 0; ctlSet('cli', ''); } }
       o.semVacia = /no tiene técnicos/.test((showTab('sem'), document.getElementById('viewSem').innerText));
       o.errores = diagLista().map(d => d.msg); return o;
     });
@@ -146,7 +146,7 @@ try {
     return x;
   };
   const coord = await escenario('COORD', { activo: 'COORD', matriz1: true, tecs: {} });
-  if (coord.perfil !== 'COORD' || coord.dsps !== 5 || coord.ctlKpis !== 5 || !coord.ctlPend || coord.inicio !== '#ctl') errores.push('COORD: ' + JSON.stringify(coord));
+  if (coord.perfil !== 'COORD' || coord.dsps !== 5 || coord.ctlKpis !== 5 || !coord.ctlPend || coord.ctlCliente === false || coord.inicio !== '#ctl') errores.push('COORD: ' + JSON.stringify(coord));
   const vacio = await escenario('Perfil vacío', { activo: 'DSP5', matriz1: true, tecs: { DSP1: [], DSP2: [], DSP3: [], DSP4: [], DSP5: [], COORD: [] } });
   if (vacio.perfil !== 'DSP5' || !vacio.semVacia) errores.push('Perfil vacío: ' + JSON.stringify(vacio));
   // Abrir la app directamente en cada pestaña (al arrancar, algunas funciones de ajustes.js aún no existen)
