@@ -17,10 +17,13 @@ function todasAbiertas() {
   const m = new Map(); [...rows, ...poolRows].forEach(r => { if (!esCierre(r.estado)) m.set(tkey(r), r); });
   return [...m.values()];
 }
+// Estados sin SLA: FUERA DE MANTENIMIENTO son peticiones de clientes; su caducidad no cuenta (ni caducadas ni caducan hoy)
+const ESTADOS_SIN_SLA = ['FUERA DE MANTENIMIENTO'];
+function sinSla(r) { return ESTADOS_SIN_SLA.some(e => norm(e) === norm(r.estado)); }
 // Las cuatro listas, sin filtros
 function ctlListas() {
   const ahora = Date.now(), hoy = isoHoy(), todas = todasAbiertas(), cad = [], hoyL = [];
-  todas.forEach(r => { const c = caducidad(r); if (!c) return; if (c.ts < ahora) cad.push(r); else if (isoHoy(new Date(c.ts)) === hoy) hoyL.push(r); });
+  todas.forEach(r => { if (sinSla(r)) return; const c = caducidad(r); if (!c) return; if (c.ts < ahora) cad.push(r); else if (isoHoy(new Date(c.ts)) === hoy) hoyL.push(r); });
   const porCad = (a, b) => (caducidad(a) || { ts: 0 }).ts - (caducidad(b) || { ts: 0 }).ts;
   return { todas, pend: sinListas().pend, cad: cad.sort(porCad), hoy: hoyL.sort(porCad), ruta: rutaHoy().sort((a, b) => horaMin(a.r.desdeHora) - horaMin(b.r.desdeHora)) };
 }
@@ -83,8 +86,8 @@ function renderControl() {
     <div class="ctl-kpis">
       ${kpi('todas', F.todas.length, 'Abiertas', 'el bloque total')}
       ${kpi('pend', F.pend.length, 'Sin asignar', '', F.pend.length ? 'warn' : '')}
-      ${kpi('cad', F.cad.length, 'Caducadas', '', F.cad.length ? 'mal' : 'bien')}
-      ${kpi('hoy', F.hoy.length, 'Caducan hoy', '', F.hoy.length ? 'warn' : '')}
+      ${kpi('cad', F.cad.length, 'Caducadas', 'sin fuera de mantenimiento', F.cad.length ? 'mal' : 'bien')}
+      ${kpi('hoy', F.hoy.length, 'Caducan hoy', 'sin fuera de mantenimiento', F.hoy.length ? 'warn' : '')}
       ${kpi('ruta', `${hechas}/${F.ruta.length}`, 'En ruta hoy', F.ruta.filter(x => x.late).length ? F.ruta.filter(x => x.late).length + ' con retraso' : 'hechas / total')}
     </div>
     <div class="ctl-filtros">

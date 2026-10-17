@@ -4,13 +4,14 @@ Archivo de traspaso entre sesiones. Al empezar una sesión: «lee docs/ESTADO.md
 Máximo ~40 líneas: lo antiguo se resume o se borra (el detalle está en git y en `NOVEDADES` de `ajustes.js`).
 
 ## Versión actual
-- `sw.js` despacho-v1.28.0 = `APP_VERSION` (ajustes.js). `SYNC_VERSION` 1.23.0 (atgo-sync.js = app.js). Publicada en GitHub Pages.
+- `sw.js` despacho-v1.28.1 = `APP_VERSION` (ajustes.js). `SYNC_VERSION` 1.23.0 (atgo-sync.js = app.js). Publicada en GitHub Pages.
 - Funciones principales: perfiles DSP1–5 y COORD (panel de CONTROL con Excel), nómina, Mi día, Sin asignar, Incidencias por estado,
   Planificación (arrastrar, en bloque de 4 en 4, rellenar el día, mapa), ficha con escrituras en ATGO comprobadas, reincidencias por equipo,
   festivos, apariencia y accesibilidad, avisos de Windows, copia en OneDrive.
 - 1.25.0 (limpieza para implantación): fuera el resumen por DSP de Mi día (COORD ya abre CONTROL), el modo «ticket de prueba» de la fase 2,
   plantillas antiguas de la copia, CSS y variables sin uso; migración 3 borra claves antiguas del navegador; docs reorganizados;
   README reescrito.
+- 1.28.1: Control (COORD) excluye FUERA DE MANTENIMIENTO de caducadas y caducan hoy (ESTADOS_SIN_SLA en coord.js).
 - 1.28.0: mapa progresivo (se pinta con lo ya situado y completa según llega); geocodificar con cola única (1/s sin esperas de más);
   precargarGeo sitúa en segundo plano las visitas de 7 días (máx. 150 por sesión, tras cada carga de ATGO).
 - 1.27.0: Planificación con zonas plegables (semZona/semZonasTodas, pliegues «sem:ZONA») y cabecera de días grande y fija. 1.25.1–1.27.0 probadas por el usuario: funcionan.

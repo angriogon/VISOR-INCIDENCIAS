@@ -198,6 +198,11 @@ vm.runInContext([extraer(app, 'function cleanInitials('), extraer(dia, 'function
 igual('vacaciones: dentro, en los extremos y fuera de las fechas', [19, 20, 24, 25].map(d => cvac.noDisponible('DSG', new Date(2026, 9, d, 12))), [false, true, true, false]);
 igual('vacaciones: la baja cuenta siempre', cvac.noDisponible('ACAB', new Date(2026, 9, 1, 12)), true);
 
+// ---- COORD: FUERA DE MANTENIMIENTO no cuenta para caducadas ----
+const csla = {}; vm.createContext(csla);
+vm.runInContext([extraer(app, 'function norm('), extraer(leer('coord.js'), 'const ESTADOS_SIN_SLA'), extraer(leer('coord.js'), 'function sinSla(')].join(String.fromCharCode(10)), csla);
+igual('COORD: fuera de mantenimiento sin SLA; presencial y escalado sí', ['FUERA DE MANTENIMIENTO', 'Fuera de mantenimiento', 'PRESENCIAL', 'ESCALADO TIER1'].map(e => csla.sinSla({ estado: e })), [true, true, false, false]);
+
 // ---- Coherencia de configuración ----
 const vSyncA = (leer('atgo-sync.js').match(/SYNC_VERSION = '([\d.]+)'/) || [])[1], vSyncP = (app.match(/SYNC_VERSION = '([\d.]+)'/) || [])[1];
 igual('SYNC_VERSION igual en atgo-sync.js y app.js', vSyncA, vSyncP);

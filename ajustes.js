@@ -3,13 +3,13 @@
 // asistente de inicio, diagnóstico, resumen matinal, aviso de técnico sin actividad y exportar a Excel.
 // Usa utilidades de app.js, dia.js, herramientas.js, edicion.js y panel.js solo en tiempo de llamada.
 
-const APP_VERSION = '1.28.0';   // súbela a la vez que VERSION en sw.js
+const APP_VERSION = '1.28.1';   // súbela a la vez que VERSION en sw.js
 const NOVEDADES = [
+  { v: '1.28.1', f: '2026-10-17', l: ['Control (COORD): «Caducadas» y «Caducan hoy» ya no cuentan las incidencias en FUERA DE MANTENIMIENTO (son peticiones de clientes sin SLA). También en el Excel.'] },
   { v: '1.28.0', f: '2026-10-17', l: ['Mapa mucho más rápido: se abre al momento con las direcciones ya conocidas y las nuevas van apareciendo solas.', 'Despacho sitúa en segundo plano las visitas de los próximos 7 días, así que el mapa suele abrir ya completo.'] },
   { v: '1.27.0', f: '2026-10-17', l: ['Planificación: cada zona se pliega y despliega pulsando su nombre, y dos iconos arriba pliegan o despliegan todas. Una zona plegada muestra el total de visitas y horas de cada día.', 'Días más visibles: día de la semana, número y mes en grande, hoy resaltado y la cabecera fija al desplazarse.', 'Corregido el aviso de Planificación sin ATGO: ahora indica abrir ATGO.'] },
   { v: '1.26.0', f: '2026-10-17', l: ['Vacaciones de técnicos (⚙ › Técnicos): pon las fechas y, mientras duren, el técnico desaparece de los paneles y no se propone al asignar; vuelve solo al terminar.', 'Los técnicos de baja tampoco salen en Incidencias ni en Planificación. Si les quedan incidencias, un aviso arriba las cuenta y permite verlas para reasignarlas.', 'Al asignar, aviso si el técnico está de vacaciones ese día; en Planificación sus días salen marcados.'] },
-  { v: '1.25.1', f: '2026-10-17', l: ['Conflictos: dos citas a la misma hora en la misma sede (o la misma dirección) ya no se marcan como solape; en sedes distintas, sí.'] },
-  { v: '1.25.0', f: '2026-10-16', l: ['Limpieza para la implantación: código y estilos sin uso retirados, datos antiguos borrados del navegador una sola vez y documentación al día.', 'Planificar en ATGO ya no tiene el modo «solo ticket de prueba» de cuando se estaba validando.'] }
+  { v: '1.25.1', f: '2026-10-17', l: ['Conflictos: dos citas a la misma hora en la misma sede (o la misma dirección) ya no se marcan como solape; en sedes distintas, sí.'] }
 ];
 // Resumen de lo más importante de las versiones anteriores a las 5 últimas (se ve en ⓘ › Anteriores)
 const ANTERIORES = [
@@ -34,7 +34,7 @@ const ANTERIORES = [
   'Extensión para Chrome y Edge que sincroniza ATGO sola',
   'Actualización silenciosa y sincronización cada 2 minutos'
 ];
-const NOV_VISIBLES = 5, ANTERIORES_HASTA = '1.24';   // al añadir una versión, quita la más antigua de NOVEDADES y resúmela aquí si importa
+const NOV_VISIBLES = 5, ANTERIORES_HASTA = '1.25';   // al añadir una versión, quita la más antigua de NOVEDADES y resúmela aquí si importa
 const NOV_KEY = 'dispatcher_version_vista_v1', DIAG_KEY = 'dispatcher_diag_v1', BIENV_KEY = 'dispatcher_bienvenida_v1', DATOS_VER_KEY = 'dispatcher_datos_version_v1';
 
 // ---- Novedades de la versión ----
