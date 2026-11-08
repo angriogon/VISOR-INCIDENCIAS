@@ -219,6 +219,14 @@ vm.runInContext('rows = ' + JSON.stringify([
 ]), cr);
 igual('conflictos sede: solo dos técnicos en PRESENCIAL, el mismo día primero', JSON.parse(JSON.stringify(cr.conflictosSede().map(c => [c.ops.slice().sort().join(), c.mismoDia]))), [['ADJC,LGV', ['19/10/2026']], ['ACAB,DSG', []]]);
 
+// ---- Incidencias: orden por fecha de visita dentro de cada estado ----
+const cov = {}; vm.createContext(cov);
+vm.runInContext([extraer(leer('dia.js'), 'function parseEs('), extraer(app, 'function horaMin('), extraer(app, 'function ordenVisita(')].join(String.fromCharCode(10)), cov);
+const vis = (fVisita, desdeHora) => ({ fVisita, desdeHora: desdeHora || '' }), hoyOv = cov.parseEs('10/11/2026').getTime();
+igual('orden visita: próximas primero; luego sin fecha; al final las pasadas',
+  [vis('06/11/2026'), vis(''), vis('24/11/2026'), vis('19/10/2026'), vis('10/11/2026', '12:00'), vis('11/11/2026'), vis('10/11/2026', '08:00')].sort((a, b) => cov.ordenVisita(a, b, hoyOv)).map(x => (x.fVisita.slice(0, 5) || 'sin') + (x.desdeHora ? ' ' + x.desdeHora : '')),
+  ['10/11 08:00', '10/11 12:00', '11/11', '24/11', 'sin', '06/11', '19/10']);
+
 // ---- Coherencia de configuración ----
 const vSyncA = (leer('atgo-sync.js').match(/SYNC_VERSION = '([\d.]+)'/) || [])[1], vSyncP = (app.match(/SYNC_VERSION = '([\d.]+)'/) || [])[1];
 igual('SYNC_VERSION igual en atgo-sync.js y app.js', vSyncA, vSyncP);

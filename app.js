@@ -566,8 +566,9 @@ function tecRow(op, items, ruta, esDisp){
   const esc1 = items.filter(r => norm(r.estado) === norm('ESCALADO TIER1')).length;
   const sinF = items.filter(r => esPresencial(r) && !r.fVisita).length;
   const enRuta = new Set(ruta.map(x => tkey(x.r)));
-  // Resto: agrupadas por estado (en el orden de ESTADOS) y, dentro de cada estado, por fecha de visita
-  const resto = items.filter(r => !enRuta.has(tkey(r))).sort((a, b) => ordenEstado(a.estado) - ordenEstado(b.estado) || (parseEs(a.fVisita) || 9e15) - (parseEs(b.fVisita) || 9e15));
+  // Resto: agrupadas por estado (en el orden de ESTADOS) y, dentro de cada estado, por fecha de visita (ordenVisita)
+  const hoyT = parseEs(todayStr()).getTime();
+  const resto = items.filter(r => !enRuta.has(tkey(r))).sort((a, b) => ordenEstado(a.estado) - ordenEstado(b.estado) || ordenVisita(a, b, hoyT));
   return `<div class="tg${isCol(op) ? ' collapsed' : ''}" data-op="${esc(op)}">
     <div class="tg-h" onclick="toggleGroup('${jsq(op)}')">
       <div class="av" style="--c:${colorTec(op)}">${esc(op)}</div>
@@ -608,6 +609,12 @@ const ESTADO_COLOR = { 'presencial':'#2f8f87', 'puesto operativo':'#4f9a5b', 'fu
 function estadoColor(e){ const n = norm(e); return ESTADO_COLOR[n] || (/cerrad|operativo/.test(n) ? '#5f8f6a' : colorFor(e)); }
 function estadoPill(e){ return e ? `<span class="est-pill" style="--c:${estadoColor(e)}">${esc(e)}</span>` : ''; }
 // Orden de los estados dentro de cada técnico (el de ESTADOS; los demás, al final)
+// Orden por visita: de hoy en adelante, la más próxima arriba; después, las que no tienen fecha; al final, las de fechas pasadas (la más reciente primero)
+function ordenVisita(a, b, hoyT){
+  const clave = r => { const d = parseEs(r.fVisita); if (!d) return [1, 0]; const t = d.getTime(); return t >= hoyT ? [0, t] : [2, -t]; };
+  const x = clave(a), y = clave(b);
+  return x[0] - y[0] || x[1] - y[1] || horaMin(a.desdeHora) - horaMin(b.desdeHora);
+}
 function ordenEstado(e){ const i = ESTADOS.findIndex(x => norm(x) === norm(e)); return i < 0 ? 99 : i; }
 // Las incidencias de un técnico, agrupadas por estado con una cabecera de su color
 function porEstadoHtml(lista){

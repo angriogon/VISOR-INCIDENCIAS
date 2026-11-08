@@ -72,7 +72,7 @@ Visitas en PRESENCIAL que siguen en un operario comodín «PENDIENTE ASIGNAR». 
 ### Incidencias
 Un bloque por técnico, agrupados por zona:
 - **Barra de progreso de su ruta de hoy:** terminada, en trámite, en curso o pendiente, con retrasos.
-- Dentro, las incidencias van **agrupadas por estado**, cada línea con el color de su estado. Justo detrás del Nº salen **VISITA** y **CADUCA**: naranja si quedan menos de 3 días; rojo si quedan menos de 24 h o ya caducó.
+- Dentro, las incidencias van **agrupadas por estado**, cada línea con el color de su estado. En cada estado, de la visita más próxima a la más lejana; debajo, las que no tienen fecha y, al final, las de fechas pasadas. Justo detrás del Nº salen **VISITA** y **CADUCA**: naranja si quedan menos de 3 días; rojo si quedan menos de 24 h o ya caducó.
 - **Filtros:** por zona, DSP, estado, «caducan en 24 h o vencidas» y texto. Los filtros se pueden guardar.
 - **🔁 Reincidencia:** el mismo equipo vuelve a fallar en 10 días, abierto o ya cerrado. El equipo se reconoce por el IT de la balanza, el elemento de ATGO o «caja N» con su aparato.
 - **Cerradas · últimos 15 días** en cada técnico.

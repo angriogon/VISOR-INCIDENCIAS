@@ -4,7 +4,7 @@ Archivo de traspaso entre sesiones. Al empezar una sesión: «lee docs/ESTADO.md
 Máximo ~40 líneas: lo antiguo se resume o se borra (el detalle está en git y en `NOVEDADES` de `ajustes.js`).
 
 ## Versión actual
-- `sw.js` despacho-v1.33.0 = `APP_VERSION` (ajustes.js). `SYNC_VERSION` 1.31.0 (atgo-sync.js = app.js). Extensión 2.0.0. Publicada en GitHub Pages.
+- `sw.js` despacho-v1.33.1 = `APP_VERSION` (ajustes.js). `SYNC_VERSION` 1.31.0 (atgo-sync.js = app.js). Extensión 2.0.0. Publicada en GitHub Pages.
 - Funciones principales: perfiles DSP1–5 y COORD (panel de CONTROL con Excel), nómina, Mi día, Sin asignar, Incidencias por estado,
   Planificación (arrastrar, en bloque de 4 en 4, rellenar el día, mapa), ficha con escrituras en ATGO comprobadas, reincidencias por equipo,
   festivos, apariencia y accesibilidad, avisos de Windows, copia en OneDrive.
@@ -13,6 +13,7 @@ Máximo ~40 líneas: lo antiguo se resume o se borra (el detalle está en git y 
   precarga de direcciones (precargarGeo, cola única de Nominatim); Control (coord.js): FUERA DE MANTENIMIENTO sin SLA (ESTADOS_SIN_SLA),
   vistas Presencial/Todas, filtro por proyecto (atgo-sync completarProyectos + proyDe/PROY_KEY), orden por columna (CTL_COLS);
   ⚙ › General › ACTUALIZAR (actualizarAhora); proyecto en la ficha.
+- 1.33.1: Incidencias por técnico ordenadas por visita dentro de cada estado (ordenVisita en app.js).
 - 1.33.0: Mi día › Conflictos sede-técnicos (conflictosSede/conflictosSedeHtml en panel.js): solo los técnicos del perfil activo.
 - 1.32.0 (08/11, hecha en una sesión en la nube, commit 7c09b81; ya en `main` y publicada): extensión 2.0 para que ATGO no se quede pillado.
   `extension/background.js` (guardián): pestaña de ATGO fijada y en segundo plano, revisión cada minuto; sin carga completa en 6 min la recarga
