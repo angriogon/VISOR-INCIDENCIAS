@@ -3,13 +3,13 @@
 // asistente de inicio, diagnóstico, resumen matinal, aviso de técnico sin actividad y exportar a Excel.
 // Usa utilidades de app.js, dia.js, herramientas.js, edicion.js y panel.js solo en tiempo de llamada.
 
-const APP_VERSION = '1.33.1';   // súbela a la vez que VERSION en sw.js
+const APP_VERSION = '1.34.0';   // súbela a la vez que VERSION en sw.js
 const NOVEDADES = [
+  { v: '1.34.0', f: '2026-11-08', l: ['«Revisión de la mañana» (botón en Mi día y en Control): incidencias sin cerrar con fecha de visita de los últimos 7 días, por día y con lo que hizo el técnico. En cada DSP, las de sus técnicos; en COORD, todas, asignadas o no.', 'Desde ahí: abrir la ficha, marcar como revisada (vuelve mañana si sigue abierta), replanificar en bloque y recordar por WhatsApp. COORD filtra por DSP y exporta a Excel.'] },
   { v: '1.33.1', f: '2026-11-08', l: ['Incidencias: dentro de cada estado, las de cada técnico van de la visita más próxima a la más lejana; debajo, las que no tienen fecha y, al final, las de fechas ya pasadas.'] },
   { v: '1.33.0', f: '2026-11-08', l: ['Mi día: nuevo apartado «Conflictos sede-técnicos» y casilla «Sedes con 2 técnicos»: detecta de un vistazo una misma sede o dirección con incidencias en PRESENCIAL de dos técnicos distintos. Las que coinciden el mismo día salen primero, en rojo.'] },
   { v: '1.32.0', f: '2026-11-08', l: ['Extensión 2.0: mantiene una pestaña de ATGO fijada en segundo plano, la recarga o la reabre si se cierra, se cuelga o deja de enviar datos, e inicia sesión sola si caduca (usuario y contraseña en las opciones de la extensión). Ya no hace falta abrir ATGO.', 'Con la extensión 2.0, el botón ATGO enseña su pestaña y «Forzar reconexión» la recarga desde cero.'] },
-  { v: '1.31.0', f: '2026-10-17', l: ['La ficha muestra el proyecto de la incidencia, junto al cliente (también al copiarla).', 'Control (COORD): pulsa la cabecera de una columna (Nº, Caducidad, Cliente · sede, Técnico, DSP, Estado…) para ordenar por ella; otra vez, al revés; la tercera, el orden normal. Por Estado quedan agrupados por orden alfabético. El Excel sale en el mismo orden.'] },
-  { v: '1.30.0', f: '2026-10-17', l: ['Control (COORD): nuevo selector de Proyecto junto al de cliente, con los proyectos de sus incidencias y cuántas tiene cada uno. Selector de cliente más ancho.', 'El proyecto sale también en las listas y en el Excel. La primera vez se va completando en unas cargas de ATGO.', 'Recarga una vez la pestaña de ATGO (F5).'] }
+  { v: '1.31.0', f: '2026-10-17', l: ['La ficha muestra el proyecto de la incidencia, junto al cliente (también al copiarla).', 'Control (COORD): pulsa la cabecera de una columna (Nº, Caducidad, Cliente · sede, Técnico, DSP, Estado…) para ordenar por ella; otra vez, al revés; la tercera, el orden normal. Por Estado quedan agrupados por orden alfabético. El Excel sale en el mismo orden.'] }
 ];
 // Resumen de lo más importante de las versiones anteriores a las 5 últimas (se ve en ⓘ › Anteriores)
 const ANTERIORES = [
@@ -37,9 +37,10 @@ const ANTERIORES = [
   'Extensión para Chrome y Edge que sincroniza ATGO sola',
   'Actualización silenciosa y sincronización cada 2 minutos',
   'Caducidad de Control sin contar FUERA DE MANTENIMIENTO',
-  'Control con listas Presencial y Todas'
+  'Control con listas Presencial y Todas',
+  'Filtro por proyecto en Control'
 ];
-const NOV_VISIBLES = 5, ANTERIORES_HASTA = '1.29.1';   // al añadir una versión, quita la más antigua de NOVEDADES y resúmela aquí si importa
+const NOV_VISIBLES = 5, ANTERIORES_HASTA = '1.30';   // al añadir una versión, quita la más antigua de NOVEDADES y resúmela aquí si importa
 const NOV_KEY = 'dispatcher_version_vista_v1', DIAG_KEY = 'dispatcher_diag_v1', BIENV_KEY = 'dispatcher_bienvenida_v1', DATOS_VER_KEY = 'dispatcher_datos_version_v1';
 
 // ---- Novedades de la versión ----
@@ -648,6 +649,100 @@ function recordarCierre(op) {
   abrirWa(op, msg);
 }
 
+// ---- Revisión de la mañana: incidencias sin cerrar con fecha de visita de los últimos 7 días ----
+// DSP: las asignadas a los técnicos de su perfil. COORD: todas, asignadas o en «pendiente asignar» (sin fecha no salen).
+// «Revisada» la oculta solo hoy: si sigue abierta, mañana vuelve a salir.
+const REV_KEY = 'dispatcher_revision_v1', REV_DIAS = 7;
+let revSel = new Set(), revDsp = '', revVerHechas = false;
+function revHechas() { const g = lsGet(REV_KEY, null); return g && g.dia === isoHoy() ? g.keys : []; }
+function revisionLista() {
+  const hoy = parseEs(todayStr()), lim = new Date(hoy); lim.setDate(lim.getDate() - REV_DIAS);
+  const base = esCoord() ? todasAbiertas() : rows.filter(r => TECNICOS.includes(cleanInitials(r.operario)) && !esCierre(r.estado));
+  return base.filter(r => { const d = parseEs(r.fVisita); return d && d >= lim && d < hoy; });
+}
+function revisionPendientes() { const h = revHechas(); return revisionLista().filter(r => !h.includes(tkey(r))); }
+// Qué hizo el técnico asignado desde el día de la visita, según el hilo: 'd' finalizó, 'c' inició, 'p' nada; null si no se sabe
+function huellaVisita(r) {
+  const h = hilos[tkey(r)], d = parseEs(r.fVisita); if (!h || !d) return null;
+  const desde = new Date(d); desde.setHours(0, 0, 0, 0);
+  const tec = cleanInitials(r.operario); let last = null;
+  h.items.forEach(i => {
+    if (!i.ts || i.ts < desde.getTime()) return;
+    const m = /el usuario (\S+) ha (finalizado|iniciado) el ticket/i.exec(i.t || '');
+    if (!m || cleanInitials(m[1]) !== tec) return;
+    if (!last || i.ts > last.ts) last = { k: /^fin/i.test(m[2]) ? 'd' : 'c', ts: i.ts };
+  });
+  return last ? last.k : 'p';
+}
+function revisionBotonHtml() {
+  const n = revisionPendientes().length;
+  return `<button class="btn sm${n ? ' warn' : ''}" onclick="abrirRevision()" title="Incidencias sin cerrar con fecha de visita de los últimos ${REV_DIAS} días">Revisión de la mañana · ${n}</button>`;
+}
+function abrirRevision() {
+  const m = document.getElementById('modal');
+  m.innerHTML = '<div class="md-box md-rev" id="revBox" role="dialog" aria-label="Revisión de la mañana"></div>'; m.hidden = false;
+  renderRevision();
+}
+function revMarcar(k, si) { if (si) revSel.add(k); else revSel.delete(k); revBarra(); }
+function revTodas(si) { document.querySelectorAll('#revBox .rev-ck').forEach(c => { c.checked = si; revMarcar(c.dataset.k, si); }); }
+function revBarra() {
+  const b = document.getElementById('revBarra'); if (!b) return;
+  const n = revSel.size, txt = b.querySelector('span'); if (txt) txt.textContent = n ? plural(n, 'marcada') : 'Marca las que quieras replanificar';
+  b.querySelectorAll('.pri, select').forEach(x => { x.disabled = !n; });
+}
+function revRevisada(k) {
+  const l = revHechas(); if (l.includes(k)) lsSet(REV_KEY, { dia: isoHoy(), keys: l.filter(x => x !== k) }); else lsSet(REV_KEY, { dia: isoHoy(), keys: [...l, k] });
+  revSel.delete(k); renderRevision(); refreshVisible();
+}
+async function revReplanificar() {
+  const f = document.getElementById('revFecha').value, vivas = new Set(revisionLista().map(tkey)), items = [...revSel].filter(k => vivas.has(k)).map(key => ({ key, fechaVisita: f }));
+  if (!items.length) return;
+  const res = await asignarLote(items, 'Replanificar las de días anteriores');
+  if (res) { res.okKeys.forEach(k => revSel.delete(k)); refreshVisible(); if (res.mal.length) return; }   // si algo falló, se queda a la vista la ventana con el motivo
+  abrirRevision();
+}
+function revWa(k) { const r = ticketDe(k); if (r) abrirWa(cleanInitials(r.operario), waTexto('recordatorio', r)); }
+async function revExcel() {
+  try { await cargarXLSX(); } catch (e) { toast('No se pudo cargar el módulo de Excel (sin conexión)'); return; }
+  const datos = revisionLista().filter(r => !revDsp || dspTicket(r) === revDsp).map(ctlFilaExcel);
+  if (!datos.length) { toast('No hay datos que exportar'); return; }
+  const ws = XLSX.utils.json_to_sheet(datos), wb = XLSX.utils.book_new(); ctlAnchos(ws, datos);
+  XLSX.utils.book_append_sheet(wb, ws, 'Revisión'); XLSX.writeFile(wb, ctlArchivo('revision'));
+}
+function renderRevision() {
+  const box = document.getElementById('revBox'); if (!box) return;
+  const coord = esCoord(), todas = revisionLista(), hechas = revHechas();
+  const delDsp = todas.filter(r => !revDsp || dspTicket(r) === revDsp);
+  const vis = delDsp.filter(r => revVerHechas || !hechas.includes(tkey(r)));
+  const nHechas = delDsp.filter(r => hechas.includes(tkey(r))).length;
+  const cad = vis.filter(r => { const c = caducidad(r); return c && !sinSla(r) && c.ts < Date.now(); }).length;
+  const hoy = parseEs(todayStr()), porDia = new Map();
+  vis.forEach(r => { if (!porDia.has(r.fVisita)) porDia.set(r.fVisita, []); porDia.get(r.fVisita).push(r); });
+  const dias = [...porDia.keys()].sort((a, b) => parseEs(b) - parseEs(a));
+  const huella = { d: 'Finalizada sin cerrar', c: 'Iniciada sin finalizar', p: 'Sin iniciar' };
+  const fila = r => {
+    const k = tkey(r), op = cleanInitials(r.operario), sin = /^XXX/.test(op), hu = sin ? null : huellaVisita(r), hecha = hechas.includes(k);
+    return `<div class="rev-it${hecha ? ' hecha' : ''}" style="--c:${estadoColor(r.estado)}">
+      ${sin ? '<span></span>' : `<input type="checkbox" class="rev-ck" data-k="${esc(k)}" ${revSel.has(k) ? 'checked' : ''} onchange="revMarcar('${jsq(k)}',this.checked)" aria-label="Marcar ${esc(r.num)}">`}
+      <a href="#" class="mono rev-n" onclick="cerrarModal();openTicket('${jsq(k)}');return false" title="Abrir la ficha">${esc(String(r.num).slice(-5))}</a>
+      <b class="${sin ? 'ctl-sin' : ''}">${esc(sin ? 'Sin asignar' : op)}${noDisponible(op) ? ` <span class="baja-tag" title="${esc(ausenciaTexto(op))}">${enBaja(op) ? 'BAJA' : 'VAC.'}</span>` : ''}</b>
+      <span class="rev-s" title="${esc([r.descCliente, r.domicilio].filter(Boolean).join(' · '))}">${esc(r.descSede || r.domicilio || '—')}<small>${esc(r.descCliente || '')}</small></span>
+      <span class="rev-h${hu === 'p' ? ' mal' : ''}">${huella[hu] || ''}</span>
+      <span class="rev-e">${estadoPill(r.estado)}${cadBadge(r)}</span>
+      <span class="rev-a">${sin ? '' : `<button class="btn sm wa" onclick="revWa('${jsq(k)}')" title="Recordar por WhatsApp a ${esc(op)}">WhatsApp</button>`}<button class="btn sm${hecha ? ' ghost' : ''}" onclick="revRevisada('${jsq(k)}')" title="${hecha ? 'Volver a la lista' : 'Ocultar hoy; si sigue abierta, mañana volverá a salir'}">${hecha ? 'Deshacer' : 'Revisada'}</button></span></div>`;
+  };
+  const prox = nextWorkday();
+  box.innerHTML = `<div class="dw-head"><div><div class="dw-num" style="color:var(--ink)">Revisión de la mañana</div>
+      <div class="dw-sub">${vis.length ? `${plural(vis.length, 'incidencia')} sin cerrar con fecha de los últimos ${REV_DIAS} días${cad ? ` · ${plural(cad, 'caducada')}` : ''}` : `Nada pendiente de los últimos ${REV_DIAS} días.`}${nHechas ? ` · ${plural(nHechas, 'revisada')} hoy` : ''}</div></div>
+      <button class="iconbtn" onclick="cerrarModal()" aria-label="Cerrar">✕</button></div>
+    ${coord || nHechas ? `<div class="rev-f">${coord ? `<span class="seg mini" role="group" aria-label="DSP">${[['', 'Todos'], ...PERFILES.filter(p => p !== 'COORD').map(p => [p, p])].map(([v, t]) => `<button class="segb${revDsp === v ? ' on' : ''}" aria-pressed="${revDsp === v}" onclick="revDsp='${v}';renderRevision()">${t}</button>`).join('')}</span><button class="btn sm" onclick="revExcel()">↓ Excel</button>` : ''}${nHechas ? `<button class="btn sm ghost" onclick="revVerHechas=!revVerHechas;renderRevision()">${revVerHechas ? 'Ocultar revisadas' : 'Ver revisadas'}</button>` : ''}</div>` : ''}
+    ${dias.map(f => { const d = parseEs(f), n = Math.round((hoy - d) / 86400000); return `<section class="rev-d"><h3>${esc(DIAS[d.getDay()])} ${esc(f.slice(0, 5))} <small>${n === 1 ? 'ayer' : 'hace ' + n + ' días'} · ${porDia.get(f).length}</small></h3>${porDia.get(f).slice().sort((a, b) => String(a.operario).localeCompare(String(b.operario)) || horaMin(a.desdeHora) - horaMin(b.desdeHora)).map(fila).join('')}</section>`; }).join('') || '<div class="dempty">Todo al día. 👍</div>'}
+    ${vis.some(r => !/^XXX/.test(cleanInitials(r.operario))) ? `<div class="rev-barra" id="revBarra"><label><input type="checkbox" onchange="revTodas(this.checked)"> Marcar todas</label><span></span>
+      <select id="revFecha" aria-label="Nueva fecha de visita"><option value="${isoHoy()}">Hoy</option><option value="${isoHoy(prox)}">${esc(diaLargo(prox))}</option></select>
+      <button class="btn sm pri" onclick="revReplanificar()">Replanificar marcadas</button></div>` : ''}`;
+  revBarra();
+}
+
 // ---- Sin asignar olvidadas: de tu zona y con más de X horas sin técnico ----
 // (OLVIDO_KEY, olvidada y olvidoBadge están en panel.js: Sin asignar los usa al pintar, incluso al arrancar)
 function revisarOlvidadas() {
@@ -664,7 +759,7 @@ function revisarOlvidadas() {
 // Botones de Mi día: mis cambios de hoy y, a partir de la hora de cierre, las visitas sin cerrar
 function botonesDiaHtml() {
   const c = misCambios('hoy'), mal = c.filter(e => !e.ok).length, sc = horaPasada(horaCierre()) && tecCfg.cierreOn !== false ? sinCerrarHoy().length : 0;
-  return `<button class="btn sm${mal ? ' warn' : ''}" onclick="abrirMisCambios('hoy')" title="Todo lo que has hecho hoy en ATGO desde Despacho, con su resultado">Mis cambios${c.length ? ' · ' + c.length : ''}${mal ? ' (' + mal + ' ✕)' : ''}</button>`
+  return revisionBotonHtml() + `<button class="btn sm${mal ? ' warn' : ''}" onclick="abrirMisCambios('hoy')" title="Todo lo que has hecho hoy en ATGO desde Despacho, con su resultado">Mis cambios${c.length ? ' · ' + c.length : ''}${mal ? ' (' + mal + ' ✕)' : ''}</button>`
     + (sc ? `<button class="btn sm warn" onclick="abrirSinCerrar()" title="Visitas de hoy que siguen en PRESENCIAL sin «finalizado» del técnico">Sin cerrar hoy · ${sc}</button>` : '');
 }
 

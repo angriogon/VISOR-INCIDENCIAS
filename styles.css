@@ -830,3 +830,19 @@
   .cs-ops i{font-style:normal; font-size:11px; font-weight:700; padding:1px 7px; border-radius:999px; color:color-mix(in srgb, var(--c) 70%, var(--ink)); background:color-mix(in srgb, var(--c) 18%, var(--panel));}
   .cs-h em{font-style:normal; font-size:11px; font-weight:700; color:#b5432f; margin-left:auto;}
   .cs-g > small{color:var(--ink-dim); font-size:11.5px;}
+  /* ===== v1.34: revisión de la mañana ===== */
+  .md-rev{width:min(1180px,100%);}
+  .rev-f{display:flex; gap:10px; align-items:center; flex-wrap:wrap;}
+  .rev-d{display:grid; gap:3px;}
+  .rev-d h3{margin:6px 0 2px; font-size:14px; text-transform:capitalize; border-bottom:1px solid var(--line); padding-bottom:3px;} .rev-d h3 small{font-weight:500; color:var(--ink-faint); text-transform:none; margin-left:6px;}
+  .rev-it{display:grid; grid-template-columns:18px 54px 92px minmax(0,1fr) 130px minmax(170px,auto) auto; gap:8px; align-items:center; font-size:12.5px; padding:4px 6px; border-left:3px solid var(--c); border-radius:6px; background:color-mix(in srgb, var(--c) 6%, var(--panel));}
+  .rev-it.hecha{opacity:.55;}
+  .rev-n{color:var(--amber); font-weight:600; text-decoration:none;}
+  .rev-s{min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;} .rev-s small{display:block; color:var(--ink-dim); font-size:11px; overflow:hidden; text-overflow:ellipsis;}
+  .rev-h{font-size:11.5px; color:var(--ink-dim);} .rev-h.mal{color:#b5432f; font-weight:600;}
+  .rev-e{display:flex; gap:4px; align-items:center; flex-wrap:wrap;}
+  .rev-a{display:flex; gap:4px; justify-content:flex-end;}
+  .rev-barra{position:sticky; bottom:-16px; display:flex; gap:12px; align-items:center; flex-wrap:wrap; background:var(--panel); border-top:1px solid var(--line); padding:10px 0 4px; font-size:12.5px;}
+  .rev-barra label{display:flex; gap:6px; align-items:center; font-weight:600;} .rev-barra span{flex:1; color:var(--ink-dim);}
+  .rev-barra select{font:inherit; font-size:12px; padding:4px 6px; border:1px solid var(--line); border-radius:6px; background:var(--panel); color:var(--ink);}
+  @media (max-width:900px){ .rev-it{grid-template-columns:18px 54px minmax(0,1fr) auto;} .rev-h, .rev-e{grid-column:3 / -1;} .rev-a{grid-column:1 / -1;} }

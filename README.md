@@ -57,6 +57,7 @@ Lo que pide acción hoy:
 - Caducidades y material.
 
 Botones:
+- **Revisión de la mañana** (también en Control): incidencias sin cerrar, en cualquier estado, con fecha de visita de los últimos 7 días, agrupadas por día y con lo que hizo el técnico según el hilo. En cada DSP, las de sus técnicos; en COORD, todas, asignadas o no. Se pueden abrir, marcar como revisadas (vuelven mañana si siguen abiertas), replanificar en bloque o recordar por WhatsApp.
 - **Mis cambios:** todo lo hecho en ATGO desde Despacho, con su resultado.
 - **Sin cerrar hoy:** visitas de hoy sin finalizar, con «Recordar» por WhatsApp.
 - **Copiar resumen del día** e **Informe semanal**, con histórico de 8 semanas.

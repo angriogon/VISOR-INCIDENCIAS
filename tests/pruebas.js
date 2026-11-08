@@ -227,6 +227,15 @@ igual('orden visita: próximas primero; luego sin fecha; al final las pasadas',
   [vis('06/11/2026'), vis(''), vis('24/11/2026'), vis('19/10/2026'), vis('10/11/2026', '12:00'), vis('11/11/2026'), vis('10/11/2026', '08:00')].sort((a, b) => cov.ordenVisita(a, b, hoyOv)).map(x => (x.fVisita.slice(0, 5) || 'sin') + (x.desdeHora ? ' ' + x.desdeHora : '')),
   ['10/11 08:00', '10/11 12:00', '11/11', '24/11', 'sin', '06/11', '19/10']);
 
+// ---- Revisión de la mañana: qué hizo el técnico desde el día de la visita ----
+const crv = { hilos: {}, tkey: r => r.key }; vm.createContext(crv);
+vm.runInContext([extraer(leer('dia.js'), 'function parseEs('), extraer(app, 'function cleanInitials('), extraer(leer('ajustes.js'), 'function huellaVisita(')].join(String.fromCharCode(10)), crv);
+const hiloRv = (...it) => { crv.hilos.k = { items: it.map(([d, t]) => ({ ts: new Date(2026, 10, d, 10).getTime(), t })) }; };
+const rRv = { key: 'k', operario: 'DSG', fVisita: '05/11/2026' };
+hiloRv([5, 'El usuario DSG ha iniciado el ticket']); igual('revisión: iniciada sin finalizar', crv.huellaVisita(rRv), 'c');
+hiloRv([5, 'El usuario DSG ha iniciado el ticket'], [6, 'El usuario DSG ha finalizado el ticket']); igual('revisión: finalizada', crv.huellaVisita(rRv), 'd');
+hiloRv([3, 'El usuario DSG ha iniciado el ticket'], [5, 'El usuario AMRG ha finalizado el ticket']); igual('revisión: ni lo anterior a la visita ni otro usuario cuentan', crv.huellaVisita(rRv), 'p');
+
 // ---- Coherencia de configuración ----
 const vSyncA = (leer('atgo-sync.js').match(/SYNC_VERSION = '([\d.]+)'/) || [])[1], vSyncP = (app.match(/SYNC_VERSION = '([\d.]+)'/) || [])[1];
 igual('SYNC_VERSION igual en atgo-sync.js y app.js', vSyncA, vSyncP);

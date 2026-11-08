@@ -121,7 +121,7 @@ function renderControl() {
     : ctlTabla(['Nº', 'Caducidad', 'Cliente · sede', 'Técnico', 'DSP', 'Estado'], (F[vista] || F.cad).map(ctlFila), { cad: 'Ninguna caducada con estos filtros. 👍', hoy: 'Ninguna caduca hoy con estos filtros.', pres: 'Ninguna en PRESENCIAL con estos filtros.', todas: 'Ninguna incidencia abierta con estos filtros.' }[vista] || 'Nada con estos filtros.', 'main');
   root.innerHTML = `
     <div class="ctl-cab"><div><h2>Control</h2><span>${esc(diaLargo(new Date()))} · todos los DSP${syncUltima ? ' · ATGO ' + esc(hhmm(syncUltima)) : ''}</span></div>
-      <button class="btn pri" onclick="ctlInforme()" title="Un Excel con el resumen por DSP y una hoja por lista (con los filtros puestos)">↓ Informe completo (Excel)</button></div>
+      <span class="acts">${typeof revisionBotonHtml === 'function' ? revisionBotonHtml() : ''}<button class="btn pri" onclick="ctlInforme()" title="Un Excel con el resumen por DSP y una hoja por lista (con los filtros puestos)">↓ Informe completo (Excel)</button></span></div>
     <div class="ctl-kpis">
       ${kpi('pres', F.pres.length, 'Presencial', `de ${F.todas.length} abiertas en total`)}
       ${kpi('pend', F.pend.length, 'Sin asignar', '', F.pend.length ? 'warn' : '')}
