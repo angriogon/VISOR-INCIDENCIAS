@@ -1,0 +1,454 @@
+// Sincronización ATGO → Panel de Despacho.
+// Se ejecuta DENTRO de la pestaña de https://atgo.tier1.es (lanzado con el marcador "Despacho ATGO"),
+// usa la sesión ya iniciada, descarga los tickets de los estados y operarios configurados
+// y los envía a la ventana de Despacho con postMessage. El token de ATGO nunca sale de esta pestaña.
+(function () {
+  'use strict';
+
+  // ===== Configuración =====
+  // Respaldo: Despacho manda su lista (ZONAS_BASE) con 'despacho-config' al conectar y sustituye a esta.
+  let OPERARIOS = ['DSG','ACAB','CLH','JGAM','JCGM','LGV','ADJC','LEOC','IFF','JVR','ILG','MMHG','FMNT','EACL','AAR','DSJ','JRHG','JIFC','PHEP','MLOR','AMRG'];
+  // PRESENCIAL, PUESTO OPERATIVO, FUERA DE MANTENIMIENTO, MATERIAL PTE. FABRICANTE,
+  // PTE. MOVER MATERIAL, EN FABRICANTE, ESCALADO TIER1
+  const ESTADOS = [10, 20, 30, 40, 80, 100, 110];
+  // ATGO tarda ~0,5 s por ticket devuelto. Pedir por operario (codOpe.equals) trae solo nuestros
+  // tickets (~100 de ~600) y las consultas en paralelo no se estorban: la carga baja de ~3 min a ~20 s.
+  // (codOpe.in no funciona en ATGO: ignora el filtro; y sin "sort" la consulta es mucho más lenta.)
+  const PAGE_SIZE = 100;           // por operario; si alguno tuviera más, se piden más páginas
+  // Consultas simultáneas. Medido con ATGO real (COORD, 70 técnicos + 42 comodines, 416 tickets): 6 → 65 s; 8 → 78 s.
+  // Más en paralelo no acelera: el límite lo pone ATGO.
+  const PARALELO = 6;
+  const REFRESCO_MIN = 2;          // minutos entre una carga y la siguiente (siempre, también fuera de horario)
+  function refrescoMin() { return REFRESCO_MIN; }
+  const TIMEOUT_MS = 120000;
+  // Versión de este script: Despacho la compara con la suya (SYNC_VERSION en app.js) y avisa si esta pestaña
+  // sigue con una versión antigua (hay que recargarla). Súbela cuando cambie este archivo.
+  const SYNC_VERSION = '1.31.0';
+
+  if (location.hostname !== 'atgo.tier1.es') { alert('Abre primero https://atgo.tier1.es e inicia sesión.'); return; }
+
+  // Si ya está en marcha, solo forzamos una actualización.
+  if (window.__despachoSync) { window.__despachoSync.refreshNow(); return; }
+
+  const scriptSrc = (document.currentScript && document.currentScript.src) || window.__despachoPwaUrl || 'https://angriogon.github.io/VISOR-INCIDENCIAS/atgo-sync.js';
+  const PWA_URL = new URL('./', scriptSrc).href;
+  const PWA_ORIGIN = new URL(PWA_URL).origin;
+  const WIN_NAME = 'despacho-visor';
+
+  let pwaWin = null;
+  // Extensión 2.0: si esta es la pestaña que vigila su guardián, los mensajes van por la extensión (puente-atgo.js),
+  // que los entrega a Despacho aunque no haya sido Despacho quien abrió esta pestaña.
+  const hayPuente = () => !!document.documentElement.dataset.despachoPuente;
+  const PUENTE = { closed: false, postMessage(msg) { window.postMessage({ __despacho: 'de-atgo', msg }, location.origin); } };
+  let lastPayload = null;
+  let running = false;
+  let timer = null;
+  let stopped = false;
+  let otraVez = false;   // se pidió actualizar mientras había una carga en marcha: se repite al acabar
+  let permitidos = [];   // técnicos de todos los perfiles de Despacho (se puede asignar a cualquiera de ellos)
+  let gen = 0;           // cada carga tiene su número; si una falla, sus consultas pendientes se abandonan
+
+  // ===== Indicador flotante dentro de ATGO =====
+  const box = document.createElement('div');
+  box.style.cssText = 'position:fixed;right:14px;bottom:14px;z-index:2147483647;background:#1b2126;color:#e8ecef;font:12px/1.4 system-ui,sans-serif;border:1px solid #c9862b;border-radius:9px;padding:8px 10px;box-shadow:0 4px 16px rgba(0,0,0,.3);display:flex;gap:8px;align-items:center;max-width:360px';
+  box.innerHTML = '<b style="color:#c9862b">Despacho</b><span data-s>Iniciando…</span>' +
+    '<button data-r style="font:inherit;background:none;color:#e8ecef;border:1px solid #2c353c;border-radius:6px;padding:2px 7px;cursor:pointer" title="Actualizar ahora">⟳</button>' +
+    '<button data-o style="font:inherit;background:none;color:#e8ecef;border:1px solid #2c353c;border-radius:6px;padding:2px 7px;cursor:pointer" title="Abrir Despacho">↗</button>' +
+    '<button data-x style="font:inherit;background:none;color:#8b98a3;border:1px solid #2c353c;border-radius:6px;padding:2px 7px;cursor:pointer" title="Detener sincronización">✕</button>';
+  document.body.appendChild(box);
+  const statusEl = box.querySelector('[data-s]');
+  const setStatus = (t, err) => { statusEl.textContent = t; statusEl.style.color = err ? '#ff8a7a' : ''; send({ type: 'atgo-status', text: t, error: !!err }); };
+  box.querySelector('[data-r]').onclick = () => refreshNow();
+  box.querySelector('[data-o]').onclick = () => openPwa(true);
+  box.querySelector('[data-x]').onclick = () => { stopped = true; clearTimeout(timer); send({ type: 'atgo-status', text: 'Sincronización detenida', error: true }); box.remove(); delete window.__despachoSync; };
+
+  // ===== Comunicación con Despacho =====
+  function openPwa(focus) {
+    if (hayPuente()) { window.postMessage({ __despacho: 'abrir-despacho' }, location.origin); return; }
+    // Reutiliza la ventana de Despacho si ya existe; si no, la abre.
+    if (!pwaWin || pwaWin.closed) {
+      const w = window.open('', WIN_NAME);
+      if (!w) { setStatus('El navegador bloqueó la ventana de Despacho. Pulsa ↗.', true); return; }
+      let blank = false;
+      try { blank = w.location.href === 'about:blank'; } catch (e) { blank = false; /* ya es Despacho (otro origen) */ }
+      if (blank) w.location.href = PWA_URL + '#inc';
+      pwaWin = w;
+    }
+    if (focus) try { pwaWin.focus(); } catch (e) {}
+  }
+  function targets() {
+    if (hayPuente()) return [PUENTE];
+    const t = [];
+    if (window.opener && !window.opener.closed) t.push(window.opener); // Despacho abrió esta pestaña
+    if (pwaWin && !pwaWin.closed && pwaWin !== window.opener) t.push(pwaWin);
+    return t;
+  }
+  function send(msg) {
+    for (const w of targets()) { try { w.postMessage(msg, PWA_ORIGIN); } catch (e) {} }
+  }
+  window.addEventListener('message', (ev) => {
+    let e = ev;
+    // Mensaje de Despacho que llega por el puente de la extensión: se trata igual que si viniera de su ventana
+    if (ev.source === window && ev.data && ev.data.__despacho === 'a-atgo' && ev.data.msg && typeof ev.data.msg === 'object') {
+      if (!hayPuente()) return;
+      e = { origin: PWA_ORIGIN, data: ev.data.msg, source: PUENTE };
+    }
+    if (e.origin !== PWA_ORIGIN || !e.data) return;
+    if (e.data.type === 'despacho-ready') {
+      if (!targets().includes(e.source)) pwaWin = e.source;
+      if (lastPayload) e.source.postMessage(lastPayload, PWA_ORIGIN);
+      else if (running) e.source.postMessage({ type: 'atgo-status', text: statusEl.textContent }, PWA_ORIGIN);
+    } else if (e.data.type === 'despacho-refresh') {
+      refreshNow();
+    } else if (e.data.type === 'despacho-config' && Array.isArray(e.data.operarios)) {
+      // operarios: los que se sincronizan (perfil activo). permitidos: a quién se puede asignar (técnicos de todos los perfiles)
+      const limpia = a => [...new Set((Array.isArray(a) ? a : []).map(x => String(x).trim().toUpperCase()).filter(x => /^[A-Z0-9]{2,12}$/.test(x)))];
+      const l = limpia(e.data.operarios), p = limpia(e.data.permitidos);
+      if (p.length && p.length <= 400) permitidos = p;
+      if (l.length && l.length <= 200 && l.slice().sort().join() !== OPERARIOS.slice().sort().join()) { OPERARIOS = l; refreshNow(); }
+    } else if (e.data.type === 'despacho-hilo' && Array.isArray(e.data.keys)) {
+      enviarHilos(e.data.keys, e.source);
+    } else if (e.data.type === 'despacho-editar-lote' && Array.isArray(e.data.items)) {
+      editarLote(e.data.items.slice(0, 200), e.source);
+    } else if (e.data.type === 'despacho-editar' && e.data.id) {
+      editar(e.data, e.source);
+    } else if (e.data.type === 'despacho-estado' && Array.isArray(e.data.keys)) {
+      enviarEstados(e.data.keys, e.source);
+    }
+  });
+
+  // ===== Estado actual de tickets que salieron de la lista (¿cerrados o en otro estado?) =====
+  async function getEstado(key) {
+    const [p, s, c] = key.split('/');
+    const base = encodeURIComponent(p) + '/' + encodeURIComponent(s) + '/' + encodeURIComponent(c);
+    try {
+      const r = await fetch('/api/v1/atgo/incidencias/' + base, { headers: { Authorization: 'Bearer ' + token(), Accept: 'application/json' } });
+      if (r.ok) { const d = await r.json(); if (d && d.desEstado) return { estado: d.desEstado, op: String(d.codOpe || '').trim().toUpperCase() }; }
+    } catch (e) {}
+    // Si la ficha no trae el estado, se usa el del último mensaje del hilo
+    const h = await getHilo(key);
+    const last = h.slice().sort((a, b) => b.ts - a.ts)[0];
+    return { estado: last ? last.e : '', op: '' };
+  }
+  async function enviarEstados(keys, dest) {
+    const cola = [...new Set(keys)].filter(k => /^\d+\/[^/]+\/\d+$/.test(k)).slice(0, 100);
+    const out = {};
+    const worker = async () => {
+      while (cola.length) {
+        const k = cola.shift();
+        try { out[k] = { at: Date.now(), ...(await getEstado(k)) }; } catch (e) { out[k] = { error: e.message }; }
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(PARALELO, cola.length) }, worker));
+    try { dest.postMessage({ type: 'atgo-estado', estados: out }, PWA_ORIGIN); } catch (e) {}
+  }
+
+  // ===== Hilo de cada ticket (motivo de apertura y comentarios) =====
+  // Responde en ~50 ms por ticket; Despacho lo pide solo para tickets nuevos, cambiados o al abrir su ficha.
+  const isoTs = (s) => { const d = new Date(String(s || '').replace(/([+-]\d{2})(\d{2})$/, '$1:$2')); return isNaN(d) ? 0 : d.getTime(); };
+  async function getHilo(key) {
+    const [p, s, c] = key.split('/');
+    const url = '/api/v1/atgo/hilo/' + encodeURIComponent(p) + '/' + encodeURIComponent(s) + '/' + encodeURIComponent(c);
+    const r = await fetch(url, { headers: { Authorization: 'Bearer ' + token(), Accept: 'application/json' } });
+    if (!r.ok) throw new Error('ATGO respondió ' + r.status);
+    const d = await r.json();
+    return (Array.isArray(d) ? d : []).map(x => ({
+      ts: isoTs(x.hiloIncidenciaId && x.hiloIncidenciaId.fechaRegistro),
+      u: x.usuario || '', n: x.nombre || '', e: x.estado || '',
+      t: String(x.descripcion || '').trim()
+    }));
+  }
+  async function enviarHilos(keys, dest) {
+    const cola = [...new Set(keys)].filter(k => /^\d+\/[^/]+\/\d+$/.test(k)).slice(0, 300);
+    const out = {};
+    const worker = async () => {
+      while (cola.length) {
+        const k = cola.shift();
+        try { out[k] = { at: Date.now(), items: await getHilo(k) }; } catch (e) { out[k] = { error: e.message }; }
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(PARALELO, cola.length) }, worker));
+    try { dest.postMessage({ type: 'atgo-hilo', hilos: out }, PWA_ORIGIN); } catch (e) {}
+  }
+
+  // ===== Lectura de la API de ATGO =====
+  function token() {
+    let t = localStorage.getItem('token');
+    try { const j = JSON.parse(t); if (typeof j === 'string') t = j; } catch (e) {}
+    return t;
+  }
+  function sessionExpired() {
+    const exp = Number(localStorage.getItem('expires'));
+    return !token() || (exp && exp * 1000 < Date.now());
+  }
+  async function getPage(op, page, estados) {
+    const q = 'estado.in=' + (estados || ESTADOS).join('-') + ',codOpe.equals=' + encodeURIComponent(op);
+    const url = '/api/v1/atgo/incidencias/listado?page=' + page + '&size=' + PAGE_SIZE + '&sort=fechaRegistro,asc&q=' + q;
+    for (let intento = 1; intento <= 2; intento++) {
+      const ctrl = new AbortController();
+      const to = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+      try {
+        const r = await fetch(url, { headers: { Authorization: 'Bearer ' + token(), Accept: 'application/json' }, signal: ctrl.signal });
+        if (r.status === 401 || r.status === 403) throw Object.assign(new Error('Sesión de ATGO caducada. Vuelve a iniciar sesión y pulsa ⟳.'), { fatal: true });
+        if (!r.ok) throw new Error('ATGO respondió ' + r.status);
+        const d = await r.json();
+        // Si Tier1 cambia su web y la respuesta ya no tiene la forma esperada, mejor un aviso claro que datos vacíos
+        if (!d || !Array.isArray(d.content)) throw Object.assign(new Error('ATGO ha cambiado: la lista de incidencias no llega con el formato esperado. Avisa para revisar la sincronización.'), { fatal: true });
+        return d;
+      } catch (e) {
+        if (e.fatal || intento === 2) throw e;
+      } finally { clearTimeout(to); }
+    }
+  }
+  const ymdToEs = (s) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s || ''); return m ? m[3] + '/' + m[2] + '/' + m[1] : ''; };
+  const hhmm = (iso) => { if (!iso) return ''; const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }); };
+  // ===== Proyecto de cada incidencia (para filtrar por proyecto en Control) =====
+  // Si la lista de ATGO lo trae, se usa; si no, se lee de la ficha (numProy), como mucho PROY_POR_CARGA por carga,
+  // y se recuerda mientras la pestaña siga abierta. Los nombres salen del catálogo de proyectos de ATGO (una vez).
+  const PROY_POR_CARGA = 40;
+  const proyCache = {};
+  let proyNombres = null;
+  function proyectoDe(t) { const v = t.numProy ?? t.codProyecto ?? t.codProy ?? null; return v === null || v === undefined || v === 'NULL' ? null : String(v).trim(); }
+  async function completarProyectos(lista, viva) {
+    const H = { Authorization: 'Bearer ' + token(), Accept: 'application/json' };
+    if (!proyNombres) {
+      proyNombres = {};
+      try {
+        const r = await fetch('/api/v1/atgo/proyecto', { headers: H });
+        if (r.ok) { const d = await r.json(); (Array.isArray(d) ? d : d.content || []).forEach(p => { const k = p.numProy ?? p.codProyecto ?? p.codProy ?? p.id; const n = p.desProyecto ?? p.descripcion ?? p.nombre ?? p.desProy; if (k != null && n) proyNombres[String(k).trim()] = String(n).trim(); }); }
+      } catch (e) {}
+    }
+    lista.forEach(m => { if (m.proyecto != null) proyCache[m.key] = m.proyecto; });
+    const faltan = lista.filter(m => !(m.key in proyCache)).slice(0, PROY_POR_CARGA);
+    let i = 0;
+    const trabajador = async () => {
+      while (i < faltan.length && viva()) {
+        const m = faltan[i++], [p, s2, c] = m.key.split('/').map(encodeURIComponent);
+        try { const r = await fetch('/api/v1/atgo/incidencias/' + p + '/' + s2 + '/' + c, { headers: H }); if (r.ok) { const f = await r.json(); proyCache[m.key] = proyectoDe(f) || ''; } } catch (e) {}
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(4, faltan.length) }, trabajador));
+    lista.forEach(m => { const k = proyCache[m.key]; m.proyecto = k || ''; m.desProyecto = k ? (proyNombres[k] || '') : ''; });
+  }
+  function mapTicket(t) {
+    const id = t.incidenciaId || {};
+    const dir = [t.direccion || t.domicilio, t.poblacion].filter(v => v && v !== 'NULL').join(', ');
+    return {
+      key: id.periodo + '/' + id.codSerie + '/' + id.codInc,
+      num: String(id.periodo ?? '') + String(id.codSerie ?? '') + String(id.codInc ?? ''),
+      url: 'https://atgo.tier1.es/#/mistickets/' + id.periodo + '/' + id.codSerie + '/' + id.codInc,
+      fVisita: ymdToEs(t.fechaVisita),
+      desdeHora: t.horaInicioVisita || '',
+      hastaHora: t.horaFinVisita || '',
+      fRegistro: hhmm(t.fechaRegistro),
+      fRegistroISO: t.fechaRegistro || '',
+      email: t.email && t.email !== 'NULL' ? t.email : '',
+      telefono: t.telefono && t.telefono !== 'NULL' ? String(t.telefono) : '',
+      poblacion: t.poblacion && t.poblacion !== 'NULL' ? t.poblacion : '',
+      provincia: t.provincia && t.provincia !== 'NULL' ? t.provincia : '',
+      descSede: t.sedeDescripcion || '',
+      referencia: t.suReferencia || t.referencia || '',
+      operario: String(t.codOpe || '').trim().toUpperCase(),
+      desOperario: t.desOpe || '',
+      estado: t.desEstado || '',
+      descCliente: t.desCli || '',
+      tipo: t.desTipoEle || '',
+      proyecto: proyectoDe(t),
+      elemento: t.codElemento && t.codElemento !== 'NULL' ? String(t.codElemento) : '',   // código IT del equipo (reincidencias)
+      domicilio: dir
+    };
+  }
+
+  async function syncOnce() {
+    if (running || stopped) return;
+    // Sin sesión: se reintenta sola cada 30 s, así sigue en cuanto vuelvas a iniciar sesión en esta pestaña
+    if (sessionExpired()) { setStatus('Sesión de ATGO caducada. Inicia sesión de nuevo: la sincronización seguirá sola.', true); clearTimeout(timer); if (!stopped) timer = setTimeout(syncOnce, 30000); return; }
+    running = true;
+    const t0 = Date.now();
+    const found = new Map();
+    let done = 0, firstLoad = !lastPayload;
+    const yo = ++gen, viva = () => yo === gen && !stopped;
+    try {
+      setStatus('Cargando 0/' + OPERARIOS.length + ' técnicos…');
+      if (!estadosAtgo) { try { const r = await fetch('/api/v1/atgo/estados', { headers: { Authorization: 'Bearer ' + token(), Accept: 'application/json' } }); if (r.ok) estadosAtgo = (await r.json()).map(x => ({ estado: x.estado, desEstado: x.desEstado, cierra: x.cierra })); } catch (e) {} }
+      const add = (d) => (d.content || []).forEach(t => { if (OPERARIOS.includes(String(t.codOpe || '').trim().toUpperCase())) { const m = mapTicket(t); found.set(m.key, m); } });
+      // Sin asignar: tickets en PRESENCIAL de los operarios comodín de todas las zonas (≈15 s más, en paralelo)
+      if (!poolOps) { try { const r = await fetch('/api/v1/atgo/operario?q=codOpe.contains=XXX', { headers: { Authorization: 'Bearer ' + token(), Accept: 'application/json' } }); if (r.ok) { poolOps = {}; (await r.json()).forEach(o => { if (/^XXX/i.test(o.codOpe)) poolOps[o.codOpe] = o.desOpe || ''; }); } } catch (e) {} }
+      const pool = new Map();
+      const addPool = (d) => (d.content || []).forEach(t => { if (/^XXX/i.test(String(t.codOpe || ''))) { const m = mapTicket(t); m.operario = String(t.codOpe || '').trim().toUpperCase(); m.desOperario = (poolOps || {})[t.codOpe] || t.desOpe || ''; pool.set(m.key, m); } });
+      const cola = [...OPERARIOS.map(op => ({ op })), ...Object.keys(poolOps || {}).map(op => ({ op, pool: true }))];
+      const totalCola = cola.length;
+      const worker = async () => {
+        while (cola.length && viva()) {
+          const it = cola.shift();
+          for (let page = 0; ; page++) {
+            const d = await getPage(it.op, page, it.pool ? [10] : null);
+            if (!viva()) return;   // la carga se abandonó (falló otra consulta): no seguir ni escribir el estado
+            it.pool ? addPool(d) : add(d);
+            if (d.last !== false || !(d.content || []).length) break;
+          }
+          done++;
+          setStatus('Cargando ' + done + '/' + totalCola + ' · ' + found.size + ' incidencias · ' + pool.size + ' sin asignar');
+          if (firstLoad && !it.pool) send({ type: 'atgo-data', partial: true, rows: [...found.values()], at: Date.now(), progress: done + '/' + totalCola });
+        }
+      };
+      // Si falla algún operario se descarta la carga entera: así nunca parece que sus tickets "salieron".
+      await Promise.all(Array.from({ length: Math.min(PARALELO, cola.length) }, worker));
+      if (stopped) return;
+      try { await completarProyectos([...found.values(), ...pool.values()], viva); } catch (e) {}
+      if (stopped || !viva()) return;
+      lastPayload = { type: 'atgo-data', partial: false, v: SYNC_VERSION, ops: OPERARIOS.slice(), rows: [...found.values()], at: Date.now(), seconds: Math.round((Date.now() - t0) / 1000), caps: ['hilo', 'estado', 'editar', 'asignar', 'pool', 'lote'], estados: estadosAtgo || [], pool: poolOps ? [...pool.values()] : null, poolOps: poolOps || {} };
+      send(lastPayload);
+      const hora = new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+      setStatus(found.size + ' incidencias · ' + hora + ' (' + lastPayload.seconds + ' s) · próxima en ' + refrescoMin() + ' min');
+    } catch (e) {
+      if (yo === gen) gen++;   // abandona las consultas que siguen en marcha de esta carga
+      setStatus('Error: ' + e.message, true);
+    } finally {
+      running = false;
+      clearTimeout(timer);
+      // Tras guardar algo en ATGO se pide actualizar: si coincidió con una carga, se repite enseguida
+      if (!stopped) timer = setTimeout(syncOnce, otraVez ? 300 : refrescoMin() * 60000);
+      otraVez = false;
+    }
+  }
+  function refreshNow() { if (running) { otraVez = true; return; } clearTimeout(timer); syncOnce(); }
+
+  window.__despachoSync = { refreshNow };
+  let opened = false;
+  const sinOpener = !window.opener || window.opener.closed;
+  if (hayPuente()) { opened = true; send({ type: 'atgo-hello' }); }   // con el puente no se abre ninguna ventana
+  else if (sinOpener) { openPwa(false); opened = true; }
+  else {
+    // ¿La pestaña la abrió Despacho? Si responde, no hace falta abrir otra ventana.
+    try { window.opener.postMessage({ type: 'atgo-hello' }, PWA_ORIGIN); } catch (e) {}
+    setTimeout(() => {
+      if (!opened && !pwaWin) setStatus('No encuentro Despacho. Pulsa ↗ para abrirlo.', true);
+    }, 2500);
+  }
+  window.addEventListener('message', (e) => { if (e.origin === PWA_ORIGIN) opened = true; });
+  // ===== Edición en ATGO (fase 1): comentario en el hilo y cambio de estado =====
+  // Se hace con tu sesión, igual que desde la web de ATGO, y después se vuelve a leer para comprobarlo.
+  let estadosAtgo = null, poolOps = null;
+  const pad = n => String(n).padStart(2, '0');
+  function ahoraAtgo() { const d = new Date(); return pad(d.getDate()) + '/' + pad(d.getMonth() + 1) + '/' + d.getFullYear() + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds()); }
+  // Réplica del guardado de la ficha de ATGO ("editar" de su web): mismos parámetros, orden y valores
+  // por defecto que su formulario, pero con los valores bien codificados (un # o & no corta la petición).
+  function urlGuardado(d, cambios) {
+    const f = { ...d, ...(cambios || {}) };
+    const v = x => (x === null || x === undefined) ? 'null' : encodeURIComponent(String(x));
+    const id = d.incidenciaId;
+    const fv = f.fechaVisita ? String(f.fechaVisita).slice(0, 10) : null;
+    const q = ['estado=' + v(f.estado), 'codArt=' + (f.codArt ? v(f.codArt) : ''), 'tieneGarantia=' + v(f.tieneGarantia)];
+    if (f.fechaGarantia != null) q.push('fechaGarantia=' + v(String(f.fechaGarantia).replace(/\//g, '-')));
+    q.push('codElemento=' + v(f.codElemento), 'codOpe=' + v(f.codOpe));
+    if (fv) q.push('fechaVisita=' + v(fv));
+    q.push('inicioVisita=' + v(f.horaInicioVisita), 'finVisita=' + v(f.horaFinVisita), 'codSeveridad=' + v(f.codSeveridad), 'codTipoEle=' + v(f.codTipoEle),
+      'codDivision=' + v(f.codDivision), 'suReferencia=' + v(f.suReferencia), 'codCli=' + v(f.codCli), 'desCli=' + v(f.desCli), 'domicilio=' + v(f.domicilio),
+      'poblacion=' + v(f.poblacion), 'provincia=' + v(f.provincia), 'cp=' + v(f.cp), 'telefono=' + v(f.telefono), 'email=' + v(f.email), 'cif=' + v(f.cif));
+    if (f.idSede != null) q.push('idSede=' + v(f.idSede));
+    q.push('datosRecepcion=' + v(f.datosRecepcion), 'docCompra=null', 'actualiza=true', 'geolocalizacion=null', 'nombre=' + v('El usuario'),
+      'numProy=' + v(f.numProy || null), 'codAct=' + (f.codAct ? v(f.codAct) : ''));
+    return '/api/v1/atgo/incidencias/' + encodeURIComponent(id.periodo) + '/' + encodeURIComponent(id.codSerie) + '/' + encodeURIComponent(id.codInc) + '?' + q.join('&');
+  }
+  // Campos que ATGO actualiza solo y no indican pérdida de datos
+  const CAMPOS_SISTEMA = new Set(['virtualOrderAsc', 'virtualOrderDesc', 'fechaCierrePostVenta', 'usuario']);
+  function compararFichas(a, b) {
+    const out = {};
+    new Set([...Object.keys(a), ...Object.keys(b)]).forEach(k => {
+      if (CAMPOS_SISTEMA.has(k)) return;
+      const x = JSON.stringify(a[k] === undefined ? null : a[k]), y = JSON.stringify(b[k] === undefined ? null : b[k]);
+      if (x !== y) out[k] = { antes: a[k] === undefined ? null : a[k], despues: b[k] === undefined ? null : b[k] };
+    });
+    return out;
+  }
+  // Respuesta de error de ATGO (JSON de JHipster: title, detail, message, fieldErrors) en una línea legible
+  async function errorDe(r) {
+    const txt = await r.text().catch(() => '');
+    let d = txt.replace(/\s+/g, ' ').trim();
+    try {
+      const j = JSON.parse(txt);
+      d = [j.title, j.detail, j.message && j.message !== 'error.http.' + r.status ? j.message : '', ...(Array.isArray(j.fieldErrors) ? j.fieldErrors.map(f => (f.field || '') + ': ' + (f.message || '')) : [])]
+        .filter(Boolean).join(' · ');
+    } catch (e) {}
+    return 'ATGO respondió ' + r.status + (d ? ': ' + d.slice(0, 400) : '');
+  }
+  // Tras un cambio se recarga la lista, pero una sola vez aunque lleguen varios seguidos (antes, una recarga completa por cambio)
+  let refT = null;
+  function refrescarPronto() { clearTimeout(refT); refT = setTimeout(refreshNow, 2500); }
+  // Asignación en bloque: LOTE_PARALELO tickets a la vez, cada uno leído, guardado y comprobado como si fuera suelto;
+  // cada resultado se contesta en cuanto está y la lista se recarga una vez al terminar.
+  const LOTE_PARALELO = 4;
+  async function editarLote(items, dest) {
+    let i = 0;
+    const trabajador = async () => { while (i < items.length) { const m = items[i++]; if (m && m.id && m.accion === 'asignar') await editar({ ...m, enLote: true }, dest); } };
+    await Promise.all(Array.from({ length: Math.min(LOTE_PARALELO, items.length) }, trabajador));
+    refreshNow();
+  }
+  async function editar(m, dest) {
+    const reply = (o) => { try { dest.postMessage({ type: 'atgo-editado', id: m.id, key: m.key, accion: m.accion, ...o }, PWA_ORIGIN); } catch (e) {} };
+    try {
+      if (!/^\d+\/[^/]+\/\d+$/.test(m.key || '')) throw new Error('ticket no válido');
+      if (!token()) throw new Error('la sesión de ATGO ha caducado: vuelve a iniciar sesión');   // sin token; si lo hay, decide ATGO (401)
+      const [p, s, c] = m.key.split('/').map(encodeURIComponent);
+      const H = { Authorization: 'Bearer ' + token() };
+      if (m.accion === 'comentario') {
+        const texto = String(m.texto || '').trim();
+        if (!texto || texto.length > 4000) throw new Error('comentario vacío o demasiado largo');
+        const url = '/api/v1/atgo/hilo/' + p + '/' + s + '/' + c + '?currentDateTime=' + encodeURIComponent(ahoraAtgo()) + '&geolocalizacion=null';
+        const r = await fetch(url, { method: 'POST', headers: { ...H, 'Content-Type': 'text/plain' }, body: texto });
+        if (!r.ok) throw new Error(await errorDe(r));
+        // Comprobación: el comentario debe aparecer en el hilo
+        const items = await getHilo(m.key);
+        const ok = items.some(i => i.t.replace(/\s+/g, ' ').trim() === texto.replace(/\s+/g, ' ').trim());
+        reply({ ok, verificado: ok, hilo: { at: Date.now(), items }, error: ok ? '' : 'ATGO aceptó el comentario pero no aparece en el hilo: revísalo en ATGO' });
+      } else if (m.accion === 'estado') {
+        const est = Number(m.estado);
+        if (!Number.isInteger(est) || (estadosAtgo && !estadosAtgo.some(x => x.estado === est))) throw new Error('estado no válido');
+        const r = await fetch('/api/v1/atgo/incidencias/cambiar-estado/' + p + '/' + s + '/' + c + '/' + est, { method: 'PUT', headers: H });
+        if (!r.ok) throw new Error(await errorDe(r));
+        const st = await getEstado(m.key);
+        const esperado = (estadosAtgo || []).find(x => x.estado === est);
+        const ok = !esperado || String(st.estado).trim().toUpperCase() === String(esperado.desEstado).trim().toUpperCase();
+        reply({ ok, verificado: !!esperado, estadoActual: st.estado, error: ok ? '' : 'ATGO indica ahora el estado ' + (st.estado || 'desconocido') });
+        refrescarPronto();
+      } else if (m.accion === 'asignar') {
+        // Fase 2: técnico y fecha/hora de visita. ATGO guarda la ficha completa, así que se reenvía tal cual
+        // está (leída justo antes) cambiando solo esos campos, y después se comprueba campo a campo.
+        const camb = {};
+        if (m.codOpe != null) { const op = String(m.codOpe).trim().toUpperCase(); if (!OPERARIOS.includes(op) && !permitidos.includes(op) && !(poolOps && poolOps[op])) throw new Error('técnico no válido'); camb.codOpe = op; }
+        if (m.fechaVisita != null) { if (!/^\d{4}-\d{2}-\d{2}$/.test(m.fechaVisita)) throw new Error('fecha no válida'); camb.fechaVisita = m.fechaVisita; }
+        for (const [k, n] of [['horaInicioVisita', 'horaInicio'], ['horaFinVisita', 'horaFin']]) {
+          if (m[n] != null) { if (m[n] !== '' && !/^\d{2}:\d{2}$/.test(m[n])) throw new Error('hora no válida'); camb[k] = m[n] || null; }
+        }
+        if (!Object.keys(camb).length) throw new Error('nada que cambiar');
+        const base = '/api/v1/atgo/incidencias/' + p + '/' + s + '/' + c;
+        const leer = async () => { const r = await fetch(base, { headers: { ...H, Accept: 'application/json' } }); if (!r.ok) throw new Error('no se pudo leer la ficha (ATGO respondió ' + r.status + ')'); return r.json(); };
+        const antes = await leer();
+        const put = await fetch(urlGuardado(antes, camb), { method: 'PUT', headers: H });
+        if (!put.ok) throw new Error(await errorDe(put));
+        const despues = await leer();
+        const dif = compararFichas(antes, despues);
+        const esperados = new Set(['codOpe', 'desOpe', 'fechaVisita', 'horaInicioVisita', 'horaFinVisita']);
+        const inesperados = Object.keys(dif).filter(k => !esperados.has(k));
+        const pedidos = Object.keys(camb).filter(k => k === 'fechaVisita' ? String(despues.fechaVisita || '').slice(0, 10) !== camb.fechaVisita : String(despues[k] || '') !== String(camb[k] || ''));
+        if (inesperados.length) {
+          // Algo más cambió: se restaura la ficha tal como estaba
+          const rr = await fetch(urlGuardado(antes, {}), { method: 'PUT', headers: H });
+          const tras = await leer();
+          const quedan = Object.keys(compararFichas(antes, tras));
+          reply({ ok: false, dif, restaurado: rr.ok && !quedan.length, quedan, error: 'ATGO cambió también ' + inesperados.join(', ') + (rr.ok && !quedan.length ? ': se ha restaurado la ficha original' : ': NO se pudo restaurar del todo, revísalo en ATGO') });
+        } else if (pedidos.length) {
+          reply({ ok: false, dif, error: 'ATGO no aplicó: ' + pedidos.join(', ') });
+        } else {
+          reply({ ok: true, verificado: true, dif, fila: { operario: String(despues.codOpe || '').trim().toUpperCase(), desOperario: despues.desOpe || '', fVisita: ymdToEs(despues.fechaVisita), desdeHora: despues.horaInicioVisita || '', hastaHora: despues.horaFinVisita || '' } });
+        }
+        if (!m.enLote) refrescarPronto();
+      } else throw new Error('acción no permitida');
+    } catch (e) {
+      reply({ ok: false, error: e.message || String(e) });
+    }
+  }
+
+  syncOnce();
+})();

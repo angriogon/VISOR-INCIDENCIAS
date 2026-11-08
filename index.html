@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Panel de Despacho</title>
-<meta name="description" content="Seguimiento de incidencias de técnicos, rutas del día y plantillas de correo.">
+<title>Despacho</title>
+<meta name="description" content="Seguimiento y planificación de incidencias de técnicos.">
 <meta name="theme-color" content="#f7f5f0" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#1b2126" media="(prefers-color-scheme: dark)">
 <link rel="manifest" href="manifest.webmanifest">
@@ -23,11 +23,10 @@
   <span class="sync-aviso" id="syncAviso" hidden></span>
   <div class="spacer"></div>
   <button class="btn ghost" id="installBtn" style="display:none;" title="Instalar como aplicación de Windows">Instalar app</button>
-  <button class="chip perfil-chip" id="perfilBtn" onclick="menuPerfil(event)" title="Perfil: técnicos que ves (se cambian en ⚙ › Perfiles)"></button>
+  <button class="chip perfil-chip" id="perfilBtn" onclick="menuPerfil(event)" title="Perfil: técnicos que ves (se cambian en Ajustes › Perfiles)"></button>
   <button class="iconbtn" onclick="openPalette()" title="Buscar ticket o acción (Ctrl+K)" aria-label="Buscar"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></button>
   <button class="iconbtn" id="novBtn" onclick="abrirNovedades()" title="Versión y novedades" aria-label="Versión y novedades"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/></svg><i class="nov-dot" id="novDot" hidden></i></button>
-  <button class="iconbtn" id="cfgBtn" onclick="toggleCfg(event)" title="Ajustes, perfiles, apariencia y accesibilidad" aria-label="Ajustes" aria-haspopup="dialog">⚙</button>
-  <span hidden><button id="clearBtn">Quitar datos</button><button id="atgoBtn">ATGO</button><button id="importBtn">Importar</button></span>
+  <button class="iconbtn" id="cfgBtn" onclick="toggleCfg(event)" title="Ajustes, perfiles, apariencia y accesibilidad" aria-label="Ajustes" aria-haspopup="dialog"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.8 1.2V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-2.9-1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0-1.2-2.8H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.2-2.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 2.9-1.2V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 2.8 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0 1.2 2.9H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
   <div class="cfg-menu" id="cfgMenu" role="dialog" aria-label="Ajustes" hidden></div>
   <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
   <input type="file" id="backupInput" accept=".json,application/json">
@@ -41,11 +40,10 @@
     <div class="howto">
       <p><b>En tiempo real desde ATGO</b> (se actualiza solo cada 2 minutos):</p>
       <ol>
-        <li>Solo la primera vez: arrastra este botón a tu barra de favoritos → <a class="bookmarklet" id="bookmarklet" href="#" title="Arrástrame a la barra de favoritos">⟳ Despacho ATGO</a></li>
-        <li>Pulsa <b>ATGO</b> (arriba a la derecha) e inicia sesión en Mis tickets.</li>
-        <li>En esa pestaña de ATGO, pulsa el favorito <b>⟳ Despacho ATGO</b>. Deja la pestaña abierta.</li>
+        <li>Instala la extensión de Despacho (Ajustes › General) e inicia sesión en ATGO. No hace falta nada más.</li>
+        <li>Si tu empresa no permite extensiones: arrastra <a class="bookmarklet" id="bookmarklet" href="#" title="Arrástrame a la barra de favoritos">⟳ Despacho ATGO</a> a tu barra de favoritos y púlsalo en la pestaña de ATGO, que debe quedar abierta.</li>
       </ol>
-      <p class="hint" style="justify-content:center">Solo se cargan los operarios y estados configurados. Tu sesión de ATGO no sale de su pestaña.</p>
+      <p class="hint hint-c">Solo se cargan los técnicos y estados configurados. Tu sesión de ATGO no sale de su pestaña.</p>
       <p style="margin-top:14px">O <b>importa un Excel</b> (o arrástralo aquí). Se toman las columnas B, E, F, G, I, J, K, L, N, P y S, y se agrupa por operario (columna K).</p>
     </div>
   </div>
@@ -54,6 +52,7 @@
     <div class="countbar" id="countLabel"></div>
     <div class="toprow" style="margin:12px 0 2px"><div class="filters" id="filters"></div>
       <div class="leg"><span><i style="background:var(--done)"></i>Terminada</span><span><i style="background:var(--tra)"></i>En trámite</span><span><i style="background:var(--cur)"></i>En curso</span><span><i style="background:var(--panel2);border:1px solid var(--line)"></i>Pendiente</span>
+      <button class="iconbtn" id="vistaIncBtn" onclick="cambiarVistaInc()" title="Ver como tabla densa" aria-label="Ver como tabla densa"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 5h18v14H3zM3 10h18M3 15h18M9 5v14"/></svg></button>
       <button class="iconbtn" id="toggleAll" onclick="toggleAll()" title="Desplegar / plegar todos" aria-label="Desplegar o plegar todos"></button></div></div>
     <div id="groupsPanel"></div>
   </div>
@@ -78,6 +77,7 @@
 <script src="edicion.js"></script>
 <script src="panel.js"></script>
 <script src="coord.js"></script>
+<script src="prioridades.js"></script>
 <script src="app.js"></script>
 <script src="ajustes.js"></script>
 </body>

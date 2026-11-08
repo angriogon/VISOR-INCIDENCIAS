@@ -1,6 +1,6 @@
 // ===== Edición en ATGO (fase 1): comentario en el hilo y cambio de estado =====
 // Despacho pide el cambio a la pestaña de ATGO (atgo-sync.js), que lo hace con tu sesión y lo comprueba.
-// Usa utilidades de index.html, dia.js y herramientas.js solo en tiempo de llamada.
+// Usa utilidades de app.js, dia.js y herramientas.js solo en tiempo de llamada.
 
 const EDIT_KEY = 'dispatcher_ediciones_v1';
 const EDIT_TIMEOUT_MS = 25000;
@@ -11,7 +11,7 @@ let edResultado = null;   // { key, ok, txt, ts }
 function anotarResultado(key, ok, txt) { edResultado = { key, ok, txt, ts: Date.now() }; toast(txt, ok ? 'ok' : 'ko'); }
 let editPend = null;   // { id, key, accion, t0 } mientras se espera respuesta
 
-// Llamado desde index.html al recibir datos de ATGO: qué sabe hacer la pestaña de ATGO y su lista de estados
+// Llamado desde app.js al recibir datos de ATGO: qué sabe hacer la pestaña de ATGO y su lista de estados
 function recibirCapacidades(m) {
   if (Array.isArray(m.caps)) atgoCaps = m.caps;
   if (Array.isArray(m.estados) && m.estados.length) atgoEstados = m.estados;
@@ -74,7 +74,7 @@ function enviarEdicion(accion, key, datos) {
   return new Promise(resolve => {
   if (editPend) { toast('Espera a que termine el cambio anterior'); resolve({ ok: false, error: 'otro cambio en curso' }); return; }
   const src = hiloFuente();
-  if (!src || src.closed) { toast('Abre ATGO y pulsa el favorito ⟳ Despacho ATGO'); resolve({ ok: false, error: 'sin pestaña de ATGO', sinAtgo: true }); return; }
+  if (!src || src.closed) { toast('Conecta ATGO (Ajustes › General) y repítelo'); resolve({ ok: false, error: 'sin pestaña de ATGO', sinAtgo: true }); return; }
   const id = 'e' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
   // Para "Deshacer": cómo estaba antes lo que se va a cambiar
   const r0 = ticketDe(key) || {}, antes = {};
@@ -102,13 +102,22 @@ function enviarEdicion(accion, key, datos) {
 }
 // Respuestas que llegan después del tiempo de espera: el cambio pudo aplicarse igualmente
 let editTarde = {};
+// Si llegan varias respuestas tardías de un lote, un solo aviso con todas
+let tardias = [], tardiasT = null;
+function avisarTarde(num, resumen) {
+  tardias.push({ num, resumen }); clearTimeout(tardiasT);
+  tardiasT = setTimeout(() => {
+    const l = tardias; tardias = [];
+    confirmar(`<b>ATGO respondió tarde, pero sí se aplicó${l.length > 1 ? ' en ' + l.length + ' tickets' : ''} ✓</b>${l.slice(0, 25).map(x => `<p>Nº ${esc(x.num)} · ${esc(x.resumen || '')}</p>`).join('')}<p class="hint">No lo repitas: ya está guardado y comprobado.</p>`, 'Entendido');
+  }, 1000);
+}
 function recibirEdicionTarde(m) {
   const t = editTarde[m.id]; delete editTarde[m.id];
   const r = ticketDe(t.key) || {};
   const error = errorAtgo(m.error);
   registrarEdicion({ key: t.key, num: r.num, accion: t.accion, detalle: t.datos.resumen + ' (respuesta tardía)', ok: !!m.ok, error, dif: m.dif || null });
   if (m.hilo) recibirHilos({ [t.key]: m.hilo });
-  if (m.ok) confirmar(`<b>ATGO respondió tarde, pero sí se aplicó ✓</b><p>Nº ${esc(r.num || t.key)} · ${esc(t.datos.resumen || '')}</p><p class="hint">No lo repitas: ya está guardado y comprobado.</p>`, 'Entendido');
+  if (m.ok) avisarTarde(r.num || t.key, t.datos.resumen);
   else toast('ATGO respondió tarde: no se aplicó · ' + error);
   if (fichaKey === t.key) renderFicha();
 }
@@ -175,7 +184,7 @@ async function cambiarEstadoAtgo() {
 }
 
 // ---- Fase 2: asignar técnico y fecha/hora de visita ----
-function fase2Activa() { return atgoCaps.includes('asignar'); }
+function puedePlanificar() { return atgoCaps.includes('asignar'); }
 function preAsignar(op) { const s = document.getElementById('asOp'); if (s) { s.value = op; s.dispatchEvent(new Event('change')); s.scrollIntoView({ block: 'nearest' }); } }
 function fechaIsoDe(r) { const d = parseEs(r.fVisita); return d ? isoHoy(d) : ''; }
 async function asignarAtgo() {
@@ -220,7 +229,7 @@ function difHtml(dif) {
   return `<details class="ed-dif"><summary>Comprobación en ATGO: ${ks.length} campo${ks.length === 1 ? '' : 's'} cambiado${ks.length === 1 ? '' : 's'}</summary><ul>${ks.map(k => `<li><b>${esc(k)}</b>: ${esc(fmt(dif[k].antes))} → ${esc(fmt(dif[k].despues))}</li>`).join('')}</ul></details>`;
 }
 function asignarHtml(key, r, pend) {
-  if (!fase2Activa()) return '';
+  if (!puedePlanificar()) return '';
   // Mismo selector que en Sin asignar (opcionesTecnico, panel.js): cualquier técnico de cualquier perfil,
   // con los recomendados de su zona primero. Si el actual es un comodín "PENDIENTE ASIGNAR", sale como primera opción.
   const rec = recomendar(r, nextWorkday()) || [];
@@ -252,7 +261,7 @@ function edicionHtml(key, r) {
   const histHtml = hist.length ? `<ul class="dw-hist ed-hist">${hist.slice(0, 8).map(e => `<li class="${e.ok ? '' : 'ko'}"><span>${esc(cuando(e.ts))}</span>${e.ok ? '✓' : '✕'} ${esc(e.detalle || e.accion)}${e.ok ? '' : ' · ' + esc(e.error || 'no aplicado')}</li>`).join('')}</ul>` : '';
   if (!puedeEditar()) {
     return `<div class="dw-sec"><div class="dw-h">Actuar en ATGO</div>
-      <div class="dw-empty">${hiloFuente() ? 'Recarga la pestaña de ATGO y vuelve a pulsar el favorito ⟳ Despacho ATGO para activar la edición.' : 'Abre ATGO y pulsa el favorito ⟳ Despacho ATGO para poder comentar o cambiar el estado desde aquí.'}</div>${histHtml}</div>`;
+      <div class="dw-empty">${hiloFuente() ? 'Recarga la pestaña de ATGO para activar la edición.' : 'Conecta ATGO (Ajustes › General) para poder comentar o cambiar el estado desde aquí.'}</div>${histHtml}</div>`;
   }
   const opciones = atgoEstados.filter(x => norm(x.desEstado) !== norm(r.estado));
   return `<div class="dw-sec">

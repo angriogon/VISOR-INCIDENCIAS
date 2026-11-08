@@ -19,7 +19,7 @@ Publicada en GitHub Pages: https://angriogon.github.io/VISOR-INCIDENCIAS/
 
 - **Sin build, sin npm, sin framework.** HTML + JS estático. GitHub Pages publica la raíz tal cual.
 - **Scripts clásicos que comparten el ámbito global** (no son módulos ES). Orden de carga en `index.html`:
-  `dia.js` → `herramientas.js` → `edicion.js` → `panel.js` → `coord.js` → `app.js` → `ajustes.js`. Excel (XLSX) y Leaflet se cargan
+  `dia.js` → `herramientas.js` → `edicion.js` → `panel.js` → `coord.js` → `prioridades.js` → `app.js` → `ajustes.js`. Excel (XLSX) y Leaflet se cargan
   al usarlos con `cargarLibreria` (app.js).
   El arranque de `ajustes.js` va en `DOMContentLoaded` (cuando ya existe todo).
   Las funciones se llaman entre archivos solo *en tiempo de llamada*: en el nivel superior de un archivo
@@ -34,11 +34,12 @@ Publicada en GitHub Pages: https://angriogon.github.io/VISOR-INCIDENCIAS/
   Nómina (⚙ › Técnicos, `abrirNomina` en ajustes.js): altas, zona/DSP y bajas en `perfilCfg.nomina`; se aplica sobre `ZONAS_BASE`
   al arrancar (`NOMINA`/`moverEnZonas` en app.js). Los no disponibles (`noDisponible(op, fecha)` = baja o vacaciones `nomina[op].vac`) no salen en los paneles ni se proponen al asignar (recomendar, opcionesTecnico, zonasVisibles, render).
   A atgo-sync se manda `operarios` (perfil activo, lo que se sincroniza) y `permitidos` (todos, a quién se puede asignar).
-- **Persistencia:** `localStorage` con claves `dispatcher_<nombre>_v1`, siempre vía `lsGet`/`lsSet` (dia.js).
+- **Persistencia:** `localStorage` con claves `dispatcher_<nombre>_v1`, siempre vía `lsGet`/`lsSet` (o `lsTexto`/`lsPonTexto`/`lsQuita` para textos sueltos; dia.js).
   Si añades datos nuevos, inclúyelos en `exportBackup`/`restoreBackup` (dia.js).
   El handle de OneDrive va en IndexedDB (`IDB`, herramientas.js).
-- **Sincronización ATGO:** `atgo-sync.js` se ejecuta *dentro* de la pestaña de ATGO (marcador o
-  `extension/`) y habla con la PWA por `postMessage`:
+- **Sincronización ATGO:** `atgo-sync.js` se ejecuta *dentro* de la pestaña de ATGO y habla con la PWA por `postMessage`.
+  La extensión lleva su propia copia (`extension/atgo-sync.js`, idéntica; no descarga código) y la ejecuta en su pestaña vigilada; el favorito carga la publicada.
+  Con la extensión los mensajes van por el puente `{__despacho:'de-atgo'|'a-atgo'|'a-extension'|'puente'}` (`ATGO_PUENTE`/`puenteAtgo` en app.js; `puente-atgo.js` y `puente-despacho.js`):
   - ATGO → PWA: `atgo-data`, `atgo-hilo`, `atgo-estado`, `atgo-editado`, `atgo-status`, `atgo-hello`
     (se reciben en `app.js`, `window.addEventListener('message', …)`).
   - PWA → ATGO: `despacho-ready`, `despacho-config` (lista de técnicos = `TODOS_OPS`), `despacho-refresh`, `despacho-hilo`, `despacho-editar`, `despacho-estado`.
@@ -50,18 +51,19 @@ Publicada en GitHub Pages: https://angriogon.github.io/VISOR-INCIDENCIAS/
 | Archivo | Contiene |
 |---|---|
 | `index.html` | Estructura: cabecera, pestañas y contenedores de las vistas (`viewDia`, `viewSin`, `viewInc`, `viewSem`, `viewMan` = día de Planificación) |
-| `styles.css` | Estilos; bloque `v1.13` (tema oscuro manual, ficha flotante…) y `v1.21` (colores: `--acento`/`--amber` = acento, `--warn` = avisos en naranja; compacto/amplio; `acc-*` accesibilidad; nómina) |
+| `styles.css` | Estilos. Al principio, el sistema de diseño: `--acento` (color elegido), `--marca` (textos), `--marca-fondo` (rellenos con texto blanco), `--warn`; letra de 11 px como mínimo; iconos con `ico()` (dia.js) |
 | `app.js` | Configuración (`ZONAS_BASE`, perfiles, `ESTADOS`, `COLS`, `TEC_DEF`/`tecCfg`), carga Excel, `render()` (Incidencias), filtros (`filtroInc`, filtros guardados), `estadoPill`, `renderManana()` (día), WhatsApp (`abrirWa`, plantillas, `enviarTodasRutas`), `showTab()`, `applyAtgo` (con `cargaSospechosa`), recepción de mensajes de ATGO |
 | `ajustes.js` | `APP_VERSION`, `NOVEDADES` (se ven las 5 últimas + `ANTERIORES`), ⚙ (`renderCfg` por secciones), perfiles, nómina, apariencia (color `ACENTOS`, densidad, accesibilidad `ACC_OPS`, foco en ventanas `vigilarVentana`), atajos de teclado, menú contextual, acciones del buscador (→), asistente, diagnóstico (`diagLog`), migraciones, resumen matinal y técnico sin actividad, exportar a Excel |
 | `dia.js` | Mi día (`renderDia`), novedades (`trackChanges`), avisos de Windows, ficha (`openTicket(key, tab)`/`renderFicha` con pestañas Resumen·Actuar·Historial), notas y seguimientos, hilos ATGO (`HILO_SISTEMA`), progreso de ruta (`rutaHoy`), buscador Ctrl+K, copia de seguridad |
 | `herramientas.js` | Cerradas 15 días, material, caducidad/SLA, ruta Google Maps y GLS, técnico sugerido, correos del día, informe semanal, copia en OneDrive |
-| `edicion.js` | Actuar en ATGO: comentario, cambio de estado, asignar (fase 2) con comprobación campo a campo |
+| `edicion.js` | Actuar en ATGO: comentario, cambio de estado, asignar y lote (`enviarLoteAtgo`) con comprobación campo a campo |
 | `panel.js` | Sin asignar y buzón (`recomendar`, misma sede: `mismaSede`/`sedeAvisoHtml`/`sedeConfirmHtml`), aviso de sincronización, respuestas rápidas, duración (`minutosTexto`, `duracionInfo`, `estimarMin` puede ser null) y carga en horas, conflictos, reincidencias, asignación en bloque, Semana, línea de tiempo, pliegues, mapa (Leaflet + Nominatim + OSRM) |
-| `coord.js` | Perfil COORD: pestaña CONTROL (`renderControl`, `ctlListas`/`ctlFiltradas`, filtros `ctl`), Excel por lista (`ctlExcel`) e informe completo (`ctlInforme`). `esCoord()` decide las pestañas al arrancar (app.js) |
+| `coord.js` | Perfil COORD: pestaña CONTROL (`renderControl`, `ctlListas`/`ctlFiltradas`, filtros `ctl`, `ctlPorDsp`, antigüedad), Excel por lista (`ctlExcel`), informe (`ctlInforme`, `revisarInformeAuto`) y tabla densa de Incidencias (`incTablaHtml`). `esCoord()` decide las pestañas al arrancar (app.js) |
+| `prioridades.js` | Ventanas de ayuda al DSP: Qué hacer ahora (`queHacerLista`), Propuesta del día (`propuestaDia`), Mañana listo y `visitaTrasCaducar` |
 | `tests/pruebas.js` | Pruebas sin dependencias (duración, caducidad, coherencia de listas y versiones). GitHub Actions las ejecuta |
 | `atgo-sync.js` | Sincronización dentro de ATGO (lista `OPERARIOS`, códigos de `ESTADOS`, `REFRESCO_MIN`, edición) |
 | `sw.js` | Service worker: `VERSION` y lista `SHELL` de archivos cacheados |
-| `extension/` + `despacho-extension.zip` | Extensión Edge/Chrome que lanza `atgo-sync.js` al abrir ATGO |
+| `extension/` + `despacho-extension.zip` | Extensión Edge/Chrome: guardián de la pestaña de ATGO (`background.js`), puentes e inicio de sesión automático. Ejecuta su copia de `atgo-sync.js` |
 
 ## Reglas al cambiar código
 
@@ -73,7 +75,7 @@ Publicada en GitHub Pages: https://angriogon.github.io/VISOR-INCIDENCIAS/
 3. **Técnicos duplicados:** `ZONAS_BASE` (app.js) manda; `OPERARIOS` (atgo-sync.js) es el respaldo y debe coincidir.
    Asignar: siempre por `asignarLote` (también una sola) y técnico recomendado por `recomendar` (sugerirTecnico lo usa).
    Lo mismo con estados: por nombre en `ESTADOS` (app.js) y por código en `atgo-sync.js`.
-4. Si cambias `extension/`, regenera `despacho-extension.zip`.
+4. Si cambias `extension/` o `atgo-sync.js`, copia `atgo-sync.js` a `extension/`, sube su versión en `manifest.json` y regenera `despacho-extension.zip` (las pruebas y GitHub Actions lo comprueban).
 5. No elimines funcionalidades existentes al añadir otras. Si retiras algo, quita también su CSS, sus textos y, si guardaba datos,
    añade su clave a la migración de limpieza (`MIGRACIONES` en ajustes.js). No dejes archivos ni código sin uso.
 6. Cualquier escritura en ATGO debe pedir confirmación, verificarse después y no reintentarse sola.

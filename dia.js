@@ -1,6 +1,6 @@
 // ===== Mi día: seguimiento, avisos, notas, búsqueda y resumen =====
-// Despacho es un visor: nada de esto modifica ATGO ni el ERP. Todo se guarda en este equipo.
-// Usa utilidades de index.html (rows, esc, toast, norm, ZONAS, nextWorkday, ddmmyyyy, …) en tiempo de llamada.
+// Nada de este archivo escribe en ATGO: las notas y el seguimiento se guardan en este equipo.
+// Usa utilidades de app.js (rows, esc, toast, norm, ZONAS, nextWorkday, ddmmyyyy, …) en tiempo de llamada.
 
 const SNAP_KEY = 'dispatcher_snap_v1', EVT_KEY = 'dispatcher_eventos_v1', NOTAS_KEY = 'dispatcher_notas_v1';
 const ENV_KEY = 'dispatcher_envios_v1', AVI_KEY = 'dispatcher_avisos_v1';
@@ -9,16 +9,21 @@ const PARADO_ANTIGUEDAD = 15;   // días desde el registro para considerarlo par
 const ESTADOS_ESPERA = ['EN FABRICANTE', 'MATERIAL PTE. FABRICANTE', 'PTE. MOVER MATERIAL', 'ESCALADO TIER1', 'FUERA DE MANTENIMIENTO'];
 
 function lsGet(k, def) { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? def : v; } catch (e) { return def; } }
+// Valores de texto sueltos (no JSON) y borrado
+function lsTexto(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+function lsPonTexto(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* preferencia menor: se volverá a guardar */ } }
+function lsQuita(k) { try { localStorage.removeItem(k); } catch (e) { /* sin acceso al almacenamiento: nada que borrar */ } }
 // Si el navegador se queda sin espacio, se libera lo prescindible (ajustes.js) y se reintenta una vez
 function lsSet(k, v) {
   const txt = JSON.stringify(v);
-  try { localStorage.setItem(k, txt); return; } catch (e) {}
+  try { localStorage.setItem(k, txt); return true; } catch (e) { /* lleno: se intenta liberar espacio */ }
   if (typeof liberarEspacio === 'function' && !lsSet.liberando) {
     lsSet.liberando = true;
-    try { liberarEspacio(); localStorage.setItem(k, txt); return; } catch (e) {} finally { lsSet.liberando = false; }
+    try { liberarEspacio(); localStorage.setItem(k, txt); return true; } catch (e) { /* sigue lleno: se avisa abajo */ } finally { lsSet.liberando = false; }
   }
   toast('No se pudo guardar en este equipo (sin espacio)');
   if (typeof diagLog === 'function') diagLog('No se pudo guardar ' + k);
+  return false;
 }
 
 let segSnap = lsGet(SNAP_KEY, { start: 0, items: {} });
@@ -27,6 +32,16 @@ let notas = lsGet(NOTAS_KEY, {});
 let envios = lsGet(ENV_KEY, {});
 let avisos = { on: false, miNombre: true, escalado: true, ruta: true, nuevos: false, material: true, sla: true, ...lsGet(AVI_KEY, {}) };
 let novFiltro = 'nv';
+
+// Iconos de línea (mismo trazo que los de la cabecera). En textos planos (toast, title, WhatsApp) no se usan.
+const ICONOS = {
+  alerta: 'M12 3 2 20h20L12 3zM12 10v4M12 17.5v.01', pin: 'M12 21s7-6.2 7-11.5A7 7 0 0 0 5 9.5C5 14.800 12 21 12 21zM12 11.500a2 2 0 1 0 0-4 2 2 0 0 0 0 4z',
+  ausente: 'M12 3a9 9 0 0 1 9 9H3a9 9 0 0 1 9-9zM12 12v7a2 2 0 0 0 4 0', repetir: 'M17 2l4 4-4 4M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4M21 13v2a3 3 0 0 1-3 3H3',
+  accesible: 'M12 5.500a1.500 1.500 0 1 0 0-3 1.500 1.500 0 0 0 0 3zM5 8l7 1.500L19 8M12 9.500V14l-3 7M12 14l3 7', equipo: 'M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM2 21v-1a6 6 0 0 1 6-6h2a6 6 0 0 1 6 6v1M16 3.200a4 4 0 0 1 0 7.600M19 14.300a6 6 0 0 1 3 5.200V21',
+  telefono: 'M22 16.900v3a2 2 0 0 1-2.200 2A19.800 19.800 0 0 1 2.100 4.200 2 2 0 0 1 4.100 2h3a2 2 0 0 1 2 1.700l.5 3a2 2 0 0 1-.6 1.800L7.700 9.800a16 16 0 0 0 6.500 6.500l1.300-1.300a2 2 0 0 1 1.800-.6l3 .5a2 2 0 0 1 1.700 2z',
+  correo: 'M3 5h18v14H3zM3 6l9 7 9-7', reloj: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2', ok: 'M4 12.500 9.500 18 20 6.500', mas: 'M5 12h.01M12 12h.01M19 12h.01'
+};
+function ico(n) { return `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="${ICONOS[n]}"/></svg>`; }
 
 function tkey(r) { return String(r.key || r.num); }
 function dispatcherOps() { return ZONAS.filter(z => z.dispatcher).flatMap(z => z.ops); }
@@ -44,7 +59,7 @@ function hhmm(ts) { return new Date(ts).toLocaleTimeString('es-ES', { hour: '2-d
 function cuando(ts) { const d = new Date(ts); return isoHoy(d) === isoHoy() ? hhmm(ts) : d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' }) + ' ' + hhmm(ts); }
 function visTxt(f, h, h2) { return f ? f + (h ? ' ' + h + (h2 ? '–' + h2 : '') : '') : ''; }
 function hash(s) { let h = 5381; for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0; return h.toString(36); }
-// "GARCIA SUTIL, JESUS" → "Jesus Garcia Sutil"
+// "APELLIDO APELLIDO, NOMBRE" → "Nombre Apellido Apellido"
 function nombreTecnico(r) {
   const tc = s => s.toLowerCase().replace(/(^|[\s-])\S/g, c => c.toUpperCase());
   const [ap, nom] = String(r.desOperario || '').split(',').map(s => s.trim());
@@ -126,7 +141,7 @@ async function notificar(list) {
   try {
     const reg = navigator.serviceWorker && await navigator.serviceWorker.getRegistration();
     if (reg) await reg.showNotification(title, opts); else new Notification(title, opts);
-  } catch (e) { try { new Notification(title, opts); } catch (er) {} }
+  } catch (e) { try { new Notification(title, opts); } catch (er) { diagLog('Aviso de Windows: ' + er.message); } }
 }
 async function activarAvisos() {
   if (!('Notification' in window)) { toast('Este navegador no permite avisos'); return; }
@@ -138,7 +153,7 @@ async function activarAvisos() {
 }
 async function notificarPrueba() {
   const opts = { body: 'Así te avisará Despacho de lo importante.', tag: 'despacho-prueba', icon: 'icon-192.png' };
-  try { const reg = await navigator.serviceWorker.getRegistration(); if (reg) await reg.showNotification('Despacho', opts); else new Notification('Despacho', opts); } catch (e) {}
+  try { const reg = await navigator.serviceWorker.getRegistration(); if (reg) await reg.showNotification('Despacho', opts); else new Notification('Despacho', opts); } catch (e) { diagLog('Aviso de Windows: ' + e.message); }
 }
 
 // ===== 11. Rutas enviadas por WhatsApp y cambios posteriores =====
@@ -168,7 +183,7 @@ function estadoEnvio(op, f) {
 function envioBadge(op) {
   const s = estadoEnvio(op, ddmmyyyy(manDate));
   if (!s) return '';
-  return s.cambiada ? `<span class="env warn" title="La ruta cambió en ATGO después de enviarla">⚠ cambió tras enviar</span>` : `<span class="env ok">✓ enviada ${hhmm(s.ts)}</span>`;
+  return s.cambiada ? `<span class="env warn" title="La ruta cambió en ATGO después de enviarla">${ico('alerta')} cambió tras enviar</span>` : `<span class="env ok">✓ enviada ${hhmm(s.ts)}</span>`;
 }
 function revisarRutasEnviadas(out, now) {
   const f = ddmmyyyy(nextWorkday());
@@ -302,7 +317,7 @@ function progresoHilo(key, op) {
 }
 // Solo estos estados cuentan como visita terminada. Cualquier otro tras PRESENCIAL es "en trámite".
 const ESTADOS_CIERRE = ['CERRADO', 'CERRADO PTE. PRESUPUESTO', 'PUESTO OPERATIVO', 'PTO. OPERATIVO PTE. ENVÍO PRESUPUESTO', 'PTO. OPERATIVO PTE. ACEPTACIÓN PRESUPUESTO'];
-// norm() está en index.html, que se carga después de este archivo: se usa solo en tiempo de llamada
+// norm() está en app.js, que se carga después de este archivo: se usa solo en tiempo de llamada
 function esCierre(estado) { const n = norm(estado); return ESTADOS_CIERRE.some(c => norm(c) === n); }
 
 function pedirEstados(keys) {
@@ -379,8 +394,8 @@ function hiloHtml(key, modo) {
   if (!/^\d+\/[^/]+\/\d+$/.test(key)) return '';
   const u = hiloUtil(key), pend = hiloPend[key], src = hiloFuente();
   const esperaLarga = pend && Date.now() - pend > 6000;
-  const estado = !src ? (u ? `Guardado ${cuando(u.at)}. Para actualizarlo, sincroniza ATGO con el favorito ⟳ Despacho ATGO.` : 'Abre ATGO y pulsa el favorito ⟳ Despacho ATGO para ver el hilo.')
-    : esperaLarga ? 'ATGO no responde: recarga su pestaña y vuelve a pulsar el favorito ⟳ Despacho ATGO.'
+  const estado = !src ? (u ? `Guardado ${cuando(u.at)}. Para actualizarlo, conecta ATGO (Ajustes › General).` : 'Conecta ATGO (Ajustes › General) para ver el hilo.')
+    : esperaLarga ? 'ATGO no responde: pulsa «Forzar reconexión» en Ajustes › General.'
     : pend ? 'Actualizando desde ATGO…' : '';
   if (!u || !u.utiles.length) {
     return `<div class="dw-sec"><div class="dw-h">Motivo de apertura</div><div class="dw-empty">${u ? 'El hilo no tiene comentarios.' : esc(estado || 'Sin datos del hilo.')}</div></div>`;
@@ -504,7 +519,7 @@ function contactoHtml(r) {
   const tel = String(r.telefono || '').replace(/[^\d+]/g, ''), mail = String(r.email || '').trim();
   const okMail = /^[^\s@<>"']+@[^\s@<>"']+\.[a-z]{2,}$/i.test(mail);
   if (tel.length < 6 && !okMail) return '';
-  return `<div class="dw-contacto">${tel.length >= 6 ? `<a class="btn sm" href="tel:${esc(tel)}" title="Llamar">📞 ${esc(r.telefono)}</a>` : ''}${okMail ? `<a class="btn sm" href="mailto:${esc(mail)}" title="Escribir">✉ ${esc(mail)}</a>` : ''}</div>`;
+  return `<div class="dw-contacto">${tel.length >= 6 ? `<a class="btn sm" href="tel:${esc(tel)}" title="Llamar">${ico('telefono')} ${esc(r.telefono)}</a>` : ''}${okMail ? `<a class="btn sm" href="mailto:${esc(mail)}" title="Escribir">${ico('correo')} ${esc(mail)}</a>` : ''}</div>`;
 }
 // ---- Material: último comentario sobre el envío y el seguimiento de GLS si aparece en el hilo ----
 function materialHtml(key, r) {
@@ -548,7 +563,7 @@ const PAL_ACCIONES = [
   { t: 'Informe semanal', k: 'semana responsable cumplimiento', run: () => abrirInforme() },
   { t: 'Marcar novedades como vistas', k: 'leido', run: () => { marcarVistos(); refreshVisible(); toast('Novedades marcadas como vistas'); } },
   { t: 'Ver tickets a mi nombre', k: 'dispatcher amrg', run: () => { zonaSel = 'DISPATCHER'; showTab('inc'); } },
-  { t: 'Abrir ATGO', k: 'sincronizar', run: () => document.getElementById('atgoBtn').click() }
+  { t: 'Abrir ATGO', k: 'sincronizar', run: () => abrirAtgo() }
 ];
 function openPalette() {
   const o = document.getElementById('palette'); o.hidden = false;
@@ -635,7 +650,7 @@ function renderDia(force) {
   if (!rows.length) {
     root.innerHTML = `<div class="dia-top"><h1>${esc(fecha)}</h1></div>
       <div class="empty"><h2>Sin incidencias cargadas</h2><div>Conecta ATGO para ver tu día.</div>
-      <div class="acts" style="justify-content:center;margin-top:12px"><button class="btn pri" onclick="document.getElementById('atgoBtn').click()">Abrir ATGO</button><button class="btn" onclick="showTab('inc')">Cómo conectarlo</button></div></div>
+      <div class="acts" style="justify-content:center;margin-top:12px"><button class="btn pri" onclick="abrirAtgo()">Abrir ATGO</button><button class="btn" onclick="showTab('inc')">Cómo conectarlo</button></div></div>
 `;
     return;
   }
@@ -659,7 +674,7 @@ function renderDia(force) {
   root.innerHTML = `
     <div class="dia-top">
       <h1>${esc(fecha)}</h1>
-      <div class="acts">${typeof botonesDiaHtml === 'function' ? botonesDiaHtml() : ''}<button class="btn sm" onclick="openPalette()" title="Buscar ticket o acción">Buscar <kbd>Ctrl K</kbd></button><button class="btn sm" onclick="copiarResumenJornada()" title="Texto listo para pegar a tu responsable">Copiar resumen del día</button><button class="btn sm" onclick="abrirInforme()">Informe semanal</button><button class="btn sm ghost" onclick="plegarTodo(true)" title="Plegar todas las secciones">Plegar</button><button class="btn sm ghost" onclick="plegarTodo(false)" title="Desplegar todas las secciones">Desplegar</button></div>
+      <div class="acts">${typeof botonesDiaHtml === 'function' ? botonesDiaHtml() : ''}<details class="mas"><summary class="btn sm" aria-label="Más acciones">Más</summary><div class="mas-lista">${typeof masDiaHtml === 'function' ? masDiaHtml() : ''}<button onclick="copiarResumenJornada()" title="Texto listo para pegar a tu responsable">Copiar resumen del día</button><button onclick="abrirInforme()">Informe semanal</button><button onclick="plegarTodo(true)">Plegar secciones</button><button onclick="plegarTodo(false)">Desplegar secciones</button></div></details></div>
     </div>
     <div class="tiles">${tiles.map(t => `<button class="tile${t.hot ? ' hot' : ''}${!t.n || t.n === '0/0' ? ' zero' : ''}" data-go="${t.go}"><b>${esc(String(t.n))}</b><span>${esc(t.l)}</span><small>${esc(t.s)}</small></button>`).join('')}</div>
     <div class="dia-grid">
@@ -699,7 +714,7 @@ function renderDia(force) {
 }
 
 // ===== Ajustes: avisos y copia de seguridad =====
-// ⚙ Ajustes (toggleCfg, renderCfg): ajustes.js
+// Ajustes (toggleCfg, renderCfg): ajustes.js
 
 function exportBackup() {
   const data = datosCopia();
@@ -725,8 +740,8 @@ function restoreBackup(file) {
       if (d.tecnicos && typeof d.tecnicos === 'object') { tecCfg = { ...tecCfg, ...d.tecnicos, tel: { ...tecCfg.tel, ...(d.tecnicos.tel || {}) } }; saveTec(); hechos.push('teléfonos'); }
       if (d.cerradas && typeof d.cerradas === 'object') { cerradas = { ...d.cerradas, ...cerradas }; podarCerradas(); hechos.push('cerradas'); }
       if (d.jornadas && typeof d.jornadas === 'object') { jornadas = { ...d.jornadas, ...jornadas }; lsSet(JORN_KEY, jornadas); }
-      if (d.perfiles && d.perfiles.tecs) { try { localStorage.setItem(PERFIL_KEY, JSON.stringify({ ...d.perfiles, activo: PERFIL, matriz1: true, conocidos: Array.isArray(d.perfiles.conocidos) ? d.perfiles.conocidos : BASE_OPS })); hechos.push('perfiles (se aplican al recargar)'); } catch (e) {} }   // matriz1: una copia antigua no vuelve a la lista matriz al recargar
-      if (Array.isArray(d.filtros)) { filtrosGuardados = d.filtros; try { localStorage.setItem(FILTROS_KEY, JSON.stringify(d.filtros)); } catch (e) {} }
+      if (d.perfiles && d.perfiles.tecs && lsSet(PERFIL_KEY, { ...d.perfiles, activo: PERFIL, matriz1: true, conocidos: Array.isArray(d.perfiles.conocidos) ? d.perfiles.conocidos : BASE_OPS })) hechos.push('perfiles (se aplican al recargar)');   // matriz1: una copia antigua no vuelve a la lista matriz al recargar
+      if (Array.isArray(d.filtros)) { filtrosGuardados = d.filtros; lsSet(FILTROS_KEY, d.filtros); }
       refreshVisible();
       toast('Restaurado: ' + (hechos.join(', ') || 'nada que restaurar'));
     } catch (err) { toast('No se pudo restaurar: ' + err.message); }

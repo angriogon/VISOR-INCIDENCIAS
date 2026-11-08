@@ -46,6 +46,8 @@ Web: **https://angriogon.github.io/VISOR-INCIDENCIAS/**. Son archivos estáticos
 ## Pestañas
 
 ### Mi día
+
+**Qué hacer ahora** ordena por riesgo lo que hay que atender. En **Más**: **Propuesta del día** (reparte lo pendiente de asignar de tu zona; se revisa y se aplica con confirmación) y **Mañana listo** (lo que falta por dejar resuelto; a partir de las 15:00 también tiene botón propio).
 Lo que pide acción hoy:
 - Novedades desde la última carga.
 - Tickets a tu nombre.
@@ -71,6 +73,8 @@ Visitas en PRESENCIAL que siguen en un operario comodín «PENDIENTE ASIGNAR». 
 - ⏰ marca las de tu zona que llevan más de 4 h sin técnico (se cambia en ⚙ › General).
 
 ### Incidencias
+
+El botón de tabla, junto a la leyenda, cambia a una vista densa con una fila por incidencia y columnas ordenables.
 Un bloque por técnico, agrupados por zona:
 - **Barra de progreso de su ruta de hoy:** terminada, en trámite, en curso o pendiente, con retrasos.
 - Dentro, las incidencias van **agrupadas por estado**, cada línea con el color de su estado. En cada estado, de la visita más próxima a la más lejana; debajo, las que no tienen fecha y, al final, las de fechas pasadas. Justo detrás del Nº salen **VISITA** y **CADUCA**: naranja si quedan menos de 3 días; rojo si quedan menos de 24 h o ya caducó.
@@ -86,6 +90,8 @@ La semana por técnico y día (cada zona se pliega pulsando su nombre; los icono
 - **Clic en un día:** su detalle, con **WhatsApp** de la ruta a cada técnico («Enviar todas las rutas»), **Correos del día** y **Mapa** con las rutas, los km y los minutos entre visitas. El mapa abre al momento: las direcciones de la semana se sitúan antes, en segundo plano, y las que falten aparecen solas.
 
 ### Control (perfil COORD)
+
+Incluye semáforo y carga por DSP, antigüedad de lo abierto (pulsa una barra para filtrar), las listas **Caducarán** (72 h) y **Estancadas** (7 días sin movimiento en el hilo), y un informe diario opcional que se descarga solo a la hora elegida si Despacho está abierto (Ajustes › General).
 - **Cinco cifras** que se pueden pulsar: **Presencial** (con el total de abiertas debajo), **Sin asignar**, **Caducadas**, **Caducan hoy** (sin las de FUERA DE MANTENIMIENTO, que no tienen SLA) y **En ruta hoy** (hechas/total y retrasos).
 - **Filtros:** DSP, cliente, **proyecto** (los del cliente elegido, con cuántas incidencias tiene cada uno) y búsqueda.
 - **Dos listas:** *Pendientes de asignar* (caducidad, zona y tiempo esperando) y *Presencial · Caducadas · Caducan hoy · En ruta hoy · Todas*. Pulsar una cifra abre su lista ahí mismo, y elegir un cliente muestra todas sus incidencias abiertas, también las asignadas.
@@ -172,16 +178,17 @@ Las incidencias vienen de ATGO y no se guardan fuera del navegador. Las notas, l
 | `herramientas.js` | Cerradas, material, caducidad, ruta y GLS, técnico sugerido, correos, informe semanal y OneDrive |
 | `edicion.js` | Escrituras en ATGO (comentario, estado, asignar, lote) con su comprobación |
 | `panel.js` | Sin asignar, recomendación, duración, reincidencias, Planificación, rellenar el día y mapa |
-| `coord.js` | Panel de Control de COORD e informes en Excel |
+| `coord.js` | Panel de Control de COORD, informes en Excel y tabla densa de Incidencias |
+| `prioridades.js` | Qué hacer ahora, Propuesta del día y Mañana listo |
 | `app.js` | Configuración (`ZONAS_BASE`, perfiles, estados), Incidencias, día de Planificación, WhatsApp y recepción de ATGO |
 | `ajustes.js` | Ajustes, perfiles y nómina, apariencia y accesibilidad, novedades, atajos, avisos del día y Excel |
-| `atgo-sync.js` | Sincronización que corre dentro de la pestaña de ATGO (la cargan la extensión o el favorito) |
+| `atgo-sync.js` | Sincronización que corre dentro de la pestaña de ATGO (la extensión lleva su copia; el favorito carga esta) |
 | `sw.js`, `manifest.webmanifest`, iconos | Instalación y funcionamiento sin conexión |
 | `extension/`, `despacho-extension.zip` | Extensión de Edge/Chrome |
 | `tests/` | `pruebas.js` (sin dependencias) y `arranque.mjs` (navegador sin pantalla). GitHub Actions las ejecuta en cada cambio |
 | `docs/` | Estado del proyecto, implantación en empresa y propuestas pendientes |
 
-- **Publicar:** sube los cambios a `main` (GitHub Pages los publica solo). Antes, sube a la vez `VERSION` en `sw.js` y `APP_VERSION` en `ajustes.js` y añade la versión a `NOVEDADES`. Si cambia `atgo-sync.js`, sube también `SYNC_VERSION` (en ese archivo y en `app.js`).
+- **Publicar:** sube los cambios a `main`; GitHub Actions ejecuta las pruebas y, solo si pasan, publica los archivos de la aplicación. Antes, sube a la vez `VERSION` en `sw.js` y `APP_VERSION` en `ajustes.js` y añade la versión a `NOVEDADES`. Si cambia `atgo-sync.js`, sube también `SYNC_VERSION` (en ese archivo y en `app.js`).
 - **Configuración:**
   - `ZONAS_BASE` (`app.js`): zonas, técnicos, `dsp` y `apoyo`. `OPERARIOS` de `atgo-sync.js` es solo un respaldo y debe coincidir.
   - `ESTADOS`: por nombre en `app.js` y por código en `atgo-sync.js`.

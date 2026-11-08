@@ -36,10 +36,10 @@ const ZONAS_BASE = [
 // Se gestionan en la ventana de Perfiles (ajustes.js). Un técnico puede estar en varios perfiles.
 const PERFILES = ['DSP1','DSP2','DSP3','DSP4','DSP5','COORD'];
 const PERFIL_KEY = 'dispatcher_perfiles_v1';
-// Nómina (⚙ › Técnicos): altas, cambios de zona y bajas que hace el usuario, guardados en perfilCfg.nomina.
+// Nómina (Ajustes › Técnicos): altas, cambios de zona y bajas que hace el usuario, guardados en perfilCfg.nomina.
 // { OP: { z: zona ('' = sin zona), dsp: perfil si no tiene zona, n: nombre, alta: true si lo dio de alta él, baja: true } }
 // Se aplica aquí sobre ZONAS_BASE, antes de calcular nada: así las zonas, la lista matriz y las recomendaciones lo tienen en cuenta.
-const NOMINA = (() => { try{ const c = JSON.parse(localStorage.getItem(PERFIL_KEY) || 'null'); return c && c.nomina && typeof c.nomina === 'object' ? c.nomina : {}; }catch(e){ return {}; } })();
+const NOMINA = (() => { const c = lsGet(PERFIL_KEY, null); return c && c.nomina && typeof c.nomina === 'object' ? c.nomina : {}; })();
 function moverEnZonas(op, zona){
   ZONAS_BASE.forEach(z => { if (!z.dispatcher) z.ops = z.ops.filter(x => x !== op); });
   const z = zona && ZONAS_BASE.find(x => x.nombre === zona && !x.dispatcher); if (z) z.ops.push(op);
@@ -56,27 +56,32 @@ function perfilesPorDefecto(){
 }
 const PERFIL_INICIAL = perfilesPorDefecto();
 let perfilCfg = (() => {
-  let c = null; try{ c = JSON.parse(localStorage.getItem(PERFIL_KEY) || 'null'); }catch(e){}
+  let c = lsGet(PERFIL_KEY, null);
   if (!c || !c.tecs) c = { activo:'DSP1', tecs:{} };
   // 1.16.2: todos los perfiles pasan una vez a la lista matriz (lo pidió el usuario); después mandan sus cambios
-  if (!c.matriz1){ c.tecs = perfilesPorDefecto(); c.matriz1 = true; try{ localStorage.setItem(PERFIL_KEY, JSON.stringify(c)); }catch(e){} }
+  if (!c.matriz1){ c.tecs = perfilesPorDefecto(); c.matriz1 = true; lsSet(PERFIL_KEY, c); }
   PERFILES.forEach(p => { if (!Array.isArray(c.tecs[p])) c.tecs[p] = (PERFIL_INICIAL[p] || []).slice(); });
   // Técnicos que se añadan a ZONAS_BASE en el futuro: entran solos en el perfil de su zona (y en COORD).
   // "conocidos" guarda los que ya existían, para no volver a meter a los que quitaste tú.
-  if (!Array.isArray(c.conocidos)){ c.conocidos = BASE_OPS.slice(); try{ localStorage.setItem(PERFIL_KEY, JSON.stringify(c)); }catch(e){} }   // se guarda ya: si no, un técnico nuevo en el código nunca entraría
+  if (!Array.isArray(c.conocidos)){ c.conocidos = BASE_OPS.slice(); lsSet(PERFIL_KEY, c); }   // se guarda ya: si no, un técnico nuevo en el código nunca entraría
   const nuevos = BASE_OPS.filter(op => !c.conocidos.includes(op));
   if (nuevos.length){
     ZONAS_BASE.forEach(z => z.ops.filter(op => nuevos.includes(op)).forEach(op => { [dspZona(z), 'COORD'].forEach(p => { if (!c.tecs[p].includes(op)) c.tecs[p].push(op); }); }));
-    c.conocidos = BASE_OPS.slice(); try{ localStorage.setItem(PERFIL_KEY, JSON.stringify(c)); }catch(e){}
+    c.conocidos = BASE_OPS.slice(); lsSet(PERFIL_KEY, c);
   }
   if (!PERFILES.includes(c.activo)) c.activo = 'DSP1';
   c.nomina = NOMINA;
   return c;
 })();
-// Técnicos de baja (⚙ › Técnicos): siguen sincronizándose (por si les quedan incidencias), pero no se proponen para asignar
+// Técnicos de baja (Ajustes › Técnicos): siguen sincronizándose (por si les quedan incidencias), pero no se proponen para asignar
 function enBaja(op){ const n = perfilCfg.nomina[cleanInitials(op)]; return !!(n && n.baja); }
-// Vacaciones (⚙ › Técnicos): periodos { d, h } en ISO, ambos días incluidos. Mientras dura uno, el técnico no está disponible.
-function vacacionesDe(op, d){ const n = perfilCfg.nomina[cleanInitials(op)], iso = isoHoy(d || new Date()); return (n && Array.isArray(n.vac) ? n.vac : []).find(v => v.d <= iso && iso <= v.h) || null; }
+// Vacaciones (Ajustes › Técnicos): periodos { d, h } en ISO, ambos días incluidos. Mientras dura uno, el técnico no está disponible.
+function vacacionesDe(op, d){ const n = perfilCfg.nomina[cleanInitials(op)], iso = isoHoy(d || new Date()); return (n && Array.isArray(n.vac) ? n.vac : []).find(v => !v.p && v.d <= iso && iso <= v.h) || null; }
+// Ausencia de media jornada: { d, h, p: 'm' | 't' }. Sigue disponible, pero se avisa y se prefiere a otro.
+function ausenciaParcial(op, d){ const n = perfilCfg.nomina[cleanInitials(op)], iso = isoHoy(d || new Date()); return (n && Array.isArray(n.vac) ? n.vac : []).find(v => v.p && v.d <= iso && iso <= v.h) || null; }
+// Habilidades (Ajustes › Técnicos): lista libre. Sin ninguna anotada, el técnico vale para todo (null = no se sabe).
+function habilidadesDe(op){ const n = perfilCfg.nomina[cleanInitials(op)]; return n && Array.isArray(n.hab) ? n.hab : []; }
+function habilidadOk(op, r){ const h = habilidadesDe(op), t = norm([r.tipo, r.elemento].filter(Boolean).join(' ')); return !h.length || !t ? null : h.some(x => t.includes(norm(x))); }
 // No disponible = de baja o de vacaciones ese día (hoy si no se indica): no sale en los paneles ni se propone al asignar
 function noDisponible(op, d){ return enBaja(op) || !!vacacionesDe(op, d); }
 function ausenciaTexto(op, d){ if (enBaja(op)) return 'de baja'; const v = vacacionesDe(op, d); return v ? 'de vacaciones hasta el ' + v.h.slice(8) + '/' + v.h.slice(5, 7) : ''; }
@@ -130,7 +135,7 @@ function fmt(v){
 function jsq(s){ return esc(String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'")); }
 
 // ===== Importación de Excel/CSV (botón, arrastrar o "Abrir con" desde Windows) =====
-document.getElementById('importBtn').addEventListener('click', () => document.getElementById('fileInput').click());
+function elegirExcel(){ document.getElementById('fileInput').click(); }
 
 document.getElementById('fileInput').addEventListener('change', (e) => {
   const file = e.target.files[0];
@@ -196,20 +201,19 @@ if ('launchQueue' in window){
   });
 }
 
-document.getElementById('clearBtn').addEventListener('click', async () => {
-  // Desde ⚙ › Datos. Solo quita la lista cargada (se recupera en la próxima sincronización); notas y ajustes no se tocan
+async function quitarDatos(){
+  // Desde Ajustes › Datos. Solo quita la lista cargada (se recupera en la próxima sincronización); notas y ajustes no se tocan
   if (!await confirmar('<b>¿Quitar los datos cargados?</b><p>Se vacía la lista de incidencias de esta pantalla. Vuelve a llenarse en la próxima sincronización con ATGO. Tus notas y ajustes no se tocan.</p>', 'Quitar')) return;
   rows = []; poolRows = []; poolCargado = false;
   source = null;
-  try{ localStorage.removeItem(ATGO_KEY); }catch(e){}
+  lsQuita(ATGO_KEY);
   setAtgoStatus('');
   document.getElementById('emptyState').style.display = 'block';
   document.getElementById('dataView').style.display = 'none';
-  document.getElementById('clearBtn').style.display = 'none';
   document.getElementById('fileStatus').textContent = 'Sin datos';
   document.getElementById('fileInput').value = '';
   refreshVisible();   // Mi día, Sin asignar y Planificación también se vacían
-});
+}
 
 const ESTADOS_N = ESTADOS.map(norm);
 function permitido(r){ return OPERARIOS.includes(cleanInitials(r.operario)) && ESTADOS_N.includes(norm(r.estado)); }
@@ -221,7 +225,6 @@ function setRows(newRows, label, keepView){
   document.getElementById('fileStatus').textContent = `${label} · ${rows.length} incidencias`;
   document.getElementById('emptyState').style.display = 'none';
   document.getElementById('dataView').style.display = 'block';
-  document.getElementById('clearBtn').style.display = 'inline-block';
   renderFilters();
   render();
   if (document.getElementById('viewMan').style.display !== 'none') renderManana();
@@ -267,7 +270,7 @@ function zoneCounts(list){ const c = {}; list.forEach(r => { const z = zonaDe(r.
 // ---- Filtros de Incidencias (zona, estado, caducidad, texto) y filtros guardados ----
 const FILTROS_KEY = 'dispatcher_filtros_v1';
 let filtroInc = { est: '', cad: false, q: '', dsp: '' };   // dsp: ver solo los técnicos de un DSP (desde el resumen de COORD)
-let filtrosGuardados = (() => { try{ const l = JSON.parse(localStorage.getItem(FILTROS_KEY) || '[]'); return Array.isArray(l) ? l : []; }catch(e){ return []; } })();
+let filtrosGuardados = (() => { const l = lsGet(FILTROS_KEY, []); return Array.isArray(l) ? l : []; })();
 function filtroActivo(){ return !!(filtroInc.est || filtroInc.cad || filtroInc.q || filtroInc.dsp); }
 function pasaFiltro(r){
   if (filtroInc.dsp && !(perfilCfg.tecs[filtroInc.dsp] || []).includes(cleanInitials(r.operario))) return false;
@@ -292,11 +295,11 @@ function guardarFiltro(){
   const def = [zonaSel, filtroInc.est && ESTADOS.find(e => norm(e) === filtroInc.est), filtroInc.cad && 'caducan', filtroInc.q].filter(Boolean).join(' + ');
   const n = (prompt('Nombre del filtro', def) || '').trim(); if (!n) return;
   filtrosGuardados.push({ n, z: zonaSel, ...filtroInc });
-  try{ localStorage.setItem(FILTROS_KEY, JSON.stringify(filtrosGuardados)); }catch(e){}
+  lsSet(FILTROS_KEY, filtrosGuardados);
   renderFilters(); toast('Filtro guardado');
 }
 function aplicarFiltro(i){ const g = filtrosGuardados[i]; if (!g) return; zonaSel = g.z || null; filtroInc = { est: g.est || '', cad: !!g.cad, q: g.q || '' }; renderFilters(); render(); }
-function borrarFiltro(i){ filtrosGuardados.splice(i, 1); try{ localStorage.setItem(FILTROS_KEY, JSON.stringify(filtrosGuardados)); }catch(e){} renderFilters(); }
+function borrarFiltro(i){ filtrosGuardados.splice(i, 1); lsSet(FILTROS_KEY, filtrosGuardados); renderFilters(); }
 
 function filteredRows(){ return rows.filter(r => enZona(r) && pasaFiltro(r)); }
 
@@ -336,7 +339,7 @@ function cargaSospechosa(msg){
   if (source === 'atgo' && antes >= 10 && n < antes * 0.2 && caidaSeguida < 2){
     caidaSeguida++;
     const el = document.getElementById('syncAviso');
-    if (el){ el.hidden = false; el.innerHTML = `⚠ ATGO ha devuelto ${n} incidencias (antes ${antes}). No se aplica hasta confirmarlo en la próxima carga. <button class="btn sm" onclick="document.getElementById('atgoBtn').click()">Abrir ATGO</button>`; }
+    if (el){ el.hidden = false; el.innerHTML = `${ico('alerta')} ATGO ha devuelto ${n} incidencias (antes ${antes}). No se aplica hasta confirmarlo en la próxima carga. <button class="btn sm" onclick="abrirAtgo()">Abrir ATGO</button>`; }
     diagLog && diagLog('Carga sospechosa: ' + n + ' de ' + antes);
     return true;
   }
@@ -351,7 +354,7 @@ function applyAtgo(msg, fromCache){
   else if (fromCache) setAtgoStatus(`Último dato ${new Date(msg.at).toLocaleString('es-ES',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})} · sin conexión con ATGO`, 'off');
   else setAtgoStatus(`En vivo · ${hhmm(msg.at)}`, '');
   if (!msg.partial && !fromCache){
-    try{ localStorage.setItem(ATGO_KEY, JSON.stringify(msg)); }catch(e){}
+    lsSet(ATGO_KEY, msg);
     hilosTrasCarga(trackChanges(rows));   // novedades, avisos, rutas cambiadas e hilos nuevos (dia.js)
     guardarJornada(); revisarSLA();        // informe semanal y caducidades (herramientas.js)
     refreshVisible();
@@ -368,8 +371,9 @@ let atgoEnCola = null, atgoEnColaDesde = 0;
 function aplicarDatosAtgo(m){
   const y = window.scrollY;
   applyAtgo(m, false); recibirPool(m);
+  if (!m.partial) recordarProyectos();
   if (Math.abs(window.scrollY - y) > 2) window.scrollTo(0, y);   // mantener el sitio de la página
-  setTimeout(() => { try { precargarGeo(); } catch (e) {} }, 8000);   // sitúa en segundo plano las visitas de la semana (el mapa abre ya situado)
+  setTimeout(() => { try { precargarGeo(); } catch (e) { diagLog('Precarga del mapa: ' + e.message); } }, 8000);   // sitúa en segundo plano las visitas de la semana (el mapa abre ya situado)
 }
 function aplicarPendiente(){
   if (ocupado()) return;
@@ -430,13 +434,13 @@ async function actualizarDespacho(){
   try{ const regs = await navigator.serviceWorker.getRegistrations(); for (const r of regs) await r.unregister(); }catch(e){}
   location.reload();
 }
-let ultimaCarga = null;   // duración de la última carga de ATGO (se ve en ⚙ › General)
+let ultimaCarga = null;   // duración de la última carga de ATGO (se ve en Ajustes › General)
 // Tras cambiar de perfil (o si los datos guardados son de otro perfil) se avisa «Cargando DSPx…» hasta que
 // llega una carga de ATGO hecha con los técnicos de este perfil (la sincronización manda su lista en "ops").
 const mismaLista = l => Array.isArray(l) && l.slice().sort().join() === OPERARIOS.slice().sort().join();
 let perfilEsperando = (() => {
   try { if (sessionStorage.getItem('despacho_perfil_cambiado') === PERFIL) return true; } catch (e) {}
-  try { const c = JSON.parse(localStorage.getItem(ATGO_KEY) || 'null'); return !!(c && Array.isArray(c.ops) && !mismaLista(c.ops)); } catch (e) { return false; }
+  const c = lsGet(ATGO_KEY, null); return !!(c && Array.isArray(c.ops) && !mismaLista(c.ops));
 })();
 function perfilListo(){ perfilEsperando = false; try { sessionStorage.removeItem('despacho_perfil_cambiado'); } catch (e) {} renderSyncAviso(); }
 if (perfilEsperando) setTimeout(() => { if (perfilEsperando) perfilListo(); }, 3 * 60000);   // por si la pestaña de ATGO no responde
@@ -453,7 +457,7 @@ function configurarAtgo(src){
 if (window.opener){ try{ window.opener.postMessage({type:'despacho-ready'}, ATGO_ORIGIN); }catch(e){} }
 
 let atgoWin = null;
-document.getElementById('atgoBtn').addEventListener('click', () => {
+function abrirAtgo(){
   // Con el guardián de la extensión: se pide actualizar y se enseña su pestaña (no se abre otra)
   if (puenteAtgo){ ATGO_PUENTE.postMessage({type:'despacho-refresh'}); ATGO_PUENTE.focus(); return; }
   if (atgoWin && !atgoWin.closed){
@@ -464,8 +468,8 @@ document.getElementById('atgoBtn').addEventListener('click', () => {
   // Sin "noopener": ATGO necesita esta referencia para enviar los datos de vuelta.
   atgoWin = window.open(ATGO_URL, 'atgo-tier1');
   if (!atgoWin) toast('El navegador bloqueó la ventana. Abre ' + ATGO_URL);
-});
-// «Forzar reconexión» (⚙ › General, aviso de ATGO sin actualizar, clic en el punto de estado): cuando ATGO se queda
+}
+// «Forzar reconexión» (Ajustes › General, aviso de ATGO sin actualizar, clic en el punto de estado): cuando ATGO se queda
 // pillado y abrirlo no sirve. Olvida la conexión anterior y abre ATGO recargado desde cero en su pestaña de Despacho
 // (la extensión vuelve a arrancar la sincronización y esta, al ver que la abrió Despacho, se conecta sola).
 let forzadoEn = 0, forzadoT = null, otraAtgoCaducada = 0;
@@ -517,8 +521,13 @@ const ST_ICO = { d: '✓', t: '◑', c: '◐', p: '○' };
 let renderedOps = [];
 function isCol(op){ return collapsed[op] !== false; }
 
+function vistaTabla(){ return tecCfg.vistaInc === 'tabla'; }
+function cambiarVistaInc(){ tecCfg.vistaInc = vistaTabla() ? '' : 'tabla'; saveTec(); render(); }
 function render(){
   const data = filteredRows();
+  const bv = document.getElementById('vistaIncBtn'), ba = document.getElementById('toggleAll');
+  if (bv){ bv.setAttribute('aria-pressed', vistaTabla()); bv.classList.toggle('on', vistaTabla()); }
+  if (ba) ba.hidden = vistaTabla();
   const panel = document.getElementById('groupsPanel');
   const rutaAll = rutaHoy();
   const rutaZona = rutaAll.filter(x => (!zonaSel || zonaDe(x.op) === zonaSel));
@@ -542,17 +551,18 @@ function render(){
   const todosOps = [...new Set([...Object.keys(byOp), ...Object.keys(rutaOp)])];
   const ausentes = todosOps.filter(op => noDisponible(op) && !ZONAS.some(z => z.dispatcher && z.ops.includes(op)));
   const ops = verAusentes ? todosOps : todosOps.filter(op => !ausentes.includes(op));
-  const ausHtml = ausentes.length ? `<div class="aus-aviso">🏖 <span>${plural(ausentes.length, 'técnico')} no disponible${ausentes.length === 1 ? '' : 's'} (${esc(ausentes.map(op => op + ' ' + ausenciaTexto(op)).join(' · '))}) con ${plural(ausentes.reduce((n, op) => n + (byOp[op] || []).length, 0), 'incidencia')} por reasignar</span><button class="btn sm" onclick="verAusentes=!verAusentes;render()">${verAusentes ? 'Ocultarlos' : 'Ver sus incidencias'}</button></div>` : '';
+  const ausHtml = ausentes.length ? `<div class="aus-aviso">${ico('ausente')} <span>${plural(ausentes.length, 'técnico')} no disponible${ausentes.length === 1 ? '' : 's'} (${esc(ausentes.map(op => op + ' ' + ausenciaTexto(op)).join(' · '))}) con ${plural(ausentes.reduce((n, op) => n + (byOp[op] || []).length, 0), 'incidencia')} por reasignar</span><button class="btn sm" onclick="verAusentes=!verAusentes;render()">${verAusentes ? 'Ocultarlos' : 'Ver sus incidencias'}</button></div>` : '';
   renderedOps = ops;
   updToggle();
   if (!ops.length){ panel.innerHTML = `<div class="empty"><h2>Nada con este filtro</h2>${filtroActivo() || zonaSel ? `<div class="acts" style="justify-content:center;margin-top:10px"><button class="btn" onclick="filtroInc={est:'',cad:false,q:''};zonaSel=null;renderFilters();render()">Quitar filtros</button></div>` : '<div>Este perfil no tiene incidencias abiertas ahora mismo.</div>'}</div>`; return; }
 
+  if (vistaTabla()){ panel.innerHTML = ausHtml + incTablaHtml(data.filter(r => ops.includes(r.operario))); return; }
   panel.innerHTML = ausHtml + ZONAS.map(z => {
     const zops = ops.filter(op => zonaDe(op) === z.nombre).sort((a, b) => opIndex(a) - opIndex(b));
     if (!zops.length) return '';
     const zr = zops.flatMap(op => rutaOp[op] || []);
     const head = z.dispatcher
-      ? `<div class="zhead" style="color:var(--amber)">${esc(z.nombre)} <span>${plural(zops.reduce((s2, op) => s2 + (byOp[op] || []).length, 0), 'incidencia')} a tu nombre</span></div>`
+      ? `<div class="zhead" style="color:var(--marca)">${esc(z.nombre)} <span>${plural(zops.reduce((s2, op) => s2 + (byOp[op] || []).length, 0), 'incidencia')} a tu nombre</span></div>`
       : `<div class="zhead">${esc(z.nombre)} <span>${zr.length ? zr.filter(x => x.st === 'd').length + '/' + plural(zr.length, 'visita') + ' hechas hoy' : 'sin visitas hoy'}</span></div>`;
     return head + zops.map(op => tecRow(op, byOp[op] || [], rutaOp[op] || [], z.dispatcher)).join('');
   }).join('');
@@ -572,7 +582,7 @@ function tecRow(op, items, ruta, esDisp){
   return `<div class="tg${isCol(op) ? ' collapsed' : ''}" data-op="${esc(op)}">
     <div class="tg-h" onclick="toggleGroup('${jsq(op)}')">
       <div class="av" style="--c:${colorTec(op)}">${esc(op)}</div>
-      <div class="tg-n"><b>${esc(op)}${noDisponible(op) ? ` <span class="baja-tag" title="${esc(ausenciaTexto(op))} (⚙ › Técnicos): reasigna sus incidencias">${enBaja(op) ? 'BAJA' : 'VACACIONES'}</span>` : ''}</b><span>${esc(nombreTecnico(ref) || zonaDe(op))}</span></div>
+      <div class="tg-n"><b>${esc(op)}${noDisponible(op) ? ` <span class="baja-tag" title="${esc(ausenciaTexto(op))} (Ajustes › Técnicos): reasigna sus incidencias">${enBaja(op) ? 'BAJA' : 'VACACIONES'}</span>` : ''}</b><span>${esc(nombreTecnico(ref) || zonaDe(op))}</span></div>
       <div class="tg-m">
         ${esDisp ? '<span class="tg-none">Pendientes de asignar</span>'
           : tot ? `<div class="pbar"><i class="d" style="width:${pc(d)}%"></i><i class="t" style="width:${pc(t)}%"></i><i class="c" style="width:${pc(c)}%"></i></div>`
@@ -696,24 +706,21 @@ const TEC_DEF = {
 const PREF_KEY = 'dispatcher_preferencias_v1';
 const TEC_DATOS = ['tel', 'gls'];
 let tecCfg = (() => {
-  const leer = k => { try{ const v = JSON.parse(localStorage.getItem(k) || '{}'); return v && typeof v === 'object' ? v : {}; }catch(e){ return {}; } };
+  const leer = k => { const v = lsGet(k, {}); return v && typeof v === 'object' ? v : {}; };
   const t = leer(TEC_KEY), p = leer(PREF_KEY);
   return { ...TEC_DEF, ...t, ...p, tel: t.tel && typeof t.tel === 'object' ? t.tel : {}, gls: t.gls && typeof t.gls === 'object' ? t.gls : {} };
 })();
 function saveTec(){
   const tec = {}, pref = {};
   Object.entries(tecCfg).forEach(([k, v]) => { (TEC_DATOS.includes(k) ? tec : pref)[k] = v; });
-  let ok = true;
-  try{ localStorage.setItem(TEC_KEY, JSON.stringify(tec)); }catch(e){ ok = false; }
-  try{ localStorage.setItem(PREF_KEY, JSON.stringify(pref)); }catch(e){ ok = false; }
-  if (!ok) toast('No se pudo guardar en este equipo');
+  lsSet(TEC_KEY, tec); lsSet(PREF_KEY, pref);   // si no cabe, lsSet ya avisa
 }
 
 const DIAS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 function ddmmyyyy(d){ return String(d.getDate()).padStart(2,'0') + '/' + String(d.getMonth()+1).padStart(2,'0') + '/' + d.getFullYear(); }
 // Siguiente día laborable (viernes y sábado → lunes).
 // ===== Festivos =====
-// Nacionales (fijos y Viernes Santo, calculado) y los que añadas en ⚙ › Festivos, para todas las zonas o para una.
+// Nacionales (fijos y Viernes Santo, calculado) y los que añadas en Ajustes › Festivos, para todas las zonas o para una.
 // El "próximo laborable" se salta los fines de semana y los festivos de todas las zonas.
 function pascua(y){
   const a = y % 19, b = Math.floor(y / 100), c = y % 100, d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3);
@@ -741,7 +748,7 @@ let manPhones = false;
 function diaLargo(d){ return DIAS[d.getDay()] + ' ' + ddmmyyyy(d).slice(0,5); }
 function esPresencial(r){ return norm(r.estado).includes('presencial'); }
 function visitasDe(d){ const f = ddmmyyyy(d); return rows.filter(r => esPresencial(r) && r.fVisita === f); }
-// "GARCIA SUTIL, JESUS" → "Jesús"; si no hay nombre, las siglas.
+// "APELLIDO APELLIDO, NOMBRE" → "Nombre"; si no hay nombre, las siglas.
 function nombrePila(r){
   const n = String(r && r.desOperario || '').split(',')[1];
   const first = n ? n.trim().split(/\s+/)[0] : '';
@@ -783,7 +790,7 @@ function renderManana(){
   document.getElementById('manDay').textContent = diaLargo(manDate).replace(/^./, c => c.toUpperCase()) + '/' + manDate.getFullYear() + (festivo(manDate) ? ' · festivo: ' + festivo(manDate) : '');
   const body = document.getElementById('manBody');
   if (!rows.length){
-    body.innerHTML = '<div class="empty"><h2>Sin incidencias cargadas</h2><div>Abre ATGO (⚙ › General › Abrir ATGO) y deja su pestaña abierta, o importa un Excel desde ⚙ › General.</div></div>';
+    body.innerHTML = '<div class="empty"><h2>Sin incidencias cargadas</h2><div>Abre ATGO (Ajustes › General › Abrir ATGO) y deja su pestaña abierta, o importa un Excel desde Ajustes › General.</div></div>';
     return;
   }
   if (zonaSel && !ZONAS_TEC.some(z => z.nombre === zonaSel)) zonaSel = null;   // la zona Dispatcher no aplica aquí
@@ -806,7 +813,7 @@ function renderManana(){
       <div class="kpi"><b>${conVis ? (vis.length / conVis).toFixed(1) : '0'}</b>media por técnico</div>
     </div>
     <div id="manChips"></div>
-    ${disp.length ? `<div class="zhead" style="color:var(--amber)">DISPATCHER <span>${disp.length} visita${disp.length===1?' presencial':'s presenciales'} a tu nombre: asígnala${disp.length===1?'':'s'} a un técnico</span></div>
+    ${disp.length ? `<div class="zhead" style="color:var(--marca)">DISPATCHER <span>${disp.length} visita${disp.length===1?' presencial':'s presenciales'} a tu nombre: asígnala${disp.length===1?'':'s'} a un técnico</span></div>
       <div class="tgrid">${[...new Set(disp.map(r => r.operario))].map(op => tecCard(op, disp.filter(r => r.operario === op), max, true)).join('')}</div>` : ''}
     ${zonas.map(z => {
       const nz = z.ops.reduce((s, op) => s + (byOp[op] ? byOp[op].length : 0), 0);
@@ -829,12 +836,12 @@ function tecCard(op, items, max, sinEnvio){
       <span class="nm">${esc(items[0] && items[0].desOperario || '')}</span>
       <span class="count" style="color:var(--teal);font-weight:600;font-size:12px">${n ? n + ' visita' + (n===1?'':'s') : 'Libre'}</span>
     </div>
-    ${n ? `<div class="tc-extra">${cargaHtml(op, ddmmyyyy(manDate))}${conflictos(ddmmyyyy(manDate)).filter(c => c.op === op).map(c => `<span class="tc-conf" title="${esc(c.texto)}">⚠ ${esc(c.texto)}</span>`).join('')}</div>` : ''}
+    ${n ? `<div class="tc-extra">${cargaHtml(op, ddmmyyyy(manDate))}${conflictos(ddmmyyyy(manDate)).filter(c => c.op === op).map(c => `<span class="tc-conf" title="${esc(c.texto)}">${ico('alerta')} ${esc(c.texto)}</span>`).join('')}</div>` : ''}
     ${n && !sinEnvio ? envioBadge(op) : ''}
     <div class="load"><i class="${cls}" style="width:${Math.round(n / max * 100)}%"></i></div>
     ${sortByHora(items).map(r => `<div class="vis" data-key="${esc(tkey(r))}">
       <span class="h">${esc(r.desdeHora || '--:--')}${r.hastaHora ? '–' + esc(r.hastaHora) : ''}</span>
-      <span class="t">${numHtml(r).replace('class="num mono"', 'class="num mono" style="color:var(--amber);font-weight:600;text-decoration:none"')}${segBadges(r)}${cadBadge(r)} · ${esc(r.descSede || '—')}</span>
+      <span class="t">${numHtml(r).replace('class="num mono"', 'class="num mono" style="color:var(--marca);font-weight:600;text-decoration:none"')}${segBadges(r)}${cadBadge(r)} · ${esc(r.descSede || '—')}</span>
       <span class="d">${esc(r.domicilio || '—')}</span>
       <span class="d">${esc([r.tipo, r.referencia && 'Ref ' + r.referencia, r.descCliente].filter(Boolean).join(' · '))}</span>
     </div>`).join('')}
@@ -901,7 +908,7 @@ function waFichaHtml(r){
   if (!TECNICOS.includes(op)) return '';
   return `<div class="dw-sec"><div class="dw-h">WhatsApp a ${esc(op)}</div>
     <div class="dw-quick">${Object.keys(WA_PLANT_DEF).map(t => `<button class="chip sm" onclick="abrirWa('${jsq(op)}', waTexto('${t}', ticketDe(fichaKey)))" title="${esc(waTexto(t, r))}">${esc(WA_PLANT_LAB[t])}</button>`).join('')}</div>
-    <div class="dw-empty">Los textos se cambian en ⚙ › WhatsApp.</div></div>`;
+    <div class="dw-empty">Los textos se cambian en Ajustes › WhatsApp.</div></div>`;
 }
 // ---- Enviar las rutas de todos, uno tras otro (WhatsApp solo deja abrir una conversación cada vez) ----
 let rutasCola = null;
@@ -1039,7 +1046,7 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:'){
   });
 }
 
-// ⚙ › General › «Actualizar»: trae ya los datos de ATGO (sin esperar a los 2 min ni recargar la página)
+// Ajustes › General › «Actualizar»: trae ya los datos de ATGO (sin esperar a los 2 min ni recargar la página)
 // y busca una versión nueva de Despacho (si la hay, se instala sola cuando no estás haciendo nada).
 async function actualizarAhora(){
   const partes = [], src = hiloFuente();
@@ -1055,10 +1062,13 @@ async function actualizarAhora(){
 }
 
 // Al abrir, mostramos la última carga de ATGO mientras llega la nueva.
-try{
-  const cached = JSON.parse(localStorage.getItem(ATGO_KEY));
-  if (cached && Array.isArray(cached.rows) && !rows.length){ applyAtgo(cached, true); recibirPool({ ...cached, desdeCache: true }); }
-}catch(e){}
+{
+  const cached = lsGet(ATGO_KEY, null);
+  if (cached && Array.isArray(cached.rows) && !rows.length){
+    try{ applyAtgo(cached, true); recibirPool({ ...cached, desdeCache: true }); }
+    catch(e){ diagLog('No se pudo mostrar la última carga guardada: ' + e.message); }
+  }
+}
 
 // COORD: pestañas CONTROL · INCIDENCIAS · PLANIFICACIÓN (Control resume Mi día y Sin asignar)
 if (esCoord()){ document.getElementById('tabCtl').hidden = false; document.getElementById('tabDia').hidden = true; document.getElementById('tabSin').hidden = true; document.getElementById('tabInc').title = 'Incidencias (2)'; document.getElementById('tabSem').title = 'Planificación (3)'; }

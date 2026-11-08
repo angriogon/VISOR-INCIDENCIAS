@@ -57,6 +57,9 @@ try {
     window.dispatchEvent(new MessageEvent('message', { data: { ...p, at: Date.now() }, origin: 'https://atgo.tier1.es', source: fr.contentWindow }));
     await paso(300);
     out.filas = rows.length; out.sinAsignar = poolRows.length; out.avisoVersion = syncVieja;
+    for (const v of [abrirQueHacer, abrirPropuesta, abrirMananaListo]) { v(); await paso(60); out['ventana_' + v.name] = document.getElementById('modal').innerText.length > 10; cerrarModal(); }
+    tecCfg.vistaInc = 'tabla'; showTab('inc'); await paso(60); out.tablaDensa = !!document.querySelector('.inc-tabla'); tecCfg.vistaInc = '';
+    out.sinPlantillasRotas = !document.body.innerHTML.includes('${');
     for (const t of ['dia', 'sin', 'inc', 'sem', 'man']) { showTab(t); await paso(150); out['vista_' + t] = document.getElementById({ dia: 'viewDia', sin: 'viewSin', inc: 'viewInc', sem: 'viewSem', man: 'viewMan' }[t]).innerText.length > 20; }
     for (const tab of ['res', 'act', 'his']) { openTicket('2026/00/1', tab); await paso(100); }
     out.duracion = document.getElementById('dwPanel').innerText.includes('Historial');

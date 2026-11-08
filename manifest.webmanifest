@@ -1,5 +1,5 @@
 {
-  "name": "Visor de Incidencias · Panel de Despacho",
+  "name": "Despacho",
   "short_name": "Despacho",
   "description": "Seguimiento de incidencias de técnicos, rutas del día y plantillas de correo para Dispatcher.",
   "id": "./",
@@ -30,7 +30,7 @@
   ],
   "shortcuts": [
     { "name": "Incidencias", "url": "./#inc", "icons": [{ "src": "icon-192.png", "sizes": "192x192" }] },
-    { "name": "Mañana", "url": "./#man", "icons": [{ "src": "icon-192.png", "sizes": "192x192" }] },
-    { "name": "Plantillas", "url": "./#tpl", "icons": [{ "src": "icon-192.png", "sizes": "192x192" }] }
+    { "name": "Planificación", "url": "./#sem", "icons": [{ "src": "icon-192.png", "sizes": "192x192" }] },
+    { "name": "Mi día", "url": "./#dia", "icons": [{ "src": "icon-192.png", "sizes": "192x192" }] }
   ]
 }

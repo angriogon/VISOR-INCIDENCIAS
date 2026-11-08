@@ -74,16 +74,10 @@ async function revisar() {
   if (!c.guardian) return;
   let tab = await pestanaGestionada();
   if (!tab) {
-    // ¿Hay ya una pestaña de ATGO abierta a mano? Se adopta en vez de abrir otra.
+    // Una pestaña de ATGO que está cargando se presenta sola (hola-atgo): se espera a la próxima revisión.
+    // Las que ya están abiertas no se tocan: pueden tener un formulario a medias. El guardián abre la suya.
     const abiertas = await chrome.tabs.query({ url: ATGO_ORIGIN + '/*' });
-    if (abiertas.length) {
-      tab = abiertas[0];
-      try { await chrome.tabs.update(tab.id, { autoDiscardable: false, pinned: true }); } catch (err) {}
-      await setEst({ tabId: tab.id, abiertaEn: ahora(), ultimaRecarga: ahora(), ultimosDatos: 0 });
-      try { await chrome.tabs.reload(tab.id); } catch (err) {}   // para que arranque la sincronización como gestionada
-    } else {
-      await abrirPestana();
-    }
+    if (!abiertas.some(t => t.status === 'loading')) await abrirPestana();
     return;
   }
   try { if (tab.autoDiscardable !== false) await chrome.tabs.update(tab.id, { autoDiscardable: false }); } catch (err) {}
@@ -146,11 +140,26 @@ async function abrirDespacho() {
   }
 }
 
+async function avisarSinLogin(c, e) {
+  if (ahora() - (e.avisoSinClave || 0) > min(60)) {
+    await setEst({ avisoSinClave: ahora() });
+    avisar('login', 'ATGO: sesión caducada', c.autoLogin ? 'Guarda tu usuario y contraseña en las opciones de la extensión para que inicie sesión sola.' : 'Inicia sesión en la pestaña de ATGO.');
+  }
+  await setEst({ enLogin: true });
+}
+
 chrome.runtime.onMessage.addListener((m, sender, responder) => {
   (async () => {
     const e = await est();
     const desdeGestionada = sender.tab && sender.tab.id === e.tabId;
     switch (m && m.tipo) {
+      // Sincronización empaquetada en la extensión: se ejecuta en la página de ATGO, sin descargar código de ninguna web
+      case 'arrancar-sync': {
+        const c = await cfg();
+        if (!sender.tab || !(sender.tab.url || '').startsWith(ATGO_ORIGIN) || (c.guardian && !desdeGestionada)) return responder(false);
+        try { await chrome.scripting.executeScript({ target: { tabId: sender.tab.id }, world: 'MAIN', files: ['atgo-sync.js'] }); return responder(true); }
+        catch (err) { return responder(false); }
+      }
       // Puente de ATGO al cargar: ¿es la pestaña que gestiono?
       case 'hola-atgo': {
         const c = await cfg();
@@ -180,15 +189,19 @@ chrome.runtime.onMessage.addListener((m, sender, responder) => {
       case 'estado-guardian': return responder({ v: VERSION, cfg: { ...(await cfg()), clave: undefined, hayClave: !!(await cfg()).clave }, estado: e, gestionada: !!(await pestanaGestionada()) });
 
       // ===== Inicio de sesión automático (solo la pestaña gestionada) =====
+      // La sesión ha caducado: ¿hay datos para entrar solo? Si no, se avisa y no se toca nada de la sesión ni de la pestaña.
+      case 'puede-login': {
+        if (!desdeGestionada) return responder({ ok: false });
+        const c = await cfg();
+        if (c.autoLogin && c.usuario && c.clave && !(e.loginPausadoHasta && ahora() < e.loginPausadoHasta)) return responder({ ok: true });
+        await avisarSinLogin(c, e);
+        return responder({ ok: false });
+      }
       case 'pedir-login': {
         if (!desdeGestionada) return responder({ ok: false });
         const c = await cfg();
         if (!c.autoLogin || !c.usuario || !c.clave) {
-          if (ahora() - (e.avisoSinClave || 0) > min(60)) {
-            await setEst({ avisoSinClave: ahora() });
-            avisar('login', 'ATGO: sesión caducada', c.autoLogin ? 'Guarda tu usuario y contraseña en las opciones de la extensión para que inicie sesión sola.' : 'Inicia sesión en la pestaña de ATGO.');
-          }
-          await setEst({ enLogin: true });
+          await avisarSinLogin(c, e);
           return responder({ ok: false });
         }
         if (e.loginPausadoHasta && ahora() < e.loginPausadoHasta) return responder({ ok: false, motivo: 'pausado' });

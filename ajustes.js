@@ -1,15 +1,15 @@
 // ===== Ajustes, perfiles, novedades de versión y comodidades de uso =====
-// ⚙ por secciones, perfiles DSP1–DSP5 y COORD, tema y densidad, atajos de teclado, menú contextual,
+// por secciones, perfiles DSP1–DSP5 y COORD, tema y densidad, atajos de teclado, menú contextual,
 // asistente de inicio, diagnóstico, resumen matinal, aviso de técnico sin actividad y exportar a Excel.
 // Usa utilidades de app.js, dia.js, herramientas.js, edicion.js y panel.js solo en tiempo de llamada.
 
-const APP_VERSION = '1.34.0';   // súbela a la vez que VERSION en sw.js
+const APP_VERSION = '1.35.0';   // súbela a la vez que VERSION en sw.js
 const NOVEDADES = [
+  { v: '1.35.0', f: '2026-11-08', l: ['Mi día: «Qué hacer ahora» ordena por riesgo lo que hay que atender. En «Más»: «Propuesta del día» (reparte lo pendiente de asignar para que lo revises) y «Mañana listo» (lo que falta por dejar resuelto).', 'Aviso cuando la visita es posterior a la caducidad: en la ficha y al planificar.', 'Técnicos: habilidades y ausencias de media jornada; se tienen en cuenta al recomendar.', 'Control: semáforo y carga por DSP, antigüedad, listas «Caducarán» y «Estancadas», e informe diario automático.', 'Incidencias: vista de tabla densa.', 'Mejor contraste y letra mínima de 11 px, iconos propios y ventana con el título «Despacho».', 'Corregido: la fecha del seguimiento de las notas y el recuerdo del proyecto en los perfiles DSP.', 'Extensión 2.1: ya no descarga la sincronización de internet, no cierra la sesión antes de tiempo y no recarga una pestaña de ATGO abierta a mano. Hay que instalarla de nuevo.'] },
   { v: '1.34.0', f: '2026-11-08', l: ['«Revisión de la mañana» (botón en Mi día y en Control): incidencias sin cerrar con fecha de visita de los últimos 7 días, por día y con lo que hizo el técnico. En cada DSP, las de sus técnicos; en COORD, todas, asignadas o no.', 'Desde ahí: abrir la ficha, marcar como revisada (vuelve mañana si sigue abierta), replanificar en bloque y recordar por WhatsApp. COORD filtra por DSP y exporta a Excel.'] },
   { v: '1.33.1', f: '2026-11-08', l: ['Incidencias: dentro de cada estado, las de cada técnico van de la visita más próxima a la más lejana; debajo, las que no tienen fecha y, al final, las de fechas ya pasadas.'] },
   { v: '1.33.0', f: '2026-11-08', l: ['Mi día: nuevo apartado «Conflictos sede-técnicos» y casilla «Sedes con 2 técnicos»: detecta de un vistazo una misma sede o dirección con incidencias en PRESENCIAL de dos técnicos distintos. Las que coinciden el mismo día salen primero, en rojo.'] },
   { v: '1.32.0', f: '2026-11-08', l: ['Extensión 2.0: mantiene una pestaña de ATGO fijada en segundo plano, la recarga o la reabre si se cierra, se cuelga o deja de enviar datos, e inicia sesión sola si caduca (usuario y contraseña en las opciones de la extensión). Ya no hace falta abrir ATGO.', 'Con la extensión 2.0, el botón ATGO enseña su pestaña y «Forzar reconexión» la recarga desde cero.'] },
-  { v: '1.31.0', f: '2026-10-17', l: ['La ficha muestra el proyecto de la incidencia, junto al cliente (también al copiarla).', 'Control (COORD): pulsa la cabecera de una columna (Nº, Caducidad, Cliente · sede, Técnico, DSP, Estado…) para ordenar por ella; otra vez, al revés; la tercera, el orden normal. Por Estado quedan agrupados por orden alfabético. El Excel sale en el mismo orden.'] }
 ];
 // Resumen de lo más importante de las versiones anteriores a las 5 últimas (se ve en ⓘ › Anteriores)
 const ANTERIORES = [
@@ -38,9 +38,10 @@ const ANTERIORES = [
   'Actualización silenciosa y sincronización cada 2 minutos',
   'Caducidad de Control sin contar FUERA DE MANTENIMIENTO',
   'Control con listas Presencial y Todas',
-  'Filtro por proyecto en Control'
+  'Filtro por proyecto en Control',
+  'Proyecto en la ficha y orden por columnas en Control'
 ];
-const NOV_VISIBLES = 5, ANTERIORES_HASTA = '1.30';   // al añadir una versión, quita la más antigua de NOVEDADES y resúmela aquí si importa
+const NOV_VISIBLES = 5, ANTERIORES_HASTA = '1.31';   // al añadir una versión, quita la más antigua de NOVEDADES y resúmela aquí si importa
 const NOV_KEY = 'dispatcher_version_vista_v1', DIAG_KEY = 'dispatcher_diag_v1', BIENV_KEY = 'dispatcher_bienvenida_v1', DATOS_VER_KEY = 'dispatcher_datos_version_v1';
 
 // ---- Novedades de la versión ----
@@ -51,13 +52,13 @@ function abrirNovedades() {
     ${ANTERIORES.length ? `<details class="nov nov-ant"><summary><b>Anteriores</b><span>1.4 – ${esc(ANTERIORES_HASTA)}</span></summary><ul>${ANTERIORES.map(x => `<li>${esc(x)}</li>`).join('')}</ul></details>` : ''}
     <div class="dw-empty">Atajos de teclado: pulsa <kbd>?</kbd></div></div>`;
   m.hidden = false;
-  try { localStorage.setItem(NOV_KEY, APP_VERSION); } catch (e) {}
+  lsPonTexto(NOV_KEY, APP_VERSION);
   const d = document.getElementById('novDot'); if (d) d.hidden = true;
 }
-function marcarNovedades() { let v = null; try { v = localStorage.getItem(NOV_KEY); } catch (e) {} const d = document.getElementById('novDot'); if (d) d.hidden = v === APP_VERSION; }
+function marcarNovedades() { const v = lsTexto(NOV_KEY), d = document.getElementById('novDot'); if (d) d.hidden = v === APP_VERSION; }
 
 // ---- Perfiles: ventana para gestionar los técnicos de cada DSP ----
-function guardarPerfiles() { try { localStorage.setItem(PERFIL_KEY, JSON.stringify(perfilCfg)); } catch (e) { toast('No se pudo guardar en este equipo'); } }
+function guardarPerfiles() { lsSet(PERFIL_KEY, perfilCfg); }
 // Al cambiar de perfil se reinicia la foto de seguimiento: así no salen como «nuevos» ni «salieron» los tickets del otro perfil
 function setPerfil(p) {
   if (p === PERFIL) return; perfilCfg.activo = p; guardarPerfiles(); lsSet(SNAP_KEY, { start: 0, items: {} });
@@ -166,14 +167,14 @@ function renderPerfiles() {
         <div class="pf-tecs">${grupos.length ? grupos.map(g => `<div class="pf-g"><div class="pf-gt">${esc(g.t)} <small>${g.ops.length}</small></div><div class="pf-chips">${g.ops.map(chip).join('')}</div></div>`).join('') : '<div class="dempty">Sin técnicos. Añádelos arriba escribiendo su código, por zonas o copiándolos de otro perfil.</div>'}</div>
       </section>
     </div>
-    <div class="pf-pie"><button class="btn sm" onclick="abrirNomina()" title="Altas, zona o DSP de cada técnico y bajas">👥 Técnicos (nómina)…</button><span>Para pasar los perfiles a otro equipo:</span><button class="btn sm ghost" onclick="exportarPerfiles()">Exportar perfiles</button><button class="btn sm ghost" onclick="importarPerfiles()">Importar perfiles</button></div>
+    <div class="pf-pie"><button class="btn sm" onclick="abrirNomina()" title="Altas, zona o DSP de cada técnico y bajas">${ico('equipo')} Técnicos (nómina)…</button><span>Para pasar los perfiles a otro equipo:</span><button class="btn sm ghost" onclick="exportarPerfiles()">Exportar perfiles</button><button class="btn sm ghost" onclick="importarPerfiles()">Importar perfiles</button></div>
     ${perfilesCambiados ? `<div class="pf-aplicar"><span>Has cambiado los técnicos del perfil en uso (${PERFIL}).</span><button class="btn sm pri" onclick="lsSet(SNAP_KEY,{start:0,items:{}});try{sessionStorage.setItem('despacho_perfil_cambiado',PERFIL)}catch(e){};location.reload()">Aplicar cambios (recarga)</button></div>` : ''}`;
   const i = document.getElementById('pfIn'); if (i && perfBusca) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); }
 }
 function updatePerfilBtn() { const b = document.getElementById('perfilBtn'); if (b) { b.textContent = PERFIL; b.title = `Perfil ${PERFIL}: ${plural(OPERARIOS.length, 'técnico')}. Pulsa para gestionar los perfiles.`; } }
 function menuPerfil(ev) { if (ev) ev.stopPropagation(); abrirPerfiles(PERFIL); }
 
-// ---- Nómina de técnicos (⚙ › Técnicos): altas, zona/DSP de cada uno y bajas, sin tocar el código ----
+// ---- Nómina de técnicos (Ajustes › Técnicos): altas, zona/DSP de cada uno y bajas, sin tocar el código ----
 // Se guarda en perfilCfg.nomina (ver NOMINA en app.js). Las bajas se aplican al momento; las altas y los cambios
 // de zona, al recargar (cambian las zonas y los perfiles).
 let nomBusca = '', nomFiltro = '';
@@ -223,15 +224,21 @@ function nomBaja(op, si) {
   toast(si ? `${op} de baja: ya no se propone al asignar${abiertas ? ` · tiene ${plural(abiertas, 'incidencia')} abierta${abiertas === 1 ? '' : 's'}` : ''}` : `${op} activo de nuevo`);
 }
 // Vacaciones: se añaden con fecha de inicio y fin; los periodos ya pasados se borran solos
+function nomHab(op, val) {
+  const n = nomDato(op), l = val.split(',').map(x => x.trim()).filter(Boolean);
+  if (l.length) n.hab = l; else delete n.hab;
+  if (!Object.keys(n).length) delete perfilCfg.nomina[op];
+  guardarPerfiles();
+}
 function nomVacAnadir(op) {
-  const d = (document.getElementById('vd-' + op) || {}).value, h = (document.getElementById('vh-' + op) || {}).value;
+  const d = (document.getElementById('vd-' + op) || {}).value, h = (document.getElementById('vh-' + op) || {}).value, medio = (document.getElementById('vp-' + op) || {}).value || '';
   if (!/^\d{4}-\d{2}-\d{2}$/.test(d || '') || !/^\d{4}-\d{2}-\d{2}$/.test(h || '')) { toast('Pon la fecha de inicio y la de fin'); return; }
   if (h < d) { toast('La fecha de fin es anterior a la de inicio'); return; }
-  const n = nomDato(op); n.vac = [...(n.vac || []).filter(v => v.h >= isoHoy()), { d, h }].sort((a, b) => a.d < b.d ? -1 : 1);
+  const n = nomDato(op); n.vac = [...(n.vac || []).filter(v => v.h >= isoHoy()), { d, h, ...(medio ? { p: medio } : {}) }].sort((a, b) => a.d < b.d ? -1 : 1);
   guardarPerfiles(); renderNomina(); refreshVisible();
   const fecha = x => x.slice(8) + '/' + x.slice(5, 7);
   const vis = rows.filter(r => r.operario === op && esPresencial(r) && (() => { const f = parseEs(r.fVisita); return f && isoHoy(f) >= d && isoHoy(f) <= h; })()).length;
-  toast(`${op} de vacaciones del ${fecha(d)} al ${fecha(h)}${vis ? ` · tiene ${plural(vis, 'visita')} esos días: reasígnalas` : ''}`);
+  toast(`${op} ${medio ? 'no está por la ' + (medio === 'm' ? 'mañana' : 'tarde') : 'de vacaciones'} del ${fecha(d)} al ${fecha(h)}${vis ? ` · tiene ${plural(vis, 'visita')} esos días: reasígnalas` : ''}`);
 }
 function nomVacQuitar(op, d, h) {
   const n = nomDato(op); n.vac = (n.vac || []).filter(v => !(v.d === d && v.h === h)); if (!n.vac.length) delete n.vac;
@@ -241,7 +248,7 @@ function nomVacQuitar(op, d, h) {
 function abrirNomina() {
   const cfg = document.getElementById('cfgMenu'); if (cfg) cfg.hidden = true;
   const m = document.getElementById('modal');
-  m.innerHTML = '<div class="md-box md-perf" id="nomBox" role="dialog" aria-label="Técnicos (nómina)"></div>'; m.hidden = false;
+  m.innerHTML = '<div class="md-box md-perf" id="nomBox"></div>'; m.hidden = false;
   renderNomina();
 }
 function renderNomina() {
@@ -254,11 +261,11 @@ function renderNomina() {
   const bajas = todos.filter(t => t.baja || t.vacHoy).length;
   const fila = t => `<tr class="${t.baja ? 'nm-baja' : t.vacHoy ? 'nm-vac-hoy' : ''}">
       <td><b class="mono">${esc(t.op)}</b>${t.n.alta ? ' <span class="nm-tag" title="Dado de alta por ti">alta</span>' : ''}${t.nombre ? `<small>${esc(t.nombre)}</small>` : ''}</td>
-      <td><select aria-label="Zona de ${esc(t.op)}" onchange="nomCambiarZona('${jsq(t.op)}',this.value)">${t.zona ? '' : t.dsp ? '' : '<option value="">Sin zona…</option>'}${nomOpciones(t.zona || (t.dsp ? '@' + t.dsp : ''))}</select></td>
+      <td><select aria-label="Zona de ${esc(t.op)}" onchange="nomCambiarZona('${jsq(t.op)}',this.value)">${t.zona ? '' : t.dsp ? '' : '<option value="">Sin zona…</option>'}${nomOpciones(t.zona || (t.dsp ? '@' + t.dsp : ''))}</select><input class="nm-hab" aria-label="Habilidades de ${esc(t.op)}" placeholder="Habilidades: BALANZA, TPV… (vacío = todo)" value="${esc((t.n.hab || []).join(', '))}" onchange="nomHab('${jsq(t.op)}',this.value)"></td>
       <td class="nm-perf">${esc(PERFILES.filter(p => perfilCfg.tecs[p].includes(t.op)).join(' · ') || '—')}</td>
       <td>${t.abiertas ? plural(t.abiertas, 'abierta') : '<span class="dim">—</span>'}${!t.baja && atgoBaja[t.op] ? '<br><small class="nm-aviso">ATGO lo marca de baja</small>' : ''}</td>
       <td><button class="nm-est ${t.baja ? 'off' : 'on'}" onclick="nomBaja('${jsq(t.op)}',${!t.baja})" aria-pressed="${t.baja}" title="${t.baja ? 'Volver a activo' : 'Marcar de baja: no se propone al asignar'}">${t.baja ? 'De baja' : t.vacHoy ? 'De vacaciones' : 'Activo'}</button>
-        <details class="nm-vac"${t.vac.length ? ' open' : ''}><summary>🏖 Vacaciones${t.vac.length ? ' (' + t.vac.length + ')' : ''}</summary>${t.vac.map(v => `<span class="nm-vac-p">${esc(v.d.slice(8) + '/' + v.d.slice(5, 7))}–${esc(v.h.slice(8) + '/' + v.h.slice(5, 7))}<button onclick="nomVacQuitar('${jsq(t.op)}','${v.d}','${v.h}')" aria-label="Quitar vacaciones">×</button></span>`).join('')}<span class="nm-vac-n"><input type="date" id="vd-${esc(t.op)}" aria-label="Inicio de vacaciones de ${esc(t.op)}"><input type="date" id="vh-${esc(t.op)}" aria-label="Fin de vacaciones de ${esc(t.op)}"><button class="btn sm" onclick="nomVacAnadir('${jsq(t.op)}')">Añadir</button></span></details></td>
+        <details class="nm-vac"${t.vac.length ? ' open' : ''}><summary>${ico('ausente')} Vacaciones${t.vac.length ? ' (' + t.vac.length + ')' : ''}</summary>${t.vac.map(v => `<span class="nm-vac-p">${esc(v.d.slice(8) + '/' + v.d.slice(5, 7))}–${esc(v.h.slice(8) + '/' + v.h.slice(5, 7))}${v.p ? (v.p === 'm' ? ' · mañana' : ' · tarde') : ''}<button onclick="nomVacQuitar('${jsq(t.op)}','${v.d}','${v.h}')" aria-label="Quitar vacaciones">×</button></span>`).join('')}<span class="nm-vac-n"><select id="vp-${esc(t.op)}" aria-label="Duración de la ausencia de ${esc(t.op)}"><option value="">Día completo</option><option value="m">Solo mañana</option><option value="t">Solo tarde</option></select><input type="date" id="vd-${esc(t.op)}" aria-label="Inicio de vacaciones de ${esc(t.op)}"><input type="date" id="vh-${esc(t.op)}" aria-label="Fin de vacaciones de ${esc(t.op)}"><button class="btn sm" onclick="nomVacAnadir('${jsq(t.op)}')">Añadir</button></span></details></td>
       <td>${t.n.alta ? `<button class="iconbtn sm" onclick="nomQuitar('${jsq(t.op)}')" aria-label="Quitar ${esc(t.op)} de la nómina" title="Quitar de la nómina">×</button>` : ''}</td></tr>`;
   box.innerHTML = `
     <div class="dw-head"><div><div class="dw-num" style="color:var(--ink)">Técnicos (nómina)</div><div class="dw-sub">Da de alta técnicos, cambia su zona o DSP, marca las bajas y pon sus vacaciones. Mientras esté de baja o de vacaciones, el técnico no sale en los paneles ni se propone al asignar; sus incidencias se avisan en Incidencias para reasignarlas.</div></div>
@@ -335,7 +342,7 @@ function a11yNombres(root) {
 }
 let a11yPend = false;
 const a11yObs = new MutationObserver(() => { if (a11yPend) return; a11yPend = true; requestAnimationFrame(() => { a11yPend = false; a11yNombres(); }); });
-// Ventanas (modal, ficha, buscador, ⚙): al abrir, el foco entra; Tab no se sale; al cerrar, vuelve a donde estaba
+// Ventanas (modal, ficha, buscador, Ajustes): al abrir, el foco entra; Tab no se sale; al cerrar, vuelve a donde estaba
 const FOCO_SEL = 'button:not([disabled]), [href], input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 function visiblesFoco(c) { return [...c.querySelectorAll(FOCO_SEL)].filter(el => el.offsetParent !== null || el === document.activeElement); }
 function vigilarVentana(id) {
@@ -345,6 +352,7 @@ function vigilarVentana(id) {
     const abierto = !el.hidden;
     if (abierto && !el.__abierto) {
       el.__abierto = true; antes = document.activeElement;
+      if (id === 'modal') el.setAttribute('aria-label', (el.querySelector('.dw-num, .md-txt b, h2, h3') || {}).textContent || 'Ventana');
       setTimeout(() => { if (el.hidden || el.contains(document.activeElement)) return; const f = el.querySelector('[autofocus], .cfg-tabs button.on') || visiblesFoco(el).find(x => !/iconbtn/.test(x.className)) || visiblesFoco(el)[0]; if (f) f.focus({ preventScroll: true }); }, 30);
     } else if (!abierto && el.__abierto) {
       el.__abierto = false;
@@ -375,12 +383,14 @@ function renderCfg() {
     h = `<div class="cfg-h">Conexión</div>
       <div class="cfg-t">${esc(document.getElementById('fileStatus').textContent)}${esc(document.getElementById('atgoStatus').textContent)}</div>
       ${ultimaCarga && ultimaCarga.s != null ? `<div class="cfg-t">Última carga: ${ultimaCarga.ops != null ? plural(ultimaCarga.ops, 'técnico') + ' en ' : ''}${ultimaCarga.s} s${ultimaCarga.s > 90 ? ' · lenta: avisa si pasa a menudo' : ''}</div>` : ''}
-      <div class="acts"><button class="btn sm pri" onclick="event.stopPropagation();actualizarAhora()" title="Trae ya los datos de ATGO, sin esperar a los 2 minutos ni recargar, y busca una versión nueva de Despacho">⟳ ACTUALIZAR</button><button class="btn sm" onclick="document.getElementById('atgoBtn').click()">Abrir ATGO</button><button class="btn sm" onclick="forzarAtgo()" title="Si ATGO se queda pillado: lo recarga desde cero y rehace la conexión">⟳ Forzar reconexión</button><button class="btn sm" onclick="document.getElementById('importBtn').click()">Importar Excel</button><button class="btn sm ghost" onclick="abrirAsistente()">Asistente de inicio</button></div>
+      <div class="acts"><button class="btn sm pri" onclick="event.stopPropagation();actualizarAhora()" title="Trae ya los datos de ATGO, sin esperar a los 2 minutos ni recargar, y busca una versión nueva de Despacho">⟳ ACTUALIZAR</button><button class="btn sm" onclick="abrirAtgo()">Abrir ATGO</button><button class="btn sm" onclick="forzarAtgo()" title="Si ATGO se queda pillado: lo recarga desde cero y rehace la conexión">⟳ Forzar reconexión</button><button class="btn sm" onclick="elegirExcel()">Importar Excel</button><button class="btn sm ghost" onclick="abrirAsistente()">Asistente de inicio</button></div>
+      <div class="cfg-t">Extensión para Chrome y Edge (2.1): <a href="despacho-extension.zip" download>descargar</a>. Descomprímela, sustituye la carpeta anterior y pulsa ⟳ en chrome://extensions.</div>
       <div class="cfg-t">Tema, color, tamaño y accesibilidad: en la pestaña <a href="#" onclick="event.preventDefault();event.stopPropagation();cfgTab='apa';renderCfg()">Apariencia</a>.</div>
       <div class="cfg-h">Resúmenes y avisos del día</div>
       <div class="cfg-row"><label><input type="checkbox" ${tecCfg.resumenOn !== false ? 'checked' : ''} onchange="setPref('resumenOn',this.checked)"> Resumen matinal a las</label><input type="time" aria-label="Hora del resumen matinal" value="${esc(tecCfg.resumenHora || '08:00')}" onchange="setPref('resumenHora',this.value)"></div>
       <div class="cfg-row"><label><input type="checkbox" ${tecCfg.inactOn !== false ? 'checked' : ''} onchange="setPref('inactOn',this.checked)"> Avisar si un técnico no ha iniciado nada a las</label><input type="time" aria-label="Hora del aviso de técnico sin actividad" value="${esc(tecCfg.inactHora || '11:00')}" onchange="setPref('inactHora',this.value)"></div>
       <div class="cfg-row"><label><input type="checkbox" ${tecCfg.cierreOn !== false ? 'checked' : ''} onchange="setPref('cierreOn',this.checked)"> Avisar de visitas de hoy sin cerrar a las</label><input type="time" aria-label="Hora del aviso de visitas sin cerrar" value="${esc(horaCierre())}" onchange="setPref('cierreHora',this.value)"></div>
+      ${esCoord() ? `<div class="cfg-row"><label><input type="checkbox" ${tecCfg.informeOn ? 'checked' : ''} onchange="setPref('informeOn',this.checked)"> Descargar el informe de control cada día a las</label><input type="time" aria-label="Hora del informe de control" value="${esc(tecCfg.informeHora || '09:00')}" onchange="setPref('informeHora',this.value)"></div>` : ''}
       <div class="cfg-row"><label>Sin asignar de tu zona: avisar si llevan más de</label><span><input type="number" aria-label="Horas sin técnico para avisar" min="1" max="72" value="${horasOlvido()}" onchange="setPref('olvidoHoras',Math.max(1,Number(this.value)||4))" style="width:56px"> h</span></div>
 `;
   } else if (cfgTab === 'apa') {
@@ -393,7 +403,7 @@ function renderCfg() {
       <div class="cfg-row"><span>Espacio entre filas y letra</span>${seg("setPref('densidad','@')", [['compacta', 'Compacto'], ['normal', 'Normal'], ['amplia', 'Amplio']], densidad())}</div>
       <div class="cfg-row"><span>Zoom de toda la app</span>${seg("setAcc('texto',@)", ACC_TEXTO.map(n => [n, n + ' %']), a.texto || 100)}</div>
       <div class="cfg-h">Accesibilidad</div>
-      <div class="acc-card${on ? ' on' : ''}"><span style="font-size:22px" aria-hidden="true">♿</span><div><b>Modo accesible</b><span>${on ? 'Activado. Ajusta abajo cada opción.' : 'Letra más grande, alto contraste, foco visible, botones grandes y sin animaciones, de una vez.'}</span></div>
+      <div class="acc-card${on ? ' on' : ''}"><span class="acc-ico">${ico('accesible')}</span><div><b>Modo accesible</b><span>${on ? 'Activado. Ajusta abajo cada opción.' : 'Letra más grande, alto contraste, foco visible, botones grandes y sin animaciones, de una vez.'}</span></div>
         <button class="btn sm${on ? '' : ' pri'}" aria-pressed="${on}" onclick="event.stopPropagation();modoAccesible(${!on})">${on ? 'Desactivar' : 'Activar'}</button></div>
       <div class="acc-l">${ACC_OPS.map(([k, l, d]) => `<label><input type="checkbox" ${a[k] ? 'checked' : ''} onchange="setAcc('${k}',this.checked)"><span>${l}<small>${d}</small></span></label>`).join('')}</div>
       <div class="cfg-t">Siempre activo: navegación completa con teclado (pulsa <kbd>?</kbd>), enlace «Saltar al contenido» con Tab, nombres para lectores de pantalla y foco que vuelve a su sitio al cerrar ventanas.</div>`;
@@ -432,7 +442,7 @@ function renderCfg() {
       <div class="acts"><button class="btn sm" onclick="exportarExcel('inc')">Incidencias</button><button class="btn sm" onclick="exportarExcel('sem')">Planificación de la semana</button><button class="btn sm" onclick="abrirInforme()">Informe semanal</button></div>
       <div class="cfg-h">Datos cargados</div>
       <div class="cfg-t">${esc(document.getElementById('fileStatus').textContent)} · ${Math.round(espacioUsado() / 1024)} KB guardados en este equipo (límite ~5 MB; lo antiguo se limpia solo).</div>
-      <div class="acts">${rows.length ? '<button class="btn sm ghost" onclick="document.getElementById(\'clearBtn\').click()">Quitar datos cargados</button>' : ''}<button class="btn sm ghost" onclick="liberarEspacio();renderCfg();toast(\'Espacio liberado\')">Liberar espacio ahora</button></div>
+      <div class="acts">${rows.length ? '<button class="btn sm ghost" onclick="quitarDatos()">Quitar datos cargados</button>' : ''}<button class="btn sm ghost" onclick="liberarEspacio();renderCfg();toast(\'Espacio liberado\')">Liberar espacio ahora</button></div>
       ${(() => { const l = Object.entries(poolOpsDesc).filter(([op]) => !zonaComodin(op)); return l.length ? `<div class="cfg-h">Comodines sin zona</div><div class="cfg-t">Estos «PENDIENTE ASIGNAR» de ATGO no se asocian a ninguna zona por su nombre (sus incidencias usan la provincia del ticket): ${esc(l.map(([op, d]) => op + ' (' + d + ')').join(', '))}. Si alguno debería ser de una zona, dímelo.</div>` : ''; })()}
       <div class="cfg-h">Diagnóstico</div>
       <div class="cfg-t">Versión ${esc(APP_VERSION)} · ${plural(diagLista().length, 'error')} registrado${diagLista().length === 1 ? '' : 's'}.</div>
@@ -442,7 +452,7 @@ function renderCfg() {
 }
 document.addEventListener('click', e => { const m = document.getElementById('cfgMenu'); if (m && !m.hidden && !m.contains(e.target) && e.target.id !== 'cfgBtn' && e.target.id !== 'perfilBtn' && document.body.contains(e.target)) m.hidden = true; });
 
-// ---- Festivos locales (⚙ › Festivos) ----
+// ---- Festivos locales (Ajustes › Festivos) ----
 function anadirFestivo() {
   const f = document.getElementById('fesF').value, z = document.getElementById('fesZ').value, n = document.getElementById('fesN').value.trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(f)) { toast('Elige la fecha'); return; }
@@ -489,18 +499,18 @@ function liberarEspacio() {
   diagLog('Espacio liberado: ' + Math.round(espacioUsado() / 1024) + ' KB en uso');
 }
 function revisarEspacio() { if (espacioUsado() > ESPACIO_LIMITE) liberarEspacio(); }
-setInterval(() => { try { revisarEspacio(); } catch (e) {} }, 3600000);
+setInterval(() => { try { revisarEspacio(); } catch (e) { diagLog('Revisión de espacio: ' + e.message); } }, 3600000);
 
 // ---- Versionado de los datos guardados (migraciones en orden, una sola vez) ----
 const MIGRACIONES = [
   () => {},   // 1: perfiles (se crean solos en app.js con todos los técnicos en DSP1)
   () => saveTec(),   // 2: separa datos de técnicos (teléfonos, GLS) y preferencias en dos claves
-  () => ['dispatcher_plantillas_v2', 'dispatcher_clientes_v1', 'dispatcher_recordatorios_v1', 'dispatcher_rutina_v1', 'dispatcher_tpl_cliente'].forEach(k => { try { localStorage.removeItem(k); } catch (e) {} }),   // 3: datos de funciones retiradas
+  () => ['dispatcher_plantillas_v2', 'dispatcher_clientes_v1', 'dispatcher_recordatorios_v1', 'dispatcher_rutina_v1', 'dispatcher_tpl_cliente'].forEach(k => { lsQuita(k); }),   // 3: datos de funciones retiradas
 ];
 (function migrar() {
-  let v = 0; try { v = Number(localStorage.getItem(DATOS_VER_KEY)) || 0; } catch (e) {}
+  let v = Number(lsTexto(DATOS_VER_KEY)) || 0;
   for (; v < MIGRACIONES.length; v++) { try { MIGRACIONES[v](); } catch (e) { diagLog('Migración ' + (v + 1) + ': ' + e.message); break; } }
-  try { localStorage.setItem(DATOS_VER_KEY, String(v)); } catch (e) {}
+  lsPonTexto(DATOS_VER_KEY, String(v));
 })();
 
 // ---- Asistente de primera vez ----
@@ -508,7 +518,7 @@ function abrirAsistente(paso) {
   paso = paso || 1;
   const m = document.getElementById('modal');
   const pasos = [
-    ['Conecta ATGO', 'Instala la extensión (o arrastra el favorito «⟳ Despacho ATGO» de la pestaña Incidencias) y abre ATGO con tu usuario. Despacho se actualiza solo cada 2 minutos.', `<button class="btn sm pri" onclick="document.getElementById('atgoBtn').click()">Abrir ATGO</button>`],
+    ['Conecta ATGO', 'Instala la extensión (o arrastra el favorito «⟳ Despacho ATGO» de la pestaña Incidencias) y abre ATGO con tu usuario. Despacho se actualiza solo cada 2 minutos.', `<button class="btn sm pri" onclick="abrirAtgo()">Abrir ATGO</button>`],
     ['Activa los avisos', 'Windows te avisará de escalados, sin asignar de tu zona, caducidades y cambios en las rutas, aunque estés en otra ventana.', `<button class="btn sm pri" onclick="activarAvisos()">Activar avisos</button>`],
     ['Copia en OneDrive', 'Elige una carpeta de OneDrive y Despacho guardará ahí tus notas y ajustes cada 10 minutos.', `<button class="btn sm pri" onclick="odElegir()">Elegir carpeta</button>`]
   ];
@@ -517,7 +527,7 @@ function abrirAsistente(paso) {
     <div class="acts" style="justify-content:space-between;margin-top:14px"><button class="btn sm ghost" onclick="finAsistente()">Saltar</button>${paso < pasos.length ? `<button class="btn sm" onclick="abrirAsistente(${paso + 1})">Siguiente →</button>` : '<button class="btn sm pri" onclick="finAsistente()">Empezar</button>'}</div></div>`;
   m.hidden = false;
 }
-function finAsistente() { try { localStorage.setItem(BIENV_KEY, '1'); } catch (e) {} cerrarModal(); }
+function finAsistente() { lsPonTexto(BIENV_KEY, '1'); cerrarModal(); }
 
 // ---- Atajos de teclado ----
 const ATAJOS = [['1 – 4', 'Mi día · Sin asignar · Incidencias · Planificación'], ['J / K', 'Bajar / subir por los tickets'], ['Enter', 'Abrir la ficha del ticket marcado'], ['A', 'Asignar o planificar (ficha › Actuar)'], ['C', 'Comentar en el hilo (ficha › Actuar)'], ['Ctrl + K  o  /', 'Buscar ticket o acción (→ para ver acciones)'], ['Clic derecho', 'Menú rápido sobre un ticket'], ['Esc', 'Cerrar'], ['?', 'Esta chuleta']];
@@ -680,7 +690,7 @@ function revisionBotonHtml() {
 }
 function abrirRevision() {
   const m = document.getElementById('modal');
-  m.innerHTML = '<div class="md-box md-rev" id="revBox" role="dialog" aria-label="Revisión de la mañana"></div>'; m.hidden = false;
+  m.innerHTML = '<div class="md-box md-rev" id="revBox"></div>'; m.hidden = false;
   renderRevision();
 }
 function revMarcar(k, si) { if (si) revSel.add(k); else revSel.delete(k); revBarra(); }
@@ -728,15 +738,16 @@ function renderRevision() {
       <b class="${sin ? 'ctl-sin' : ''}">${esc(sin ? 'Sin asignar' : op)}${noDisponible(op) ? ` <span class="baja-tag" title="${esc(ausenciaTexto(op))}">${enBaja(op) ? 'BAJA' : 'VAC.'}</span>` : ''}</b>
       <span class="rev-s" title="${esc([r.descCliente, r.domicilio].filter(Boolean).join(' · '))}">${esc(r.descSede || r.domicilio || '—')}<small>${esc(r.descCliente || '')}</small></span>
       <span class="rev-h${hu === 'p' ? ' mal' : ''}">${huella[hu] || ''}</span>
-      <span class="rev-e">${estadoPill(r.estado)}${cadBadge(r)}</span>
-      <span class="rev-a">${sin ? '' : `<button class="btn sm wa" onclick="revWa('${jsq(k)}')" title="Recordar por WhatsApp a ${esc(op)}">WhatsApp</button>`}<button class="btn sm${hecha ? ' ghost' : ''}" onclick="revRevisada('${jsq(k)}')" title="${hecha ? 'Volver a la lista' : 'Ocultar hoy; si sigue abierta, mañana volverá a salir'}">${hecha ? 'Deshacer' : 'Revisada'}</button></span></div>`;
+      <span class="rev-e">${estadoPill(r.estado)}</span>
+      <span class="rev-c">${cadBadge(r)}</span>
+      <span class="rev-a">${sin ? '<span></span>' : `<button class="btn sm wa" onclick="revWa('${jsq(k)}')" title="Recordar por WhatsApp a ${esc(op)}">WhatsApp</button>`}<button class="btn sm${hecha ? ' ghost' : ''}" onclick="revRevisada('${jsq(k)}')" title="${hecha ? 'Volver a la lista' : 'Ocultar hoy; si sigue abierta, mañana volverá a salir'}">${hecha ? 'Deshacer' : 'Revisada'}</button></span></div>`;
   };
   const prox = nextWorkday();
   box.innerHTML = `<div class="dw-head"><div><div class="dw-num" style="color:var(--ink)">Revisión de la mañana</div>
       <div class="dw-sub">${vis.length ? `${plural(vis.length, 'incidencia')} sin cerrar con fecha de los últimos ${REV_DIAS} días${cad ? ` · ${plural(cad, 'caducada')}` : ''}` : `Nada pendiente de los últimos ${REV_DIAS} días.`}${nHechas ? ` · ${plural(nHechas, 'revisada')} hoy` : ''}</div></div>
       <button class="iconbtn" onclick="cerrarModal()" aria-label="Cerrar">✕</button></div>
     ${coord || nHechas ? `<div class="rev-f">${coord ? `<span class="seg mini" role="group" aria-label="DSP">${[['', 'Todos'], ...PERFILES.filter(p => p !== 'COORD').map(p => [p, p])].map(([v, t]) => `<button class="segb${revDsp === v ? ' on' : ''}" aria-pressed="${revDsp === v}" onclick="revDsp='${v}';renderRevision()">${t}</button>`).join('')}</span><button class="btn sm" onclick="revExcel()">↓ Excel</button>` : ''}${nHechas ? `<button class="btn sm ghost" onclick="revVerHechas=!revVerHechas;renderRevision()">${revVerHechas ? 'Ocultar revisadas' : 'Ver revisadas'}</button>` : ''}</div>` : ''}
-    ${dias.map(f => { const d = parseEs(f), n = Math.round((hoy - d) / 86400000); return `<section class="rev-d"><h3>${esc(DIAS[d.getDay()])} ${esc(f.slice(0, 5))} <small>${n === 1 ? 'ayer' : 'hace ' + n + ' días'} · ${porDia.get(f).length}</small></h3>${porDia.get(f).slice().sort((a, b) => String(a.operario).localeCompare(String(b.operario)) || horaMin(a.desdeHora) - horaMin(b.desdeHora)).map(fila).join('')}</section>`; }).join('') || '<div class="dempty">Todo al día. 👍</div>'}
+    ${dias.map(f => { const d = parseEs(f), n = Math.round((hoy - d) / 86400000); return `<section class="rev-d"><h3>${esc(DIAS[d.getDay()])} ${esc(f.slice(0, 5))} <small>${n === 1 ? 'ayer' : 'hace ' + n + ' días'} · ${porDia.get(f).length}</small></h3>${porDia.get(f).slice().sort((a, b) => String(a.operario).localeCompare(String(b.operario)) || horaMin(a.desdeHora) - horaMin(b.desdeHora)).map(fila).join('')}</section>`; }).join('') || '<div class="dempty">Todo al día.</div>'}
     ${vis.some(r => !/^XXX/.test(cleanInitials(r.operario))) ? `<div class="rev-barra" id="revBarra"><label><input type="checkbox" onchange="revTodas(this.checked)"> Marcar todas</label><span></span>
       <select id="revFecha" aria-label="Nueva fecha de visita"><option value="${isoHoy()}">Hoy</option><option value="${isoHoy(prox)}">${esc(diaLargo(prox))}</option></select>
       <button class="btn sm pri" onclick="revReplanificar()">Replanificar marcadas</button></div>` : ''}`;
@@ -759,7 +770,7 @@ function revisarOlvidadas() {
 // Botones de Mi día: mis cambios de hoy y, a partir de la hora de cierre, las visitas sin cerrar
 function botonesDiaHtml() {
   const c = misCambios('hoy'), mal = c.filter(e => !e.ok).length, sc = horaPasada(horaCierre()) && tecCfg.cierreOn !== false ? sinCerrarHoy().length : 0;
-  return revisionBotonHtml() + `<button class="btn sm${mal ? ' warn' : ''}" onclick="abrirMisCambios('hoy')" title="Todo lo que has hecho hoy en ATGO desde Despacho, con su resultado">Mis cambios${c.length ? ' · ' + c.length : ''}${mal ? ' (' + mal + ' ✕)' : ''}</button>`
+  return queHacerBotonHtml() + revisionBotonHtml() + (horaPasada('15:00') ? mananaBotonHtml() : '') + `<button class="btn sm${mal ? ' warn' : ''}" onclick="abrirMisCambios('hoy')" title="Todo lo que has hecho hoy en ATGO desde Despacho, con su resultado">Mis cambios${c.length ? ' · ' + c.length : ''}${mal ? ' (' + mal + ' ✕)' : ''}</button>`
     + (sc ? `<button class="btn sm warn" onclick="abrirSinCerrar()" title="Visitas de hoy que siguen en PRESENCIAL sin «finalizado» del técnico">Sin cerrar hoy · ${sc}</button>` : '');
 }
 
@@ -771,6 +782,7 @@ function revisarAvisosDia() {
   const hoy = isoHoy(), hecho = lsGet(DIA_AVISOS_KEY, {});
   if (hecho.dia !== hoy) { hecho.dia = hoy; hecho.resumen = false; hecho.inact = []; }
   const d = new Date(); if (!(d.getDay() % 6) || festivo(d)) return;   // fines de semana y festivos, nada
+  revisarInformeAuto();
   if (tecCfg.resumenOn !== false && !hecho.resumen && horaPasada(tecCfg.resumenHora || '08:00')) {
     hecho.resumen = true;
     const sin = sinListas().mias.length;
@@ -826,9 +838,9 @@ window.addEventListener('DOMContentLoaded', () => {
   if (document.getElementById('viewCtl').style.display !== 'none') renderControl();   // también Control (usa horasOlvido de este archivo)
   // Tras una actualización silenciosa (app.js), un aviso discreto con la versión nueva
   try { if (sessionStorage.getItem('despacho_actualizado')) { sessionStorage.removeItem('despacho_actualizado'); setTimeout(() => toast(`Despacho se ha actualizado a la versión ${APP_VERSION} · novedades en ⓘ`), 1200); } } catch (e) {}
-  try { revisarEspacio(); } catch (e) {}
-  let visto = null; try { visto = localStorage.getItem(BIENV_KEY); } catch (e) {}
+  try { revisarEspacio(); } catch (e) { diagLog('Revisión de espacio: ' + e.message); }
+  const visto = lsTexto(BIENV_KEY);
   if (!visto && !lsGet(ATGO_KEY, null)) setTimeout(() => { if (document.getElementById('modal').hidden) abrirAsistente(1); }, 800);
-  else if (!visto) { try { localStorage.setItem(BIENV_KEY, '1'); } catch (e) {} }
-  if (!OPERARIOS.length) toast(`El perfil ${PERFIL} no tiene técnicos: añádelos en ⚙ › Perfiles`);
+  else if (!visto) lsPonTexto(BIENV_KEY, '1');
+  if (!OPERARIOS.length) toast(`El perfil ${PERFIL} no tiene técnicos: añádelos en Ajustes › Perfiles`);
 });

@@ -1,7 +1,7 @@
 // ===== Panel: sin asignar y buzón, vigilancia de la sincronización, Vista Semana (arrastrar y soltar,
 // planificación en bloque), replanificar vencidas, respuestas rápidas, carga en horas, línea de tiempo,
 // conflictos, reincidencias, mapa, avisos de comentarios y secciones plegables de Mi día.
-// Usa utilidades de index.html, dia.js, herramientas.js y edicion.js solo en tiempo de llamada.
+// Usa utilidades de app.js, dia.js, herramientas.js y edicion.js solo en tiempo de llamada.
 
 const BUZON_KEY = 'dispatcher_buzon_v1', POOLV_KEY = 'dispatcher_pool_vistos_v1', DUR_KEY = 'dispatcher_duraciones_v1';
 const GEO_KEY = 'dispatcher_geo_v1', PLIEGUE_KEY = 'dispatcher_pliegues_v1';
@@ -96,16 +96,17 @@ function mismaSedeTexto(op, n) { return `${op} ya tiene ${n === 1 ? 'otra incide
 function sedeAvisoHtml(r, elegido) {
   const ms = mismaSede(r), ops = Object.keys(ms).sort((a, b) => ms[b] - ms[a]); if (!ops.length) return '';
   const otro = elegido && !ops.includes(elegido);
-  return `<span class="sede-aviso${otro ? ' warn' : ''}" title="${esc(ops.map(op => mismaSedeTexto(op, ms[op])).join('\n') + '\nSugerencia: asígnala al mismo técnico.')}">📍 ${esc(ops[0])}${ops.length > 1 ? ' +' + (ops.length - 1) : ''}</span>`;
+  return `<span class="sede-aviso${otro ? ' warn' : ''}" title="${esc(ops.map(op => mismaSedeTexto(op, ms[op])).join('\n') + '\nSugerencia: asígnala al mismo técnico.')}">${ico('pin')} ${esc(ops[0])}${ops.length > 1 ? ' +' + (ops.length - 1) : ''}</span>`;
 }
 // En la confirmación de cualquier asignación
 function sedeConfirmHtml(r, op) {
   const ms = mismaSede(r), ops = Object.keys(ms); if (!ops.length) return '';
-  return ops.includes(op) ? `<p class="sede-ok">📍 ${esc(mismaSedeTexto(op, ms[op]))}: buena elección.</p>`
-    : `<p class="sede-warn">📍 ${esc(ops.map(o => mismaSedeTexto(o, ms[o])).join(' · '))}. Sugerencia: asígnala a ${esc(ops.join(' o '))}.</p>`;
+  return ops.includes(op) ? `<p class="sede-ok">${ico('pin')} ${esc(mismaSedeTexto(op, ms[op]))}: buena elección.</p>`
+    : `<p class="sede-warn">${ico('pin')} ${esc(ops.map(o => mismaSedeTexto(o, ms[o])).join(' · '))}. Sugerencia: asígnala a ${esc(ops.join(' o '))}.</p>`;
 }
 // Recomendación: técnico de la zona (y de apoyo: Cádiz para Ceuta, Málaga para Melilla) con menos visitas ese día.
 // Si un técnico ya tiene abierta otra incidencia de la misma sede, va primero.
+function recExtra(x) { return (x.hab === false ? ' · sin esa habilidad' : '') + (x.parcial ? (x.parcial.p === 'm' ? ' · no está por la mañana' : ' · no está por la tarde') : ''); }
 function recomendar(r, fecha) {
   const z = zonaPool(r), zona = ZONAS_BASE.find(x => x.nombre === z);
   if (!zona) return null;
@@ -114,8 +115,8 @@ function recomendar(r, fecha) {
     const vis = rows.filter(x => esPresencial(x) && x.fVisita === f && x.operario === op && tkey(x) !== tkey(r));
     const abiertas = rows.filter(x => x.operario === op).length;
     const juntos = pob ? vis.filter(x => poblacionDe(x) === pob).length : 0;
-    const apoyo = !zona.ops.includes(op), sede = ms[op] || 0;
-    return { op, carga: vis.length, min: cargaMin(op, f), abiertas, juntos, apoyo, sede, score: vis.length - (juntos ? 1.5 : 0) - (sede ? 3 : 0) + (apoyo ? 0.5 : 0) + abiertas / 100 };
+    const apoyo = !zona.ops.includes(op), sede = ms[op] || 0, hab = habilidadOk(op, r), parcial = ausenciaParcial(op, fecha);
+    return { op, carga: vis.length, min: cargaMin(op, f), abiertas, juntos, apoyo, sede, hab, parcial, score: vis.length - (juntos ? 1.5 : 0) - (sede ? 3 : 0) + (apoyo ? 0.5 : 0) + (hab === false ? 2 : 0) + (parcial ? 0.75 : 0) + abiertas / 100 };
   }).sort((a, b) => a.score - b.score || a.min - b.min || opIndex(a.op) - opIndex(b.op));
 }
 // Elección de cada fila (técnico, fecha, marcada): se conserva aunque ATGO refresque la lista cada 2 min
@@ -148,7 +149,7 @@ function sinMarcarTodas(si) {
 function opcionesCortas(rec, elegido, vacia) {
   const l = [...new Set([...(rec || []).map(x => x.op), ...(elegido ? [elegido] : [])])];
   const recOp = Object.fromEntries((rec || []).map((x, i) => [x.op, { ...x, i }]));
-  const lab = op => { const x = recOp[op]; return x ? `${x.i === 0 ? '★ ' : ''}${op} · ${x.sede ? 'ya va a la sede' : x.carga ? plural(x.carga, 'visita') : 'libre'}${x.apoyo ? ' · apoyo' : ''}` : op; };
+  const lab = op => { const x = recOp[op]; return x ? `${x.i === 0 ? '★ ' : ''}${op} · ${x.sede ? 'ya va a la sede' : x.carga ? plural(x.carga, 'visita') : 'libre'}${x.apoyo ? ' · apoyo' : ''}${recExtra(x)}` : op; };
   return (vacia ? `<option value=""${elegido ? '' : ' selected'}>${esc(typeof vacia === 'string' ? vacia : 'Elige técnico…')}</option>` : '') +
     l.map(op => `<option value="${esc(op)}"${op === elegido ? ' selected' : ''}>${esc(lab(op))}</option>`).join('') + '<option value="" disabled>— más técnicos al abrir —</option>';
 }
@@ -162,7 +163,7 @@ function completarSelect(sel) {
 function opcionesTecnico(rec, elegido, vacia) {
   rec = rec || [];
   const recOp = Object.fromEntries(rec.map((x, i) => [x.op, { ...x, i }]));
-  const lab = op => { const x = recOp[op]; return x ? `${x.i === 0 ? '★ ' : ''}${op} · ${x.sede ? 'ya va a la sede' : x.carga ? plural(x.carga, 'visita') : 'libre'}${x.apoyo ? ' · apoyo' : ''}` : op; };
+  const lab = op => { const x = recOp[op]; return x ? `${x.i === 0 ? '★ ' : ''}${op} · ${x.sede ? 'ya va a la sede' : x.carga ? plural(x.carga, 'visita') : 'libre'}${x.apoyo ? ' · apoyo' : ''}${recExtra(x)}` : op; };
   const vistos = new Set();
   const grupo = (titulo, ops) => {
     const l = ops.filter(op => !vistos.has(op) && (!noDisponible(op) || op === elegido)); l.forEach(op => vistos.add(op));   // los de baja o de vacaciones no se proponen
@@ -219,7 +220,7 @@ function renderSin() {
       <div class="acts">${dspChipsHtml('renderSin()')}<span class="seg mini">${[['pend', `Pendientes · ${L.pend.length}`], ['buzon', `Buzón · ${L.buzon.length}`]].map(([v, l]) => `<button class="segb${sinVista === v ? ' on' : ''}" onclick="sinVista='${v}';renderSin()">${l}</button>`).join('')}</span>
       ${sinVista === 'pend' ? `<span class="seg mini">${[['mia', `Mi zona · ${L.mias.length}`], ['todas', 'Todas las zonas']].map(([v, l]) => `<button class="segb${sinFiltro === v ? ' on' : ''}" onclick="sinFiltro='${v}';renderSin()">${l}</button>`).join('')}</span>` : ''}</div></div>
     <div class="dnote" style="margin:0">Visitas en PRESENCIAL que siguen en un operario «PENDIENTE ASIGNAR». Las más urgentes arriba: primero las que caducan antes y, después, las más antiguas. Al asignarse desaparecen solas, también del buzón.</div>
-    ${!poolCargado ? '<div class="empty">Esperando la próxima actualización de ATGO (recarga la pestaña de ATGO y pulsa el favorito si no aparece).</div>'
+    ${!poolCargado ? '<div class="empty">Esperando la próxima actualización de ATGO.</div>'
       : lista.length ? `${sinAsignables().length ? '<div class="sa-barra" id="saBarra"></div>' : ''}<div class="sa-list">${lista.map(r => sinFila(r, sinVista === 'buzon')).join('')}</div>`
       : `<div class="empty">${sinVista === 'buzon' ? 'El buzón está vacío.'
           : sinFiltro === 'mia' && L.pend.length ? `<h2>Ninguna pendiente en tu zona</h2><div>Hay ${plural(L.pend.length, 'visita')} sin asignar en otras zonas.</div><div class="acts" style="justify-content:center;margin-top:10px"><button class="btn" onclick="sinFiltro='todas';renderSin()">Ver todas las zonas</button></div>`
@@ -269,18 +270,18 @@ function renderSyncAviso() {
   if (typeof syncVieja !== 'undefined' && syncVieja) {
     el.hidden = false;
     el.innerHTML = syncVieja === 'app'
-      ? `⚠ Despacho no está actualizado (la pestaña de ATGO ya tiene la versión nueva) <button class="btn sm" onclick="actualizarDespacho()">Actualizar Despacho</button>`
-      : `⚠ La pestaña de ATGO tiene una versión antigua de la sincronización: recárgala (F5) <button class="btn sm" onclick="document.getElementById('atgoBtn').click()">Ir a ATGO</button>`;
+      ? `${ico('alerta')} Despacho no está actualizado (la pestaña de ATGO ya tiene la versión nueva) <button class="btn sm" onclick="actualizarDespacho()">Actualizar Despacho</button>`
+      : `${ico('alerta')} La sincronización de ATGO está anticuada: ${puenteAtgo ? 'instala la última extensión (Ajustes › General)' : 'recarga su pestaña (F5)'} <button class="btn sm" onclick="abrirAtgo()">Ir a ATGO</button>`;
     return;
   }
   if (typeof otraAtgoCaducada !== 'undefined' && otraAtgoCaducada && Date.now() - otraAtgoCaducada < 3 * 60000) {
     el.hidden = false;
-    el.innerHTML = `⚠ Hay otra pestaña de ATGO con la sesión caducada o con error. Ciérrala (o inicia sesión en ella) para que no interfiera <button class="btn sm" onclick="forzarAtgo()">Forzar reconexión</button>`;
+    el.innerHTML = `${ico('alerta')} Hay otra pestaña de ATGO con la sesión caducada o con error. Ciérrala (o inicia sesión en ella) para que no interfiera <button class="btn sm" onclick="forzarAtgo()">Forzar reconexión</button>`;
     return;
   }
   const viejo = source === 'atgo' && syncUltima && Date.now() - syncUltima > SYNC_AVISO_MIN * 60000;
   el.hidden = !viejo;
-  if (viejo) el.innerHTML = `⚠ ATGO sin actualizar desde las ${esc(hhmm(syncUltima))} <button class="btn sm" onclick="document.getElementById('atgoBtn').click()">Abrir ATGO</button><button class="btn sm pri" onclick="forzarAtgo()" title="Recarga ATGO desde cero y rehace la conexión">Forzar reconexión</button>`;
+  if (viejo) el.innerHTML = `${ico('alerta')} ATGO sin actualizar desde las ${esc(hhmm(syncUltima))} <button class="btn sm" onclick="abrirAtgo()">Abrir ATGO</button><button class="btn sm pri" onclick="forzarAtgo()" title="Recarga ATGO desde cero y rehace la conexión">Forzar reconexión</button>`;
   if (viejo && !syncAvisado) { syncAvisado = true; notificarLista([{ num: '—', op: 'ATGO', a: 'Lleva más de ' + SYNC_AVISO_MIN + ' min sin actualizar: revisa la pestaña de ATGO o la sesión' }]); }
 }
 setInterval(renderSyncAviso, 60000);
@@ -481,18 +482,20 @@ function reincBadge(r) {
   const x = reincDe(r); if (!x) return '';
   const fd = ts => new Date(ts).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
   const t = `El mismo equipo (${x.eq}) ha fallado ${x.otros.length + 1} veces en ${REINC_DIAS} días: ` + x.otros.map(o => `Nº ${o.num} del ${fd(o.ts)}${o.cerrada ? ' (cerrado el ' + fd(o.cerrada) + ')' : ''}`).join(' · ');
-  return `<span class="reinc" title="${esc(t)}">🔁 ${esc(x.eq)}</span>`;
+  return `<span class="reinc" title="${esc(t)}">${ico('repetir')} ${esc(x.eq)}</span>`;
 }
 
 // ===== Planificación en bloque (secuencial: cada uno se guarda y se comprueba por separado) =====
 let loteEnCurso = false;
+const LOTE_MAX = 200;   // lo mismo que acepta atgo-sync.js en un mensaje
 async function asignarLote(items, titulo) {
   if (loteEnCurso || !items.length) return;
-  // 📍 si otro técnico ya tiene abierta una incidencia de esa sede
-  const ausLote = (op, f) => { const d = f ? new Date(f + 'T12:00') : new Date(); return op && noDisponible(op, d) ? ` <span class="sede-aviso warn">🏖 ${esc(op)} ${esc(ausenciaTexto(op, d))}</span>` : ''; };
-  const sedeLote = (r, op) => { const ms = mismaSede(r), ops = Object.keys(ms); return ops.length && op && !ops.includes(op) ? ` <span class="sede-aviso warn" title="${esc(ops.map(o => mismaSedeTexto(o, ms[o])).join('\n'))}">📍 ${esc(ops.join(', '))}</span>` : ''; };
+  if (items.length > LOTE_MAX) { toast(`Máximo ${LOTE_MAX} cambios a la vez: has marcado ${items.length}`); return; }
+  // Aviso si otro técnico ya tiene abierta una incidencia de esa sede
+  const ausLote = (op, f, r) => { const d = f ? new Date(f + 'T12:00') : new Date(), parc = op && ausenciaParcial(op, d), tras = f && r && r.key && visitaTrasCaducar(r, f); return (tras ? ` <span class="sede-aviso warn">${ico('reloj')} caduca antes de esa fecha</span>` : '') + (parc ? ` <span class="sede-aviso warn">${ico('ausente')} ${esc(op)} no está por la ${parc.p === 'm' ? 'mañana' : 'tarde'}</span>` : '') + (op && noDisponible(op, d) ? ` <span class="sede-aviso warn">${ico('ausente')} ${esc(op)} ${esc(ausenciaTexto(op, d))}</span>` : ''); };
+  const sedeLote = (r, op) => { const ms = mismaSede(r), ops = Object.keys(ms); return ops.length && op && !ops.includes(op) ? ` <span class="sede-aviso warn" title="${esc(ops.map(o => mismaSedeTexto(o, ms[o])).join('\n'))}">${ico('pin')} ${esc(ops.join(', '))}</span>` : ''; };
   const ok = await confirmar(`<b>${esc(titulo || 'Planificar en ATGO')}</b><p>${plural(items.length, 'ticket')}:</p>
-    <table class="md-tab">${items.slice(0, 25).map(it => { const r = ticketDe(it.key) || {}; return `<tr><td>Nº ${esc(r.num || it.key)}</td><td><span>${esc(r.operario || '')}${r.fVisita ? ' · ' + esc(r.fVisita) : ''}</span> → <b>${esc(it.codOpe || r.operario)}${it.fechaVisita ? ' · ' + esc(it.fechaVisita.split('-').reverse().join('/')) : ''}</b>${sedeLote(r, it.codOpe)}${ausLote(it.codOpe, it.fechaVisita)}</td></tr>`; }).join('')}${items.length > 25 ? `<tr><td colspan="2">…y ${items.length - 25} más</td></tr>` : ''}</table>
+    <table class="md-tab">${items.slice(0, 25).map(it => { const r = ticketDe(it.key) || {}; return `<tr><td>Nº ${esc(r.num || it.key)}</td><td><span>${esc(r.operario || '')}${r.fVisita ? ' · ' + esc(r.fVisita) : ''}</span> → <b>${esc(it.codOpe || r.operario)}${it.fechaVisita ? ' · ' + esc(it.fechaVisita.split('-').reverse().join('/')) : ''}</b>${sedeLote(r, it.codOpe)}${ausLote(it.codOpe, it.fechaVisita, r)}</td></tr>`; }).join('')}${items.length > 25 ? `<tr><td colspan="2">…y ${items.length - 25} más</td></tr>` : ''}</table>
     <p class="hint">${items.length > 1 && puedeLote() ? 'Se guardan de 4 en 4' : 'Se guardan uno a uno'}, comprobando cada ficha campo a campo. Si alguno falla, los demás siguen.</p>`, 'Guardar ' + plural(items.length, 'cambio'));
   if (!ok) return;
   loteEnCurso = true;
@@ -556,9 +559,9 @@ function semZona(n) { pliegues['sem:' + n] = !semZonaPlegada(n); lsSet(PLIEGUE_K
 function semZonasTodas(v) { zonasVisibles().forEach(z => { pliegues['sem:' + z.nombre] = v; }); lsSet(PLIEGUE_KEY, pliegues); semDet = null; renderSemana(); }
 function renderSemana() {
   const root = document.getElementById('viewSem');
-  if (!rows.length && !poolRows.length) { root.innerHTML = `<div class="empty"><h2>Sin incidencias cargadas</h2><div>Abre ATGO (⚙ › General › Abrir ATGO) y deja su pestaña abierta: la semana se llena sola.</div></div>`; return; }
-  if (!ZONAS_TEC.length) { root.innerHTML = `<div class="empty"><h2>El perfil ${esc(PERFIL)} no tiene técnicos</h2><div>Añádelos en ⚙ › Perfiles.</div></div>`; return; }
-  const dias = diasSemana(), act = fase2Activa();
+  if (!rows.length && !poolRows.length) { root.innerHTML = `<div class="empty"><h2>Sin incidencias cargadas</h2><div>Abre ATGO (Ajustes › General › Abrir ATGO) y deja su pestaña abierta: la semana se llena sola.</div></div>`; return; }
+  if (!ZONAS_TEC.length) { root.innerHTML = `<div class="empty"><h2>El perfil ${esc(PERFIL)} no tiene técnicos</h2><div>Añádelos en Ajustes › Perfiles.</div></div>`; return; }
+  const dias = diasSemana(), act = puedePlanificar();
   const zonas = zonasVisibles();
   const grupos = semPendGrupos(), nPend = grupos.reduce((s, g) => s + g.l.length, 0), nVenc = grupos[1].l.length;
   const fmtD = d => DIAS[d.getDay()].slice(0, 3) + ' ' + d.getDate();
@@ -571,7 +574,7 @@ function renderSemana() {
       ${dspChipsHtml('semDet=null;renderSemana()')}<div id="semChips"></div>
       <div class="acts"><span class="sem-plg" role="group" aria-label="Zonas"><button class="iconbtn" onclick="semZonasTodas(true)" title="Plegar todas las zonas" aria-label="Plegar todas las zonas"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 20 5-5 5 5M7 4l5 5 5-5"/></svg></button><button class="iconbtn" onclick="semZonasTodas(false)" title="Desplegar todas las zonas" aria-label="Desplegar todas las zonas"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 15 5 5 5-5M7 9l5-5 5 5"/></svg></button></span>${nVenc && act ? `<button class="btn sm" onclick="replanificarVencidas()" title="Técnico con menos carga de la zona y el próximo laborable">Replanificar ${nVenc} vencidas</button>` : ''}<button class="btn sm" onclick="abrirMapa(manDate)">Mapa</button></div>
     </div>
-    ${act ? '' : '<div class="od-aviso">Para planificar desde aquí, abre ATGO (⚙ › General) y espera a que conecte.</div>'}
+    ${act ? '' : '<div class="od-aviso">Para planificar desde aquí, abre ATGO (Ajustes › General) y espera a que conecte.</div>'}
     <div class="sem">
       <aside class="sem-pend">
         <div class="sp-head">Por planificar <b>${nPend}</b></div>
@@ -596,11 +599,11 @@ function renderSemana() {
             const ci = cargaInfo(op, f), m = ci.min, conf = confDia[isoHoy(d)].filter(c => c.op === op), id = op + '|' + isoHoy(d);
             const durTx = m ? '≈ ' + fmtMin(m) + (ci.sin ? ' + ' + ci.sin + ' sin estimar' : '') : 'duración sin estimar';
             const fe = festivo(d, z.nombre) || (vacacionesDe(op, d) ? 'vacaciones de ' + op : '');
-            return `<div class="sg-cell ${nivelCarga(m, n)}${semDet === id ? ' on' : ''}${fe ? ' fest' : ''}" data-drop="${esc(id)}" onclick="semDet=semDet==='${jsq(id)}'?null:'${jsq(id)}';renderSemana()" title="${esc((fe ? 'Festivo: ' + fe + '\n' : '') + (n ? plural(n, 'visita') + ' · ' + durTx : 'Libre') + (conf.length ? '\n⚠ ' + conf.map(c => c.texto).join('\n⚠ ') : ''))}">
-              ${n ? `<b>${n}</b>${m ? `<small>${esc(fmtMin(m))}${ci.sin ? '+' : ''}</small>` : ''}` : '<span class="lib">·</span>'}${conf.length ? '<i class="cf">⚠</i>' : ''}</div>`;
+            return `<div class="sg-cell ${nivelCarga(m, n)}${semDet === id ? ' on' : ''}${fe ? ' fest' : ''}" data-drop="${esc(id)}" onclick="semDet=semDet==='${jsq(id)}'?null:'${jsq(id)}';renderSemana()" title="${esc((fe ? 'Festivo: ' + fe + '\n' : '') + (n ? plural(n, 'visita') + ' · ' + durTx : 'Libre') + (conf.length ? '\n· ' + conf.map(c => c.texto).join('\n· ') : ''))}">
+              ${n ? `<b>${n}</b>${m ? `<small>${esc(fmtMin(m))}${ci.sin ? '+' : ''}</small>` : ''}` : '<span class="lib">·</span>'}${conf.length ? '<i class="cf">' + ico('alerta') + '</i>' : ''}</div>`;
           }).join('')}</div>`).join('')); }).join('')}
         </div>
-        <div class="sg-ley"><span><i class="l1"></i>holgado</span><span><i class="l2"></i>más del 75 % de la jornada</span><span><i class="l3"></i>más de ${JORNADA_MIN / 60} h</span><span><i class="cf">⚠</i> conflicto</span></div>
+        <div class="sg-ley"><span><i class="l1"></i>holgado</span><span><i class="l2"></i>más del 75 % de la jornada</span><span><i class="l3"></i>más de ${JORNADA_MIN / 60} h</span><span><i class="cf">${ico('alerta')}</i> conflicto</span></div>
         ${semDet ? semDetalleHtml(semDet) : ''}
       </div>
     </div>`;
@@ -649,8 +652,8 @@ function semDetalleHtml(id) {
   const conf = conflictos(f).filter(c => c.op === op);
   return `<div class="sem-det" data-drop="${esc(id)}">
     <div class="sd-h"><b>${esc(op)}</b> · ${esc(diaLargo(d))} · ${vis.length ? plural(vis.length, 'visita') + (cargaMin(op, f) ? ' · ≈ ' + fmtMin(cargaMin(op, f)) : '') : 'libre'}
-      ${fase2Activa() ? `<button class="btn sm" onclick="rellenarDia('${jsq(op)}','${iso}')" title="Propone incidencias sin fecha, vencidas o sin asignar de su zona para este día">Rellenar el día</button>` : ''}${vis.length ? `<button class="btn sm ghost" onclick="abrirRuta('${jsq(op)}','${f}')">Ruta</button>` : ''}<button class="iconbtn sm" onclick="semDet=null;renderSemana()" aria-label="Cerrar">✕</button></div>
-    ${conf.map(c => `<div class="sd-conf">⚠ ${esc(c.texto)}</div>`).join('')}
+      ${puedePlanificar() ? `<button class="btn sm" onclick="rellenarDia('${jsq(op)}','${iso}')" title="Propone incidencias sin fecha, vencidas o sin asignar de su zona para este día">Rellenar el día</button>` : ''}${vis.length ? `<button class="btn sm ghost" onclick="abrirRuta('${jsq(op)}','${f}')">Ruta</button>` : ''}<button class="iconbtn sm" onclick="semDet=null;renderSemana()" aria-label="Cerrar">✕</button></div>
+    ${conf.map(c => `<div class="sd-conf">${ico('alerta')} ${esc(c.texto)}</div>`).join('')}
     ${vis.length ? vis.map(r => { const e = estimarMin(r); return `<div class="sd-it" draggable="true" data-drag="${esc(tkey(r))}" data-key="${esc(tkey(r))}"><span class="h">${esc(r.desdeHora || '--:--')}</span><b class="mono">${esc(String(r.num).slice(-5))}</b><span>${esc(r.descSede || '')}</span><em title="${esc(duracionTexto(r))}">${e ? '≈ ' + esc(fmtMin(e)) + ' · ' : ''}${esc(r.tipo || '')}</em></div>`; }).join('') : '<div class="dempty">Sin visitas. Arrastra aquí un ticket para planificarlo.</div>'}
     ${vis.length ? '<div class="sp-hint">Arrastra una visita a otra casilla para moverla de técnico o de día.</div>' : ''}
   </div>`;
@@ -664,7 +667,7 @@ document.addEventListener('drop', e => {
   const c = e.target.closest && e.target.closest('[data-drop]'); if (!c) return;
   e.preventDefault(); e.stopPropagation(); c.classList.remove('over');
   const key = e.dataTransfer.getData('text/plain'); if (!key) return;
-  if (!fase2Activa()) { toast('Abre ATGO para poder planificar desde aquí'); return; }
+  if (!puedePlanificar()) { toast('Abre ATGO para poder planificar desde aquí'); return; }
   const [op, f] = c.dataset.drop.split('|'), r = ticketDe(key); if (!r) return;
   if (cleanInitials(r.operario) === op && fechaIsoDe(r) === f) return;
   asignarLote([{ key, codOpe: op, fechaVisita: f }], `Planificar Nº ${r.num}`).then(res => { if (res) quitarDeSinAsignar(res.okKeys); });

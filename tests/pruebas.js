@@ -43,7 +43,7 @@ igual('media hora', dur('Se prevé media hora de trabajo'), 30);
 igual('jornada completa', dur('Montaje de jornada completa'), 480);
 igual('hora del día no es duración', dur('Llegó a la instalación a las 10:00 horas y a las 10:40 cae masivamente la fibra'), null);
 igual('a las 9 horas no es duración', dur('La instalación empieza a las 9 horas'), null);
-igual('llamar en 15 minutos', dur('Llamamos al 675575194 y nos indica que llamemos en 15 minutos'), null);
+igual('llamar en 15 minutos', dur('Llamamos al 600000000 y nos indica que llamemos en 15 minutos'), null);
 igual('metros no son horas', dur('Solicitamos cable DVI a VGA de 3 a 5 metros'), null);
 igual('caducidad no es duración', dur('CAMBIO CADUCIDAD: ANTES: 07/10/2026 23:59:59 AHORA: 13/10/2026 23:59:59 CAMBIO DE SEVERIDAD DE 7 A 3'), null);
 igual('sin datos', dur('Revisamos.'), null);
@@ -84,7 +84,7 @@ vm.runInContext([
   extraer(dia, 'function tkey('), extraer(dia, 'const ESTADOS_CIERRE'), extraer(dia, 'function esCierre('),
   extraer(herr, 'const PROV_ZONA'), extraer(herr, 'const PROV_RE'), extraer(herr, 'function zonaTicket('), extraer(herr, 'function poblacionDe('),
   extraer(panel, 'const POOL_ZONA'), extraer(herr, 'function zonaDeTexto('), extraer(panel, 'function zonaComodin('), extraer(panel, 'function zonaPool('), extraer(panel, 'function sedeKey('), extraer(panel, 'function mismaSede('), extraer(panel, 'function recomendar('), extraer(panel, 'function mismoSitio('), extraer(panel, 'function conflictosSede('), extraer(panel, 'function conflictos('), extraer(panel, 'function fmtMin('),
-  "let rows = [], poolOpsDesc = {}, duracionFija = {}; const JORNADA_MIN = 480; const tecCfg = {}; function cargaMin() { return 0; } function estimarMin(r) { return duracionFija[r.key] || null; } let bajasPrueba = []; function enBaja(op) { return bajasPrueba.includes(op); } function noDisponible(op) { return enBaja(op); }"
+  "function habilidadOk() { return null; } function ausenciaParcial() { return null; } let rows = [], poolOpsDesc = {}, duracionFija = {}; const JORNADA_MIN = 480; const tecCfg = {}; function cargaMin() { return 0; } function estimarMin(r) { return duracionFija[r.key] || null; } let bajasPrueba = []; function enBaja(op) { return bajasPrueba.includes(op); } function noDisponible(op) { return enBaja(op); }"
 ].join('\n'), cr);
 const T = (key, op, sede, extra) => ({ key, num: key.replace(/\//g, ''), operario: op, estado: 'PRESENCIAL', descSede: sede, descCliente: 'CARREFOUR', provincia: 'CEUTA', poblacion: 'CEUTA', fVisita: '', ...(extra || {}) });
 vm.runInContext('rows = ' + JSON.stringify([T('1/00/1', 'EACL', '4416-Ceuta-Hiper'), T('1/00/2', 'JIFC', 'Otra sede')]), cr);
@@ -134,7 +134,7 @@ igual('progreso: lo de otros días no cuenta', cp.progresoHilo('k', 'EACL'), nul
 const bloquePerfiles = app.slice(app.indexOf('const PERFILES'), app.indexOf('const PERFIL = perfilCfg.activo;'));
 function perfilesCon(guardado) {
   const almacen = guardado ? { dispatcher_perfiles_v1: JSON.stringify(guardado) } : {};
-  const c = { localStorage: { getItem: k => almacen[k] ?? null, setItem: (k, v) => { almacen[k] = String(v); } } }; vm.createContext(c);
+  const c = { lsGet: (k, d) => (almacen[k] ? JSON.parse(almacen[k]) : d), lsSet: (k, v) => { almacen[k] = JSON.stringify(v); return true; } }; vm.createContext(c);
   vm.runInContext(extraer(app, 'const ZONAS_BASE') + '\n' + bloquePerfiles + '\nthis.cfg = perfilCfg; this.def = perfilesPorDefecto(); this.zb = ZONAS_BASE;', c);
   return { cfg: c.cfg, def: c.def, zb: c.zb, guardado: almacen.dispatcher_perfiles_v1 && JSON.parse(almacen.dispatcher_perfiles_v1) };
 }
@@ -153,7 +153,7 @@ const so = { esc: s => String(s), plural: (n, w) => n + ' ' + w + (n === 1 ? '' 
 vm.runInContext(extraer(panel, 'function opcionesTecnico(') + `
   const PERFILES = ['DSP1','DSP2','COORD'], PERFIL = 'DSP1', TECNICOS = ['DSG','ACAB'], TODOS_OPS = ['AMRG','DSG','ACAB','RUFB','GAS'];
   const perfilCfg = { tecs: { DSP1: ['AMRG','DSG','ACAB'], DSP2: ['RUFB','GAS'], COORD: TODOS_OPS } };
-  function dispatcherOps() { return ['AMRG']; } let bajasPrueba = []; function enBaja(op) { return bajasPrueba.includes(op); } function noDisponible(op) { return enBaja(op); }`, so);
+  function recExtra() { return ''; } function dispatcherOps() { return ['AMRG']; } let bajasPrueba = []; function enBaja(op) { return bajasPrueba.includes(op); } function noDisponible(op) { return enBaja(op); }`, so);
 const selHtml = so.opcionesTecnico([{ op: 'ACAB', carga: 0 }], 'RUFB', false);
 const valores = [...selHtml.matchAll(/value="([^"]*)"/g)].map(m => m[1]);
 igual('selector: todos los técnicos de todos los perfiles, una vez cada uno', valores.slice().sort(), ['ACAB', 'AMRG', 'DSG', 'GAS', 'RUFB']);
@@ -250,6 +250,32 @@ const shell = leer('sw.js'), html = leer('index.html');
 const vSw = (shell.match(/despacho-v([\d.]+)/) || [])[1], vApp = (leer('ajustes.js').match(/APP_VERSION = '([\d.]+)'/) || [])[1];
 igual('APP_VERSION (ajustes.js) = VERSION (sw.js)', vApp, vSw);
 igual('sw.js guarda los archivos pidiéndolos al servidor (no a la caché del navegador)', /cache:\s*'reload'/.test(shell), true);
+
+// ---- Coherencia del código ----
+// Dos funciones globales con el mismo nombre se pisan sin avisar (pasó con fechaCorta): no puede haber ninguna
+const scripts = [...html.matchAll(/<script src="([a-z-]+\.js)"/g)].map(m => m[1]), defs = {};
+scripts.forEach(f => [...leer(f).matchAll(/^(?:async\s+)?function\s+([\w$]+)/gm)].forEach(m => { (defs[m[1]] = defs[m[1]] || []).push(f); }));
+igual('sin funciones globales duplicadas', Object.entries(defs).filter(([, l]) => l.length > 1).map(([n, l]) => n + ': ' + l.join(', ')), []);
+const nl = s => s.replace(/\r\n/g, '\n');
+igual('la extensión lleva la misma atgo-sync.js que la web', nl(leer('extension/atgo-sync.js')) === nl(leer('atgo-sync.js')), true);
+igual('la extensión no descarga código', /\.src\s*=|importScripts|fetch\(/.test(leer('extension/background.js') + leer('extension/puente-atgo.js') + leer('extension/puente-despacho.js')), false);
+igual('los scripts no usan localStorage directamente salvo en lsGet/lsSet y el liberador de espacio', scripts.filter(f => !['dia.js', 'ajustes.js'].includes(f) && /localStorage\./.test(leer(f))), []);
+
+// ---- Habilidades, ausencias parciales y visita después de caducar ----
+const cn = { perfilCfg: { nomina: { TPV1: { hab: ['tpv'] }, MEDIO: { vac: [{ d: '2026-10-20', h: '2026-10-21', p: 'm' }] }, TODO: { vac: [{ d: '2026-10-20', h: '2026-10-21' }] } } } }; vm.createContext(cn);
+vm.runInContext([extraer(app, 'function norm('), extraer(app, 'function cleanInitials('), extraer(leer('dia.js'), 'function isoHoy('), extraer(leer('dia.js'), 'function parseEs('), extraer(app, 'function enBaja('), extraer(app, 'function vacacionesDe('), extraer(app, 'function noDisponible('), extraer(app, 'function ausenciaParcial('), extraer(app, 'function habilidadesDe('), extraer(app, 'function habilidadOk('), extraer(leer('prioridades.js'), 'function visitaTrasCaducar('), 'let cadPrueba = null; function caducidad() { return cadPrueba; } function sinSla(r) { return !!r.sin; } this.setCad = v => { cadPrueba = v; };'].join('\n'), cn);
+igual('habilidad: coincide con el tipo', cn.habilidadOk('TPV1', { tipo: 'TPV TÁCTIL' }), true);
+igual('habilidad: no coincide', cn.habilidadOk('TPV1', { tipo: 'BALANZA' }), false);
+igual('habilidad: sin anotar vale para todo', cn.habilidadOk('OTRO', { tipo: 'BALANZA' }), null);
+const d20 = new Date(2026, 9, 20, 12);
+igual('media jornada: sigue disponible', cn.noDisponible('MEDIO', d20), false);
+igual('media jornada: se detecta', cn.ausenciaParcial('MEDIO', d20).p, 'm');
+igual('día completo: no disponible', cn.noDisponible('TODO', d20), true);
+cn.setCad({ ts: new Date(2026, 9, 20, 18).getTime() });
+igual('visita al día siguiente de caducar', cn.visitaTrasCaducar({ fVisita: '21/10/2026' }), true);
+igual('visita el mismo día que caduca', cn.visitaTrasCaducar({ fVisita: '20/10/2026' }), false);
+igual('fecha que se va a poner', cn.visitaTrasCaducar({ fVisita: '' }, '2026-10-22'), true);
+igual('fuera de mantenimiento no cuenta', cn.visitaTrasCaducar({ fVisita: '21/10/2026', sin: true }), false);
 
 console.log(`${ok} correctas, ${ko} fallidas`);
 process.exit(ko ? 1 : 0);

@@ -1,6 +1,7 @@
 // Puente en la pestaña de ATGO (mundo aislado de la extensión, no el de la página).
 // - Pregunta al guardián si esta es la pestaña que gestiona y lo deja marcado en la página (data-despacho-*),
-//   para que atgo.js arranque la sincronización solo en ella y atgo-sync.js mande los mensajes por el puente.
+//   para que atgo-sync.js mande los mensajes por el puente.
+// - Cuando hay sesión, pide al guardián que ejecute atgo-sync.js (viene dentro de la extensión; no se descarga de ninguna web).
 // - Lleva los mensajes entre atgo-sync.js (la página) y la extensión.
 // - Si la sesión caduca, inicia sesión sola con los datos de las opciones de la extensión (si están guardados).
 // El token de ATGO no se lee ni se envía: solo se mira su fecha de caducidad.
@@ -10,7 +11,8 @@
   const enviar = (m) => chrome.runtime.sendMessage(m).catch(() => null);
 
   chrome.runtime.sendMessage({ tipo: 'hola-atgo' }).then((r) => {
-    if (!r || r.gestionada === null) return;              // guardián apagado: la extensión funciona como la 1.x
+    if (!r) return;
+    if (r.gestionada === null) { arrancarSync(); return; }   // guardián apagado: sincroniza sin vigilar la pestaña
     raiz.dataset.despachoGestionada = r.gestionada ? 'si' : 'no';
     if (!r.gestionada) return;
     raiz.dataset.despachoPuente = r.v || '2';
@@ -27,7 +29,17 @@
     });
 
     vigilarSesion();
+    arrancarSync();
   }).catch(() => {});
+
+  // Espera a que haya sesión (si aún no la hay) y arranca una sola vez
+  function arrancarSync() {
+    const t = setInterval(() => {
+      let conSesion = false;
+      try { conSesion = !!localStorage.getItem('token') && !/#\/login/.test(location.hash); } catch (e) {}
+      if (conSesion) { clearInterval(t); enviar({ tipo: 'arrancar-sync' }); }
+    }, 1000);
+  }
 
   // ===== Sesión =====
   function sesionValida(margenMs) {
@@ -46,15 +58,14 @@
 
   let intentando = false;
   function vigilarSesion() {
-    const revisar = () => {
-      if (intentando) return;
-      // Caducada o a punto de caducar (10 min): se cierra la sesión vieja y se inicia una nueva
-      if (!sesionValida(10 * 60000) && !enLogin()) {
-        try { localStorage.removeItem('token'); localStorage.removeItem('expires'); } catch (e) {}
-        location.replace(location.origin + '/#/login');
-        return;
-      }
-      if (!sesionValida(0) && enLogin()) iniciarSesion();
+    const revisar = async () => {
+      if (intentando || sesionValida(0)) return;   // mientras la sesión sea válida no se toca: la comparten todas las pestañas de ATGO
+      if (enLogin()) { iniciarSesion(); return; }
+      // Ya ha caducado y la pestaña no está en la pantalla de acceso: solo se va a ella si se puede entrar solo
+      const r = await enviar({ tipo: 'puede-login' });
+      if (!r || !r.ok) return;
+      try { localStorage.removeItem('token'); localStorage.removeItem('expires'); } catch (e) {}
+      location.replace(location.origin + '/#/login');
     };
     setTimeout(revisar, 3000);
     setInterval(revisar, 30000);

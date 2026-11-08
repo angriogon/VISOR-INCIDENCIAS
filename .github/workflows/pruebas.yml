@@ -1,5 +1,10 @@
-name: Pruebas
-on: [push, pull_request]
+name: Pruebas y publicación
+on:
+  push:
+  pull_request:
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 jobs:
   pruebas:
     runs-on: ubuntu-latest
@@ -12,7 +17,33 @@ jobs:
         run: for f in *.js extension/*.js tests/*.js; do node --check "$f"; done
       - name: Pruebas
         run: node tests/pruebas.js
+      - name: El zip de la extensión coincide con la carpeta
+        run: |
+          mkdir /tmp/zip && unzip -q despacho-extension.zip -d /tmp/zip
+          diff -r /tmp/zip extension
       - name: Prueba de arranque en navegador
         run: |
           npm i --no-save --no-audit --no-fund playwright-core@1.47.2
           node tests/arranque.mjs
+  # Solo se publica lo que ha pasado las pruebas, y solo los archivos de la aplicación
+  publicar:
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: pruebas
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.despliegue.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Preparar los archivos
+        run: |
+          mkdir _site
+          cp index.html styles.css manifest.webmanifest favicon.svg *.js *.png despacho-extension.zip .nojekyll _site/
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: despliegue
+        uses: actions/deploy-pages@v4

@@ -1,6 +1,6 @@
 // ===== Herramientas: cerradas, material, caducidad (SLA), copia en OneDrive, ruta en Maps,
 // sugerencia de técnico, correos del día e informe semanal.
-// Usa utilidades de index.html y dia.js (rows, eventos, hilos, notas, norm, esc…) solo en tiempo de llamada.
+// Usa utilidades de app.js y dia.js (rows, eventos, hilos, notas, norm, esc…) solo en tiempo de llamada.
 
 const CERR_KEY = 'dispatcher_cerradas_v1', JORN_KEY = 'dispatcher_jornadas_v1', MAILS_KEY = 'dispatcher_correos_v1', SLA_KEY = 'dispatcher_sla_avisos_v1';
 const CERRADAS_DIAS = 15;
@@ -134,7 +134,7 @@ function cadBadge(r) {
   const c = caducidad(r); if (!c) return '';
   const nv = cadNivel(c);
   const txt = nv === 'venc' ? 'caducada ' + cadTexto(c) : 'caduca ' + cadTexto(c);
-  return `<span class="cad ${nv}" title="Caducidad (${c.src === 'manual' ? 'puesta a mano' : c.src === 'excel' ? 'del Excel' : 'del hilo'})">⏱ ${esc(txt)}</span>`;
+  return `<span class="cad ${nv}" title="Caducidad (${c.src === 'manual' ? 'puesta a mano' : c.src === 'excel' ? 'del Excel' : 'del hilo'})">${ico('reloj')} ${esc(txt)}</span>`;
 }
 function caducidadesProximas() {
   const lim = Date.now() + SLA_PRONTO_HORAS * 3600000;
@@ -160,9 +160,10 @@ function caducidadFichaHtml(key, r) {
   const val = n.cad || (c ? isoLocal(c.ts) : '');
   return `<div class="dw-sec">
     <div class="dw-h">Caducidad (SLA) ${c ? `<small>${c.src === 'manual' ? 'puesta a mano' : c.src === 'excel' ? 'del Excel' : 'según comentario de ' + esc(nombreCorto(c.autor || '', '')) + ' · ' + esc(cuando(c.msgTs))}</small>` : ''}</div>
-    <div class="dw-cad">${c ? `<span class="cad big ${cadNivel(c)}">⏱ ${esc((cadNivel(c) === 'venc' ? 'Caducada ' : 'Caduca ') + cadTexto(c))}</span>` : '<span class="dw-empty">No aparece en el hilo.</span>'}
+    <div class="dw-cad">${c ? `<span class="cad big ${cadNivel(c)}">${ico('reloj')} ${esc((cadNivel(c) === 'venc' ? 'Caducada ' : 'Caduca ') + cadTexto(c))}</span>` : '<span class="dw-empty">No aparece en el hilo.</span>'}
       <input type="datetime-local" value="${esc(val)}" onchange="guardarNota(fichaKey,{cad:this.value});renderFicha();refreshVisible()" title="Corregir la caducidad a mano">
       ${n.cad ? '<button class="chip sm" onclick="guardarNota(fichaKey,{cad:\'\'});renderFicha();refreshVisible()">Usar la del hilo</button>' : ''}</div>
+    ${c && c.ts >= Date.now() && visitaTrasCaducar(r) ? `<div class="dw-cadtx ctl-alta">${ico('alerta')} La visita (${esc(r.fVisita)}) es después de caducar.</div>` : ''}
     ${c && c.src === 'hilo' ? `<div class="dw-cadtx">«${esc(c.texto.slice(0, 200))}»</div>` : ''}
   </div>`;
 }
@@ -232,8 +233,8 @@ function sugerenciaHtml(r) {
   return `<div class="dw-sec">
     <div class="dw-h">Técnico sugerido <small>${esc(s.zona)} · ${esc(diaLargo(fecha))}</small>
       <span class="seg mini" style="float:right">${[['hoy', 'Hoy'], ['man', 'Próximo laborable']].map(([v, l]) => `<button class="segb${sugDia === v ? ' on' : ''}" onclick="sugDia='${v}';renderFicha()">${l}</button>`).join('')}</span></div>
-    <ul class="sug">${s.lista.slice(0, 3).map((x, i) => `<li${i === 0 ? ' class="best"' : ''}><b>${esc(x.op)}</b><span>${x.carga ? plural(x.carga, 'visita') : 'libre'}${x.sede ? ' · 📍 ya tiene otra en esta sede' : ''}${x.juntos ? ` · ya va a ${esc(pob)}` : ''}${x.apoyo ? ' · apoyo' : ''}${x.op === cleanInitials(r.operario) ? ' · asignado ahora' : ''}</span>${fase2Activa() && x.op !== cleanInitials(r.operario) ? `<button class="btn sm" style="margin-left:auto" onclick="preAsignar('${jsq(x.op)}')">Asignar</button>` : ''}</li>`).join('')}</ul>
-    <div class="dw-empty">${fase2Activa() ? '«Asignar» rellena «Planificar en ATGO»; nada se guarda hasta que lo confirmes.' : 'Solo es una sugerencia: la asignación se hace en el ERP.'}</div>
+    <ul class="sug">${s.lista.slice(0, 3).map((x, i) => `<li${i === 0 ? ' class="best"' : ''}><b>${esc(x.op)}</b><span>${x.carga ? plural(x.carga, 'visita') : 'libre'}${x.sede ? ' · ya tiene otra en esta sede' : ''}${x.juntos ? ` · ya va a ${esc(pob)}` : ''}${x.apoyo ? ' · apoyo' : ''}${x.op === cleanInitials(r.operario) ? ' · asignado ahora' : ''}</span>${puedePlanificar() && x.op !== cleanInitials(r.operario) ? `<button class="btn sm" style="margin-left:auto" onclick="preAsignar('${jsq(x.op)}')">Asignar</button>` : ''}</li>`).join('')}</ul>
+    <div class="dw-empty">${puedePlanificar() ? '«Asignar» rellena «Planificar en ATGO»; nada se guarda hasta que lo confirmes.' : 'Solo es una sugerencia: conecta ATGO para poder asignarla desde aquí.'}</div>
   </div>`;
 }
 
@@ -524,5 +525,5 @@ async function notificarLista(list) {
   const title = list.length === 1 ? `Nº ${list[0].num} · ${list[0].op}` : `${list.length} avisos en Despacho`;
   const body = list.slice(0, 4).map(e => (list.length > 1 ? `Nº ${e.num} · ` : '') + e.a).join('\n') + (list.length > 4 ? `\n…y ${list.length - 4} más` : '');
   const opts = { body, tag: 'despacho-sla', renotify: true, icon: 'icon-192.png', data: { url: './#dia' } };
-  try { const reg = await navigator.serviceWorker.getRegistration(); if (reg) await reg.showNotification(title, opts); else new Notification(title, opts); } catch (e) {}
+  try { const reg = await navigator.serviceWorker.getRegistration(); if (reg) await reg.showNotification(title, opts); else new Notification(title, opts); } catch (e) { diagLog('Aviso de Windows: ' + e.message); }
 }
