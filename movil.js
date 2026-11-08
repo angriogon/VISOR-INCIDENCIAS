@@ -5,8 +5,8 @@
 (function () {
 'use strict';
 if (window.__despachoMovil) { window.__despachoMovil.mostrar(); return; }
-const MOVIL_VERSION = '1.0.0';
-const CLAVE = 'despachoMovil_v1', PARALELO = 6, TIEMPO_MS = 40000, CADUCA_MS = 7 * 86400000, REFRESCO_MS = 10 * 60000, AL_VOLVER_MS = 2 * 60000, PAGINA_LISTA = 80;
+const MOVIL_VERSION = '1.1.0';
+const CLAVE = 'despachoMovil_v1', PARALELO = 6, TIEMPO_MS = 40000, CADUCA_MS = 7 * 86400000, REFRESCO_MS = 10 * 60000, AL_VOLVER_MS = 2 * 60000;
 const ESTADOS_ATGO = [10, 20, 30, 40, 80, 100, 110];
 const ESTADOS_SIN_SLA = ['FUERA DE MANTENIMIENTO'];
 const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
@@ -42,6 +42,8 @@ const ZONAS_BASE = [
   { nombre:'PORTUGAL',          ops:['TICASGEST'], dsp:'DSP5' }
 ];
 const ESTADO_COLOR = { 'presencial':'#2f8f87', 'puesto operativo':'#4f9a5b', 'fuera de mantenimiento':'#7d8790', 'material pte. fabricante':'#8e6cc4', 'pte. mover material':'#c9862b', 'en fabricante':'#4a7fcf', 'escalado tier1':'#d0544a', 'cerrado':'#5f8f6a' };
+const ESTADOS = ['PRESENCIAL','PUESTO OPERATIVO','FUERA DE MANTENIMIENTO','MATERIAL PTE. FABRICANTE','PTE. MOVER MATERIAL','EN FABRICANTE','ESCALADO TIER1'];
+const PALETTE = ['#2f8f87','#c9862b','#5b8dd9','#a97fd1','#c9527a','#5ea86f','#d9614f','#8b98a3'];
 const POOL_ZONA = { 'XXX-SVQ': 'SEVILLA/HUELVA', 'XXX-CA': 'CÁDIZ', 'XXX-MA': 'MÁLAGA', 'XXX-G': 'GRANADA', 'XXX-AL': 'ALMERÍA', 'XXX-J': 'CÓRDOBA/JAÉN', 'XXX-0EXTREM': 'EXTREMADURA', 'XXX-0CEUTA': 'CEUTA', 'XXX-0MELILL': 'MELILLA' };
 const HILO_SISTEMA = [/^el usuario \S+ ha (iniciado|finalizado|pausado|reanudado|cerrado|reabierto)/i, /^incidencia asignada a/i, /^se ha (cambiado|modificado) el estado/i,
   /^el ticket ha cambiado del estado/i, /^cambio caducidad:/i, /^\S+ ha firmado el parte de trabajo/i, /^\[SM\][^-]*- Service Manager - Actualizaci/i];
@@ -64,6 +66,18 @@ function norm(s){ return String(s||'').toLowerCase().normalize('NFD').replace(/[
 function cleanInitials(s){ return String(s||'').toUpperCase().replace(/[.\s]/g,'').trim(); }
 function horaMin(h){ const m = /^(\d{1,2}):(\d{2})/.exec(h || ''); return m ? (+m[1])*60 + (+m[2]) : 9999; }
 function esPresencial(r){ return norm(r.estado).includes('presencial'); }
+function colorFor(s){
+  const str = String(s||'—');
+  let h = 0; for (let i=0;i<str.length;i++) h = (h*31 + str.charCodeAt(i)) >>> 0;
+  return PALETTE[h % PALETTE.length];
+}
+function ordenVisita(a, b, hoyT){
+  const clave = r => { const d = parseEs(r.fVisita); if (!d) return [1, 0]; const t = d.getTime(); return t >= hoyT ? [0, t] : [2, -t]; };
+  const x = clave(a), y = clave(b);
+  return x[0] - y[0] || x[1] - y[1] || horaMin(a.desdeHora) - horaMin(b.desdeHora);
+}
+function ordenEstado(e){ const i = ESTADOS.findIndex(x => norm(x) === norm(e)); return i < 0 ? 99 : i; }
+function parseEs(s) { const m = /^(\d{2})\/(\d{2})\/(\d{4})/.exec(s || ''); return m ? new Date(+m[3], +m[2] - 1, +m[1], 12) : null; }
 function esCierre(estado) { const n = norm(estado); return ESTADOS_CIERRE.some(c => norm(c) === n); }
 function fechasEnTexto(t, refTs) {
   const out = [], ref = new Date(refTs || Date.now());
@@ -144,6 +158,7 @@ const hora = ts => new Date(ts).toLocaleTimeString('es-ES', { hour: '2-digit', m
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const plural = (n, s) => n + ' ' + s + (n === 1 ? '' : 's');
 const estadoColor = e => ESTADO_COLOR[norm(e)] || (/cerrad|operativo/.test(norm(e)) ? '#5f8f6a' : '#7d8790');
+const esCerrado = e => /cerrad/i.test(e || '');   // en Incidencias salen todos los estados de ATGO menos los cerrados
 const sinSla = r => ESTADOS_SIN_SLA.some(e => norm(e) === norm(r.estado));
 const dspZona = z => z.dsp || 'DSP1';
 const PERFILES = ['DSP1', 'DSP2', 'DSP3', 'DSP4', 'DSP5', 'COORD'];
@@ -174,7 +189,7 @@ async function leer(ruta) {
 // ---- Estado ----
 let E = { perfil: null, at: 0, tecs: {}, pool: {}, poolDesc: {}, der: {}, salidas: {}, salidasDia: '' };   // tecs/pool: por operario. der: lo deducido del hilo
 let cargando = false, fin = 0, total = 0, fallos = 0, sesionMala = false, aviso = '', pintaT = null;
-let tab = 'hoy', filtroInc = '', estadoInc = '', zonaInc = '', verMi = true, abiertos = {}, limite = PAGINA_LISTA, textoBus = '';
+let tab = 'hoy', filtroInc = '', estadoInc = '', zonaInc = '', verMi = true, abiertos = {}, abiertosInc = {}, textoBus = '';
 function guardar() {
   try {
     localStorage.setItem(CLAVE, JSON.stringify({ ...E, ultimoUso: Date.now() }));
@@ -230,11 +245,13 @@ async function cargar() {
   try {
     const d = await leer('/operario?q=codOpe.contains=XXX'), lp = (Array.isArray(d) ? d : (d && d.content) || []).filter(o => o && /^XXX/i.test(o.codOpe || ''));
     const comodines = [...new Set(lp.map(o => cleanInitials(o.codOpe)))]; lp.forEach(o => { E.poolDesc[cleanInitials(o.codOpe)] = o.desOpe || ''; });
+    let abiertos2 = ESTADOS_ATGO;
+    try { const le = await leer('/estados'), l = (Array.isArray(le) ? le : []).filter(x => x && x.estado != null && !esCerrado(x.desEstado)).map(x => x.estado); if (l.length) abiertos2 = l; } catch (e) { if (e.sesion) throw e; }
     const cola = [...ops.map(op => [op, false]), ...comodines.map(op => [op, true])]; total = cola.length; const ok = new Set();
     await Promise.all(Array.from({ length: PARALELO }, async () => {
       while (cola.length && !sesionMala) {
         const [op, esPool] = cola.shift();
-        try { const l = await lista(op, esPool ? [10] : ESTADOS_ATGO); if (esPool) E.pool[op] = l; else { E.tecs[op] = l; ok.add(op); } }
+        try { const l = await lista(op, esPool ? [10] : abiertos2); if (esPool) E.pool[op] = l; else { E.tecs[op] = l; ok.add(op); } }
         catch (e) { if (e.sesion) sesionMala = true; else fallos++; }
         fin++; pintarPronto();
       }
@@ -293,7 +310,15 @@ h2{font-size:13px;margin:14px 2px 6px;color:var(--dim);text-transform:uppercase;
 select,input{font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:10px;height:44px;padding:0 10px;width:100%;margin-bottom:8px}
 .dos{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .vac{padding:30px 10px;text-align:center;color:var(--dim)}
-.mas{width:100%;height:44px;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--marca);font-weight:600}
+.plg{display:flex;align-items:center;gap:8px;margin:2px 2px 6px;font-size:13px;color:var(--dim)}.plg span{flex:1}
+.mini{min-height:40px;padding:0 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--marca);font-weight:600;font-size:13px}
+.zh{margin:14px 2px 6px;font-size:13px}.zh b{text-transform:uppercase;letter-spacing:.3px}.zh span{color:var(--dim)}
+.tg{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:8px 10px;margin-bottom:6px;min-height:58px}
+.av{flex:none;min-width:44px;height:40px;padding:0 5px;border-radius:20px;display:grid;place-items:center;font:700 12px monospace;color:var(--ink);background:color-mix(in srgb,var(--e) 30%,transparent);border:1px solid var(--e)}
+.tn{flex:1;min-width:0;display:grid}.tn b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.tn small{color:var(--dim);font-size:12px}.tn .ret{color:var(--rojo);font-weight:600}
+.tg em{font-style:normal;font-weight:700}.cv{color:var(--dim);flex:none}
+.sub{margin:8px 2px 6px;font-size:12px;font-weight:700;color:var(--dim)}
+.eg{display:flex;justify-content:space-between;align-items:center;margin:8px 2px 5px;padding-left:8px;border-left:3px solid var(--e);font-size:12px;font-weight:700}.eg small{color:var(--dim)}
 #fi,#me{position:absolute;inset:0;background:var(--bg);display:flex;flex-direction:column}
 #me{background:rgba(0,0,0,.45);justify-content:flex-end}
 .hoja{background:var(--panel);border-radius:16px 16px 0 0;padding:14px;display:grid;gap:8px}
@@ -347,13 +372,32 @@ function vistaSin() {
 }
 function listaInc() {
   const ahora = Date.now(), hoyI = iso(), hoy = hoyEs();
-  return filas().filter(r => !esCierre(r.estado) && (!estadoInc || r.estado === estadoInc) && (!zonaInc || zonaDe(r.operario) === zonaInc) && (!filtroInc || (filtroInc === 'cad' ? cad(r) && cad(r).ts < ahora : filtroInc === 'caduhoy' ? cad(r) && cad(r).ts >= ahora && iso(new Date(cad(r).ts)) === hoyI : filtroInc === 'hoy' ? r.fVisita === hoy : !r.fVisita))).sort(porCad);
+  return filas().filter(r => !esCerrado(r.estado) && (!estadoInc || r.estado === estadoInc) && (!zonaInc || zonaDe(r.operario) === zonaInc) && (!filtroInc || (filtroInc === 'cad' ? cad(r) && cad(r).ts < ahora : filtroInc === 'caduhoy' ? cad(r) && cad(r).ts >= ahora && iso(new Date(cad(r).ts)) === hoyI : filtroInc === 'hoy' ? r.fVisita === hoy : !r.fVisita))).sort(porCad);
+}
+// Por zona y técnico, como Incidencias en el ordenador: primero lo de hoy y después el resto por estado y fecha de visita
+function porTecnico(l) {
+  const por = {}; l.forEach(r => { (por[r.operario] = por[r.operario] || []).push(r); });
+  const po = resumenHoy(), hoy = hoyEs(), hoyT = parseEs(hoy).getTime();
+  return zonasDe(E.perfil).map(z => {
+    const ops = z.ops.filter(op => por[op]); if (!ops.length) return '';
+    const ruta = ops.flatMap(op => po[op] || []), h = z.dispatcher ? plural(ops.reduce((s, op) => s + por[op].length, 0), 'incidencia') + ' a tu nombre' : ruta.length ? ruta.filter(x => x.st === 'd').length + '/' + plural(ruta.length, 'visita') + ' hechas hoy' : 'sin visitas hoy';
+    return `<div class="zh"><b>${esc(z.nombre)}</b> <span>${h}</span></div>` + ops.map(op => {
+      const it = por[op], ru = po[op] || [], ab = abiertosInc[op], hechas = ru.filter(x => x.st === 'd').length, late = ru.filter(x => x.late).length, esc1 = it.filter(r => norm(r.estado) === norm('ESCALADO TIER1')).length, sinF = it.filter(r => esPresencial(r) && !r.fVisita).length;
+      const dehoy = it.filter(r => r.fVisita === hoy && esPresencial(r)).sort((a, b) => horaMin(a.desdeHora) - horaMin(b.desdeHora)), k = new Set(dehoy.map(r => r.key)), resto = it.filter(r => !k.has(r.key)).sort((a, b) => ordenEstado(a.estado) - ordenEstado(b.estado) || ordenVisita(a, b, hoyT));
+      let cuerpo = '';
+      if (ab) {
+        if (dehoy.length) cuerpo += '<div class="sub">Hoy</div>' + dehoy.map(r => tarjeta(r, (ru.find(x => x.r.key === r.key) || {}).late ? 'Con retraso' : '')).join('');
+        if (resto.length) { if (dehoy.length) cuerpo += '<div class="sub">Resto de incidencias</div>'; let ant = null; resto.forEach(r => { const e = norm(r.estado); if (e !== ant) { ant = e; cuerpo += `<div class="eg" style="--e:${estadoColor(r.estado)}"><span>${esc(r.estado || '—')}</span><small>${resto.filter(x => norm(x.estado) === e).length}</small></div>`; } cuerpo += tarjeta(r); }); }
+      }
+      return `<button class="tg" data-a="tecinc" data-v="${esc(op)}" aria-expanded="${!!ab}"><span class="av" style="--e:${colorFor(cleanInitials(op))}">${esc(op)}</span><span class="tn"><b>${esc((it[0].desOperario || op).split(',').reverse().join(' ').trim())}</b><small>${ru.length ? hechas + '/' + ru.length + ' hoy' : 'Sin visitas hoy'}${late ? ' · <span class="ret">' + plural(late, 'retraso') + '</span>' : ''}${sinF ? ' · ' + sinF + ' sin fecha' : ''}${esc1 ? ' · ' + esc1 + ' escalada' + (esc1 === 1 ? '' : 's') : ''}</small></span><em>${it.length}</em><span class="cv">${ab ? '▴' : '▾'}</span></button>${cuerpo}`;
+    }).join('');
+  }).join('');
 }
 function vistaInc() {
   const l = listaInc(), estados = [...new Set(filas().map(r => r.estado).filter(Boolean))].sort(), zonas = zonasDe(E.perfil).map(z => z.nombre).filter(z => filas().some(r => zonaDe(r.operario) === z));
   return `<div class="chips">${[['', 'Todas'], ['cad', 'Caducadas'], ['caduhoy', 'Caducan hoy'], ['hoy', 'Visita hoy'], ['sinf', 'Sin fecha']].map(([v, t]) => `<button class="ch${filtroInc === v ? ' on' : ''}" data-a="fil" data-v="${v}">${t}</button>`).join('')}</div>
     <div class="dos"><select data-c="estado" aria-label="Estado"><option value="">Todos los estados</option>${estados.map(e => `<option${e === estadoInc ? ' selected' : ''}>${esc(e)}</option>`).join('')}</select><select data-c="zona" aria-label="Zona"><option value="">Todas las zonas</option>${zonas.map(z => `<option${z === zonaInc ? ' selected' : ''}>${esc(z)}</option>`).join('')}</select></div>
-    <h2>${plural(l.length, 'incidencia')}</h2>${l.slice(0, limite).map(r => tarjeta(r)).join('') || '<div class="vac">Nada con este filtro.</div>'}${l.length > limite ? '<button class="mas" data-a="mas">Ver más</button>' : ''}`;
+    <div class="plg"><span>${plural(l.length, 'incidencia')}</span><button class="mini" data-a="plg" data-v="1">Plegar</button><button class="mini" data-a="plg" data-v="">Desplegar</button></div>${porTecnico(l) || '<div class="vac">Nada con este filtro.</div>'}`;
 }
 function resultadosBus() {
   const t = norm(textoBus).trim(); if (t.length < 2) return '<div class="vac">Escribe Nº, sede, cliente, técnico o población.</div>';
@@ -408,7 +452,7 @@ function abrirMenu() {
 function salir() { clearInterval(reloj); window.removeEventListener('popstate', atras, true); document.removeEventListener('visibilitychange', alVolver); host.remove(); document.documentElement.style.overflow = ''; delete window.__despachoMovil; }
 function acciones(b) {
   const a = b.dataset.a, v = b.dataset.v;
-  if (a === 'tab') { tab = v; limite = PAGINA_LISTA; $('v').scrollTop = 0; $('v').innerHTML = ''; pintar(); }
+  if (a === 'tab') { tab = v; $('v').scrollTop = 0; $('v').innerHTML = ''; pintar(); }
   else if (a === 'tabf') { tab = 'inc'; filtroInc = v; estadoInc = ''; zonaInc = ''; $('v').innerHTML = ''; $('v').scrollTop = 0; pintar(); }
   else if (a === 'cargar') cargar();
   else if (a === 'menu') abrirMenu();
@@ -417,8 +461,9 @@ function acciones(b) {
   else if (a === 'cerrarf') history.back();
   else if (a === 'tec') { abiertos[v] = !abiertos[v]; pintar(); }
   else if (a === 'mi') { verMi = !!v; pintar(); }
-  else if (a === 'fil') { filtroInc = v; limite = PAGINA_LISTA; pintar(); $('v').scrollTop = 0; }
-  else if (a === 'mas') { limite += PAGINA_LISTA; pintar(); }
+  else if (a === 'fil') { filtroInc = v; pintar(); $('v').scrollTop = 0; }
+  else if (a === 'tecinc') { abiertosInc[v] = !abiertosInc[v]; pintar(); }
+  else if (a === 'plg') { if (v) abiertosInc = {}; else filas().forEach(r => { abiertosInc[r.operario] = true; }); pintar(); $('v').scrollTop = 0; }
   else if (a === 'perfil') { $('me').hidden = true; if (v !== E.perfil) { E = { ...E, perfil: v, tecs: {}, pool: {}, der: {}, salidas: {}, at: 0 }; zonaInc = ''; guardar(); cargar(); } }
   else if (a === 'salir') salir();
   else if (a === 'borrar') { if (confirm('¿Borrar los datos guardados en este móvil?')) { try { localStorage.removeItem(CLAVE); } catch (e) { /* nada que borrar */ } salir(); } }
