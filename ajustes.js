@@ -3,13 +3,13 @@
 // asistente de inicio, diagnóstico, resumen matinal, aviso de técnico sin actividad y exportar a Excel.
 // Usa utilidades de app.js, dia.js, herramientas.js, edicion.js y panel.js solo en tiempo de llamada.
 
-const APP_VERSION = '1.35.0';   // súbela a la vez que VERSION en sw.js
+const APP_VERSION = '1.35.1';   // súbela a la vez que VERSION en sw.js
 const NOVEDADES = [
+  { v: '1.35.1', f: '2026-11-08', l: ['El aviso «Asignación guardada» con el botón «Deshacer» se cierra solo a los 10 segundos.'] },
   { v: '1.35.0', f: '2026-11-08', l: ['Mi día: «Qué hacer ahora» ordena por riesgo lo que hay que atender. En «Más»: «Propuesta del día» (reparte lo pendiente de asignar para que lo revises) y «Mañana listo» (lo que falta por dejar resuelto).', 'Aviso cuando la visita es posterior a la caducidad: en la ficha y al planificar.', 'Técnicos: habilidades y ausencias de media jornada; se tienen en cuenta al recomendar.', 'Control: semáforo y carga por DSP, antigüedad, listas «Caducarán» y «Estancadas», e informe diario automático.', 'Incidencias: vista de tabla densa.', 'Mejor contraste y letra mínima de 11 px, iconos propios y ventana con el título «Despacho».', 'Corregido: la fecha del seguimiento de las notas y el recuerdo del proyecto en los perfiles DSP.', 'Extensión 2.1: ya no descarga la sincronización de internet, no cierra la sesión antes de tiempo y no recarga una pestaña de ATGO abierta a mano. Hay que instalarla de nuevo.'] },
   { v: '1.34.0', f: '2026-11-08', l: ['«Revisión de la mañana» (botón en Mi día y en Control): incidencias sin cerrar con fecha de visita de los últimos 7 días, por día y con lo que hizo el técnico. En cada DSP, las de sus técnicos; en COORD, todas, asignadas o no.', 'Desde ahí: abrir la ficha, marcar como revisada (vuelve mañana si sigue abierta), replanificar en bloque y recordar por WhatsApp. COORD filtra por DSP y exporta a Excel.'] },
   { v: '1.33.1', f: '2026-11-08', l: ['Incidencias: dentro de cada estado, las de cada técnico van de la visita más próxima a la más lejana; debajo, las que no tienen fecha y, al final, las de fechas ya pasadas.'] },
-  { v: '1.33.0', f: '2026-11-08', l: ['Mi día: nuevo apartado «Conflictos sede-técnicos» y casilla «Sedes con 2 técnicos»: detecta de un vistazo una misma sede o dirección con incidencias en PRESENCIAL de dos técnicos distintos. Las que coinciden el mismo día salen primero, en rojo.'] },
-  { v: '1.32.0', f: '2026-11-08', l: ['Extensión 2.0: mantiene una pestaña de ATGO fijada en segundo plano, la recarga o la reabre si se cierra, se cuelga o deja de enviar datos, e inicia sesión sola si caduca (usuario y contraseña en las opciones de la extensión). Ya no hace falta abrir ATGO.', 'Con la extensión 2.0, el botón ATGO enseña su pestaña y «Forzar reconexión» la recarga desde cero.'] },
+  { v: '1.33.0', f: '2026-11-08', l: ['Mi día: nuevo apartado «Conflictos sede-técnicos» y casilla «Sedes con 2 técnicos»: detecta de un vistazo una misma sede o dirección con incidencias en PRESENCIAL de dos técnicos distintos. Las que coinciden el mismo día salen primero, en rojo.'] }
 ];
 // Resumen de lo más importante de las versiones anteriores a las 5 últimas (se ve en ⓘ › Anteriores)
 const ANTERIORES = [
@@ -39,9 +39,10 @@ const ANTERIORES = [
   'Caducidad de Control sin contar FUERA DE MANTENIMIENTO',
   'Control con listas Presencial y Todas',
   'Filtro por proyecto en Control',
-  'Proyecto en la ficha y orden por columnas en Control'
+  'Proyecto en la ficha y orden por columnas en Control',
+  'Extensión: guardián de la pestaña de ATGO e inicio de sesión automático'
 ];
-const NOV_VISIBLES = 5, ANTERIORES_HASTA = '1.31';   // al añadir una versión, quita la más antigua de NOVEDADES y resúmela aquí si importa
+const NOV_VISIBLES = 5, ANTERIORES_HASTA = '1.32';   // al añadir una versión, quita la más antigua de NOVEDADES y resúmela aquí si importa
 const NOV_KEY = 'dispatcher_version_vista_v1', DIAG_KEY = 'dispatcher_diag_v1', BIENV_KEY = 'dispatcher_bienvenida_v1', DATOS_VER_KEY = 'dispatcher_datos_version_v1';
 
 // ---- Novedades de la versión ----

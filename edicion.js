@@ -205,15 +205,16 @@ async function asignarAtgo() {
     <p class="hint">ATGO guarda la ficha completa: Despacho reenvía el resto tal cual, comprueba campo a campo y, si cambiara algo más, restaura la ficha original.${datos.codOpe ? ' El técnico puede recibir un aviso de ATGO.' : ''}</p>`, 'Guardar en ATGO');
   if (ok) enviarEdicion('asignar', key, { ...datos, resumen: cambios.map(([k, a, b]) => `${k}: ${a} → ${b}`).join(' · ') });
 }
-// ---- Deshacer la última asignación (30 s) ----
+// ---- Deshacer la última asignación (10 s) ----
 // Vuelve a guardar el técnico y la fecha/horas anteriores, con la misma confirmación y comprobación.
+const DESHACER_MS = 10000;
 let deshacerT = null;
 function ofrecerDeshacer(key, r, antes, sinFechaAntes) {
   let bar = document.getElementById('undoBar');
   if (!bar) { bar = document.createElement('div'); bar.id = 'undoBar'; bar.className = 'undo-bar'; document.body.appendChild(bar); }
   bar.innerHTML = `<span>Asignación guardada · Nº ${esc(r.num || key)}</span><button class="btn sm" id="undoBtn">Deshacer</button><button class="iconbtn sm" onclick="this.parentNode.hidden=true" aria-label="Cerrar">✕</button>`;
   bar.hidden = false;
-  clearTimeout(deshacerT); deshacerT = setTimeout(() => { bar.hidden = true; }, 30000);
+  clearTimeout(deshacerT); deshacerT = setTimeout(() => { bar.hidden = true; }, DESHACER_MS);
   document.getElementById('undoBtn').onclick = async () => {
     bar.hidden = true; clearTimeout(deshacerT);
     const ok = await confirmar(`<b>Deshacer en ATGO</b><p>Nº ${esc(r.num || key)} · ${esc(r.descSede || '')}</p>

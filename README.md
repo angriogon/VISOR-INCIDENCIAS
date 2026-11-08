@@ -108,7 +108,7 @@ Se abre con clic en cualquier ticket y tiene tres pestañas:
   - **Planificar en ATGO:** técnico, fecha y horas, con el técnico sugerido.
   - WhatsApp al técnico con plantillas.
   - El resultado de cada cambio sale arriba (✓ o ✕).
-  - Tras asignar, **Deshacer** durante 30 s.
+  - Tras asignar, **Deshacer** durante 10 s.
 - **Historial:** el hilo completo de ATGO y los cambios vistos.
 
 **Cómo se guarda en ATGO:** ATGO guarda la ficha completa, así que Despacho la lee justo antes, cambia solo lo pedido y después la vuelve a leer y la compara campo a campo. Si cambiara cualquier otro campo, restaura la ficha original. Nunca reintenta solo.
