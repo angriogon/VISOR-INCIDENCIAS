@@ -52,6 +52,7 @@
     <div class="countbar" id="countLabel"></div>
     <div class="toprow" style="margin:12px 0 2px"><div class="filters" id="filters"></div>
       <div class="leg"><span><i style="background:var(--done)"></i>Terminada</span><span><i style="background:var(--tra)"></i>En trámite</span><span><i style="background:var(--cur)"></i>En curso</span><span><i style="background:var(--panel2);border:1px solid var(--line)"></i>Pendiente</span>
+      <button class="btn sm" onclick="abrirAlta()" title="Crear una incidencia en ATGO">Nueva incidencia</button>
       <button class="iconbtn" id="vistaIncBtn" onclick="cambiarVistaInc()" title="Ver como tabla densa" aria-label="Ver como tabla densa"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 5h18v14H3zM3 10h18M3 15h18M9 5v14"/></svg></button>
       <button class="iconbtn" id="toggleAll" onclick="toggleAll()" title="Desplegar / plegar todos" aria-label="Desplegar o plegar todos"></button></div></div>
     <div id="groupsPanel"></div>
@@ -78,6 +79,7 @@
 <script src="panel.js"></script>
 <script src="coord.js"></script>
 <script src="prioridades.js"></script>
+<script src="alta.js"></script>
 <script src="app.js"></script>
 <script src="ajustes.js"></script>
 </body>

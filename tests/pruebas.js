@@ -227,6 +227,24 @@ igual('orden visita: próximas primero; luego sin fecha; al final las pasadas',
   [vis('06/11/2026'), vis(''), vis('24/11/2026'), vis('19/10/2026'), vis('10/11/2026', '12:00'), vis('11/11/2026'), vis('10/11/2026', '08:00')].sort((a, b) => cov.ordenVisita(a, b, hoyOv)).map(x => (x.fVisita.slice(0, 5) || 'sin') + (x.desdeHora ? ' ' + x.desdeHora : '')),
   ['10/11 08:00', '10/11 12:00', '11/11', '24/11', 'sin', '06/11', '19/10']);
 
+// ---- Nueva incidencia ----
+{
+  const altaSrc = leer('alta.js'), sync = leer('atgo-sync.js');
+  const ctxAlta = vm.createContext({});
+  vm.runInContext([extraer(altaSrc, 'function altaFaltan('), extraer(altaSrc, 'function altaHorasError(')].join('\n'), ctxAlta);
+  const base = { cliente: { v: 'C' }, sede: { v: 1 }, severidad: '2', ref: 'T1 · título', desde: '', hasta: '', fecha: '' };
+  const faltan = o => ctxAlta.altaFaltan({ ...base, ...o }).map(x => x[0]).join();
+  igual('Alta: con cliente, sede, severidad y referencia no falta nada', faltan({}), '');
+  igual('Alta: exige cliente, sede, severidad y referencia', faltan({ cliente: null, sede: null, severidad: '', ref: '  ' }), 'al-cliente,al-sede,al-severidad,al-ref');
+  igual('Alta: horas sin fecha dan error', !!ctxAlta.altaHorasError({ ...base, desde: '09:00' }), true);
+  igual('Alta: hora de fin anterior da error', !!ctxAlta.altaHorasError({ ...base, fecha: '2026-11-20', desde: '11:00', hasta: '09:00' }), true);
+  igual('Alta: horas correctas sin error', ctxAlta.altaHorasError({ ...base, fecha: '2026-11-20', desde: '09:00', hasta: '11:00' }), '');
+  igual('Alta: el formulario no tiene Actuación', /al-act|codAct|>Actuaci/.test(altaSrc), false);
+  igual('Alta: un mismo envío nunca crea dos tickets', /altasUsadas\.has\(m\.id\)\) return;/.test(sync), true);
+  igual('Alta: una sola llamada de creación', sync.split("/incidencias/alta'").length - 1, 1);
+  igual('Alta: la sincronización anuncia la capacidad', /caps: \[[^\]]*'alta'/.test(sync), true);
+}
+
 // ---- Revisión de la mañana: qué hizo el técnico desde el día de la visita ----
 const crv = { hilos: {}, tkey: r => r.key }; vm.createContext(crv);
 vm.runInContext([extraer(leer('dia.js'), 'function parseEs('), extraer(app, 'function cleanInitials('), extraer(leer('ajustes.js'), 'function huellaVisita(')].join(String.fromCharCode(10)), crv);

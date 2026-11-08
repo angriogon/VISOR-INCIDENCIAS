@@ -3,13 +3,13 @@
 // asistente de inicio, diagnóstico, resumen matinal, aviso de técnico sin actividad y exportar a Excel.
 // Usa utilidades de app.js, dia.js, herramientas.js, edicion.js y panel.js solo en tiempo de llamada.
 
-const APP_VERSION = '1.35.2';   // súbela a la vez que VERSION en sw.js
+const APP_VERSION = '1.36.0';   // súbela a la vez que VERSION en sw.js
 const NOVEDADES = [
+  { v: '1.36.0', f: '2026-11-08', l: ['«Nueva incidencia»: crea tickets en ATGO con los campos del alta rápida, desde Incidencias o desde «Más» en Mi día. Pide confirmación, comprueba el ticket creado y aparece en «Mis cambios».', 'Hay que instalar la extensión 2.2 desde Ajustes › General y recargar la pestaña de ATGO.'] },
   { v: '1.35.2', f: '2026-11-08', l: ['El botón «Deshacer» del aviso tras asignar ya se lee bien.'] },
   { v: '1.35.1', f: '2026-11-08', l: ['El aviso «Asignación guardada» con el botón «Deshacer» se cierra solo a los 10 segundos.'] },
   { v: '1.35.0', f: '2026-11-08', l: ['Mi día: «Qué hacer ahora» ordena por riesgo lo que hay que atender. En «Más»: «Propuesta del día» (reparte lo pendiente de asignar para que lo revises) y «Mañana listo» (lo que falta por dejar resuelto).', 'Aviso cuando la visita es posterior a la caducidad: en la ficha y al planificar.', 'Técnicos: habilidades y ausencias de media jornada; se tienen en cuenta al recomendar.', 'Control: semáforo y carga por DSP, antigüedad, listas «Caducarán» y «Estancadas», e informe diario automático.', 'Incidencias: vista de tabla densa.', 'Mejor contraste y letra mínima de 11 px, iconos propios y ventana con el título «Despacho».', 'Corregido: la fecha del seguimiento de las notas y el recuerdo del proyecto en los perfiles DSP.', 'Extensión 2.1: ya no descarga la sincronización de internet, no cierra la sesión antes de tiempo y no recarga una pestaña de ATGO abierta a mano. Hay que instalarla de nuevo.'] },
-  { v: '1.34.0', f: '2026-11-08', l: ['«Revisión de la mañana» (botón en Mi día y en Control): incidencias sin cerrar con fecha de visita de los últimos 7 días, por día y con lo que hizo el técnico. En cada DSP, las de sus técnicos; en COORD, todas, asignadas o no.', 'Desde ahí: abrir la ficha, marcar como revisada (vuelve mañana si sigue abierta), replanificar en bloque y recordar por WhatsApp. COORD filtra por DSP y exporta a Excel.'] },
-  { v: '1.33.1', f: '2026-11-08', l: ['Incidencias: dentro de cada estado, las de cada técnico van de la visita más próxima a la más lejana; debajo, las que no tienen fecha y, al final, las de fechas ya pasadas.'] }
+  { v: '1.34.0', f: '2026-11-08', l: ['«Revisión de la mañana» (botón en Mi día y en Control): incidencias sin cerrar con fecha de visita de los últimos 7 días, por día y con lo que hizo el técnico. En cada DSP, las de sus técnicos; en COORD, todas, asignadas o no.', 'Desde ahí: abrir la ficha, marcar como revisada (vuelve mañana si sigue abierta), replanificar en bloque y recordar por WhatsApp. COORD filtra por DSP y exporta a Excel.'] }
 ];
 // Resumen de lo más importante de las versiones anteriores a las 5 últimas (se ve en ⓘ › Anteriores)
 const ANTERIORES = [
@@ -618,7 +618,7 @@ function misCambios(rango) {
 function abrirMisCambios(rango) {
   if (rango) misCambiosRango = rango;
   const l = misCambios(), mal = l.filter(e => !e.ok).length;
-  const ACC = { comentario: 'Comentario', estado: 'Estado', asignar: 'Planificación' };
+  const ACC = { comentario: 'Comentario', estado: 'Estado', asignar: 'Planificación', alta: 'Nueva incidencia' };
   const m = document.getElementById('modal');
   m.innerHTML = `<div class="md-box md-camb"><div class="dw-head"><div><div class="dw-num" style="color:var(--ink)">Mis cambios en ATGO</div>
       <div class="dw-sub">${l.length ? `${plural(l.length, 'cambio')} · ${l.length - mal} comprobado${l.length - mal === 1 ? '' : 's'}${mal ? ` · <b style="color:#d9614f">${mal} sin aplicar</b>` : ''}` : 'Ninguno'}</div></div>
@@ -626,7 +626,7 @@ function abrirMisCambios(rango) {
       <button class="iconbtn" onclick="cerrarModal()" aria-label="Cerrar">✕</button></div></div>
     ${l.length ? `<table class="inf camb"><thead><tr><th>Hora</th><th>Nº</th><th>Cambio</th><th>Resultado</th></tr></thead><tbody>${l.map(e => `<tr class="${e.ok ? '' : 'ko'}">
       <td class="mono">${esc(misCambiosRango === 'hoy' ? hhmm(e.ts) : cuando(e.ts))}</td>
-      <td><a href="#" onclick="cerrarModal();openTicket('${jsq(e.key)}','his');return false" class="mono">${esc(String(e.num || e.key).slice(-5))}</a></td>
+      <td>${e.key ? `<a href="#" onclick="cerrarModal();openTicket('${jsq(e.key)}','his');return false" class="mono">${esc(String(e.num || e.key).slice(-5))}</a>` : '—'}</td>
       <td><b>${esc(ACC[e.accion] || e.accion)}</b> · ${esc(String(e.detalle || '').slice(0, 140))}</td>
       <td>${e.ok ? '<span class="ok">✓ comprobado</span>' : `<span class="mal">✕ ${esc(e.error || 'no aplicado')}</span>`}</td></tr>`).join('')}</tbody></table>`
       : `<div class="dempty">${misCambiosRango === 'hoy' ? 'Hoy no has cambiado nada en ATGO desde Despacho.' : 'Sin cambios en los últimos 7 días.'}</div>`}

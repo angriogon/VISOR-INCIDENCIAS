@@ -418,6 +418,8 @@ window.addEventListener('message', (ev) => {
     atgoEnCola = null; aplicarDatosAtgo(m);
   }
   else if (m.type === 'atgo-editado') recibirEdicion(m);
+  else if (m.type === 'atgo-alta-lista') recibirAltaLista(m);
+  else if (m.type === 'atgo-alta') recibirAlta(m);
   else if (m.type === 'atgo-hilo') recibirHilos(m.hilos);
   else if (m.type === 'atgo-estado') recibirEstados(m.estados);
   else if (m.type === 'atgo-status') setAtgoStatus(String(m.text||''), m.error ? 'err' : '');
@@ -425,7 +427,7 @@ window.addEventListener('message', (ev) => {
 });
 // Versión de la sincronización que espera esta app. Si la pestaña de ATGO trae otra (la cargó antes de una
 // actualización), se avisa de que hay que recargarla. Debe coincidir con SYNC_VERSION de atgo-sync.js.
-const SYNC_VERSION = '1.31.0';
+const SYNC_VERSION = '1.36.0';
 let syncVieja = false;   // 'atgo': la pestaña de ATGO es más antigua · 'app': Despacho es más antiguo · false: iguales
 function cmpVer(a, b){ const x = String(a || '0').split('.').map(Number), y = String(b || '0').split('.').map(Number); for (let i = 0; i < 3; i++){ if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) - (y[i] || 0); } return 0; }
 // Borra la copia guardada de Despacho y recarga desde el servidor (notas, perfiles y ajustes no se tocan)
@@ -1023,7 +1025,7 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:'){
       // Actualización silenciosa: si no estás haciendo nada (ningún campo en uso, ni ficha, ventana, buscador,
       // envío a ATGO o cola de rutas abiertos), se aplica sola; si no, se reintenta cada 20 s.
       const libre = () => !ocupado() && document.getElementById('modal').hidden && document.getElementById('drawer').hidden && document.getElementById('palette').hidden
-        && document.getElementById('cfgMenu').hidden && !editPend && !loteEnCurso && !rutasCola && !(document.getElementById('undoBar') && !document.getElementById('undoBar').hidden);
+        && document.getElementById('cfgMenu').hidden && !editPend && !altaOcupada() && !loteEnCurso && !rutasCola && !(document.getElementById('undoBar') && !document.getElementById('undoBar').hidden);
       const offerUpdate0 = offerUpdate;
       const offerUpdateSolo = (worker) => {
         offerUpdate0(worker);

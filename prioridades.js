@@ -120,7 +120,7 @@ function abrirMananaListo() {
 
 // Entradas del menú «Más» de Mi día
 function masDiaHtml() {
-  return '<button onclick="abrirPropuesta()" title="Reparte lo pendiente de asignar de tu zona">Propuesta del día</button><button onclick="abrirMananaListo()">Mañana listo</button>';
+  return '<button onclick="abrirPropuesta()" title="Reparte lo pendiente de asignar de tu zona">Propuesta del día</button><button onclick="abrirMananaListo()">Mañana listo</button><button onclick="abrirAlta()" title="Crear una incidencia en ATGO">Nueva incidencia</button>';
 }
 document.addEventListener('click', e => {
   const dentro = e.target.closest && e.target.closest('.mas-lista button');

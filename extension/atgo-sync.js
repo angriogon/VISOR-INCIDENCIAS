@@ -23,7 +23,7 @@
   const TIMEOUT_MS = 120000;
   // Versión de este script: Despacho la compara con la suya (SYNC_VERSION en app.js) y avisa si esta pestaña
   // sigue con una versión antigua (hay que recargarla). Súbela cuando cambie este archivo.
-  const SYNC_VERSION = '1.31.0';
+  const SYNC_VERSION = '1.36.0';
 
   if (location.hostname !== 'atgo.tier1.es') { alert('Abre primero https://atgo.tier1.es e inicia sesión.'); return; }
 
@@ -110,6 +110,10 @@
       enviarHilos(e.data.keys, e.source);
     } else if (e.data.type === 'despacho-editar-lote' && Array.isArray(e.data.items)) {
       editarLote(e.data.items.slice(0, 200), e.source);
+    } else if (e.data.type === 'despacho-alta-lista' && e.data.id) {
+      altaListas(e.data, e.source);
+    } else if (e.data.type === 'despacho-alta' && e.data.id) {
+      altaCrear(e.data, e.source);
     } else if (e.data.type === 'despacho-editar' && e.data.id) {
       editar(e.data, e.source);
     } else if (e.data.type === 'despacho-estado' && Array.isArray(e.data.keys)) {
@@ -297,7 +301,7 @@
       if (stopped) return;
       try { await completarProyectos([...found.values(), ...pool.values()], viva); } catch (e) {}
       if (stopped || !viva()) return;
-      lastPayload = { type: 'atgo-data', partial: false, v: SYNC_VERSION, ops: OPERARIOS.slice(), rows: [...found.values()], at: Date.now(), seconds: Math.round((Date.now() - t0) / 1000), caps: ['hilo', 'estado', 'editar', 'asignar', 'pool', 'lote'], estados: estadosAtgo || [], pool: poolOps ? [...pool.values()] : null, poolOps: poolOps || {} };
+      lastPayload = { type: 'atgo-data', partial: false, v: SYNC_VERSION, ops: OPERARIOS.slice(), rows: [...found.values()], at: Date.now(), seconds: Math.round((Date.now() - t0) / 1000), caps: ['hilo', 'estado', 'editar', 'asignar', 'pool', 'lote', 'alta'], estados: estadosAtgo || [], pool: poolOps ? [...pool.values()] : null, poolOps: poolOps || {} };
       send(lastPayload);
       const hora = new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
       setStatus(found.size + ' incidencias · ' + hora + ' (' + lastPayload.seconds + ' s) · próxima en ' + refrescoMin() + ' min');
@@ -447,6 +451,107 @@
       } else throw new Error('acción no permitida');
     } catch (e) {
       reply({ ok: false, error: e.message || String(e) });
+    }
+  }
+
+  // ===== Alta de tickets (ventana «Nueva incidencia» de Despacho) =====
+  // Los mismos datos que la pantalla «Añadir ticket» de ATGO. Cada alta se envía una sola vez y nunca se reintenta.
+  const altasUsadas = new Set();
+  const altaLeer = async ruta => {
+    const r = await fetch('/api/v1/atgo' + ruta, { headers: { Authorization: 'Bearer ' + token(), Accept: 'application/json' } });
+    if (!r.ok) throw new Error(await errorDe(r));
+    return r.json();
+  };
+  const altaFilas = d => (Array.isArray(d) ? d : (d && d.content) || []).filter(Boolean);
+  const altaIgual = (a, b) => String(a == null ? '' : a).trim().toUpperCase() === String(b == null ? '' : b).trim().toUpperCase();
+  const rutaEstados = cli => '/estados?' + (cli ? 'codcli=' + encodeURIComponent(cli) + '&' : '') + 'q=inicial.equals=S';
+  async function altaListas(m, dest) {
+    const reply = o => { try { dest.postMessage({ type: 'atgo-alta-lista', id: m.id, que: m.que, ...o }, PWA_ORIGIN); } catch (e) { /* Despacho se ha cerrado */ } };
+    try {
+      if (!token()) throw new Error('la sesión de ATGO ha caducado: vuelve a iniciar sesión');
+      const q = encodeURIComponent(String(m.q || '').replace(/[,=]/g, ' ').trim().slice(0, 60)), cli = m.codCli ? String(m.codCli) : '';
+      let items;
+      if (m.que === 'cliente') items = altaFilas(await altaLeer('/cliente?nocache=' + (Math.floor(Math.random() * 998) + 1) + '&q=desCli.contains=' + q)).map(c => ({ v: c.codCli, l: c.codCli + ' - ' + c.desCli }));
+      else if (m.que === 'sede') items = altaFilas(await altaLeer('/sede/selector?needle=' + q)).filter(s => !cli || s.codCli == null || altaIgual(s.codCli, cli)).map(s => ({ v: s.idSede, cod: s.codSede, l: (s.codSede ? s.codSede + '-' : '') + s.entidadDescripcion + '-' + s.sedeDescripcion }));
+      else if (m.que === 'elemento') items = altaFilas(await altaLeer('/elemento?q=type:or,codElemento.contains=' + q + ',referencia.contains=' + q)).map(e => ({ v: e.codElemento, l: e.codElemento + ' - ' + e.referencia }));
+      else if (m.que === 'proyecto') items = altaFilas(await altaLeer('/proyecto?q=type:or,desProy.contains=' + q + ',codProy.contains=' + q)).map(p => { const v = p.numProy ?? p.codProyecto ?? p.codProy ?? p.id; return { v, l: v + ' - ' + (p.desProy ?? p.desProyecto ?? p.descripcion ?? '') }; });
+      else if (m.que === 'severidad') items = altaFilas(await altaLeer('/severidad' + (cli ? '?codcli=' + encodeURIComponent(cli) : ''))).map(s => ({ v: s.codSeveridad, l: s.descripcion }));
+      else if (m.que === 'estado') items = altaFilas(await altaLeer(rutaEstados(cli))).map(s => ({ v: s.estado, l: s.desEstado }));
+      else throw new Error('lista no válida');
+      reply({ ok: true, items: items.slice(0, 40) });
+    } catch (e) { reply({ ok: false, items: [], error: e.message || String(e) }); }
+  }
+  async function altaCrear(m, dest) {
+    const reply = o => { try { dest.postMessage({ type: 'atgo-alta', id: m.id, ...o }, PWA_ORIGIN); } catch (e) { /* Despacho se ha cerrado: el ticket queda en ATGO */ } };
+    if (altasUsadas.has(m.id)) return;
+    altasUsadas.add(m.id);
+    let enviado = false, creado = null;
+    const avisos = [];
+    try {
+      if (!token()) throw new Error('la sesión de ATGO ha caducado: vuelve a iniciar sesión');
+      const d = m.datos || {};
+      const texto = (v, max, nom) => { const s = String(v == null ? '' : v).trim(); if (s.length > max) throw new Error(nom + ' es demasiado largo'); return s; };
+      const suReferencia = texto(d.suReferencia, 50, 'Su referencia'), datosRecepcion = texto(d.datosRecepcion, 2000, 'Datos recepción'), descripcion = texto(d.descripcion, 4000, 'Descripción');
+      if (!d.codCli || d.idSede == null || d.severidad == null || d.severidad === '' || !suReferencia) throw new Error('faltan datos obligatorios');
+      if (d.fechaVisita && !/^\d{4}-\d{2}-\d{2}$/.test(d.fechaVisita)) throw new Error('fecha no válida');
+      for (const h of [d.horaInicio, d.horaFin]) if (h && !/^\d{2}:\d{2}$/.test(h)) throw new Error('hora no válida');
+      const codOpe = d.codOpe ? String(d.codOpe).trim().toUpperCase() : null;
+      if (codOpe && !OPERARIOS.includes(codOpe) && !permitidos.includes(codOpe) && !(poolOps && poolOps[codOpe])) throw new Error('técnico no válido');
+      // Lo que ATGO completa al elegir cliente, sede y elemento se lee aquí, justo antes de crear
+      const cli = await altaLeer('/cliente/' + encodeURIComponent(d.codCli));
+      const sede = await altaLeer('/sede/' + encodeURIComponent(d.idSede));
+      let ele = null;
+      if (d.codElemento) {
+        const q = encodeURIComponent(String(d.codElemento).replace(/[,=]/g, ' ').trim());
+        ele = altaFilas(await altaLeer('/elemento?q=type:or,codElemento.contains=' + q + ',referencia.contains=' + q)).find(x => altaIgual(x.codElemento, d.codElemento));
+        if (!ele) throw new Error('no se encuentra ese elemento en ATGO');
+        if (ele.idSede != null && !altaIgual(ele.idSede, d.idSede)) throw new Error('ese elemento pertenece a otra sede');
+      }
+      const estados = altaFilas(await altaLeer(rutaEstados(d.codCli)));
+      const est = d.estado !== '' && d.estado != null ? estados.find(x => altaIgual(x.estado, d.estado)) : estados[0];
+      if (!est) throw new Error('estado no válido');
+      const lugar = [sede.domicilio, sede.poblacion].filter(Boolean).join(', ') + (sede.provincia ? ' (' + sede.provincia + ')' : '');
+      const dto = { codDivision: ele && ele.codDivision || null, desDivision: ele && ele.desDivision || null, codCli: cli.codCli, desCli: cli.desCli, email: cli.email ?? null, cif: cli.cif ?? null,
+        codSede: sede.codSede ?? d.codSede ?? null, idSede: d.idSede, sedeDescripcion: texto(d.sedeEtiqueta, 300, 'La sede'), direccion: sede.domicilio ?? null, domicilio: sede.domicilio ?? null, poblacion: sede.poblacion ?? null, provincia: sede.provincia ?? null, cp: sede.cp ?? null, localizacion: lugar, telefono: null,
+        codElemento: ele ? ele.codElemento : null, codigoInterno: ele ? ele.sedeDescripcion ?? null : null, codTipoEle: ele ? ele.codTipoEle ?? null : null, fechaGarantia: ele && ele.fechaFinGarantia ? String(ele.fechaFinGarantia).replace(/\//g, '-') : null,
+        codAct: null, codArt: null, estado: est.estado, severidad: d.severidad, suReferencia, datosRecepcion, descripcion, codOpe, numProy: d.numProy ?? null,
+        fechaVisita: d.fechaVisita || null, horaInicioVisita: d.horaInicio || null, horaFinVisita: d.horaFin || null, geolocalizacion: null };
+      const H = { Authorization: 'Bearer ' + token() };
+      enviado = true;
+      const r = await fetch('/api/v1/atgo/incidencias/alta', { method: 'POST', headers: { ...H, 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(dto) });
+      if (!r.ok) { if (r.status < 500) enviado = false; throw new Error(await errorDe(r)); }
+      const codInc = (await r.text()).trim().replace(/^"|"$/g, '');
+      if (!/^\d+$/.test(codInc)) throw new Error('ATGO aceptó el alta, pero no devolvió el número del ticket');
+      const periodo = new Date().getFullYear();
+      creado = { key: periodo + '/00/' + codInc, num: periodo + '00' + codInc };
+      // Comprobación: se relee el ticket; lo que el alta no haya guardado se completa una vez con el guardado de la ficha
+      const ruta = '/incidencias/' + periodo + '/00/' + codInc;
+      let ficha = await altaLeer(ruta);
+      const mal = [['codCli', dto.codCli, 'Cliente'], ['idSede', dto.idSede, 'Sede'], ['suReferencia', suReferencia, 'Su referencia'], ['codSeveridad', d.severidad, 'Severidad'], ['codElemento', dto.codElemento, 'Elemento']].filter(([k, v]) => k in ficha && !altaIgual(ficha[k], v)).map(x => x[2]);
+      const camb = {};
+      if (codOpe && !altaIgual(ficha.codOpe, codOpe)) camb.codOpe = codOpe;
+      if (d.fechaVisita && String(ficha.fechaVisita || '').slice(0, 10) !== d.fechaVisita) camb.fechaVisita = d.fechaVisita;
+      if (d.horaInicio && !altaIgual(ficha.horaInicioVisita, d.horaInicio)) camb.horaInicioVisita = d.horaInicio;
+      if (d.horaFin && !altaIgual(ficha.horaFinVisita, d.horaFin)) camb.horaFinVisita = d.horaFin;
+      if (d.numProy != null && !altaIgual(proyectoDe(ficha), d.numProy)) camb.numProy = d.numProy;
+      if (Object.keys(camb).length) {
+        const put = await fetch(urlGuardado(ficha, camb), { method: 'PUT', headers: H });
+        if (!put.ok) avisos.push('El ticket se ha creado, pero no se pudo guardar técnico, visita o proyecto: ' + await errorDe(put));
+        else {
+          ficha = await altaLeer(ruta);
+          const NOM = { codOpe: 'Operario', fechaVisita: 'Fecha visita', horaInicioVisita: 'Hora de inicio', horaFinVisita: 'Hora de fin', numProy: 'Proyecto' };
+          const faltan = Object.keys(camb).filter(k => k === 'fechaVisita' ? String(ficha.fechaVisita || '').slice(0, 10) !== camb.fechaVisita : k === 'numProy' ? !altaIgual(proyectoDe(ficha), camb.numProy) : !altaIgual(ficha[k], camb[k])).map(k => NOM[k]);
+          if (faltan.length) avisos.push('ATGO no ha guardado: ' + faltan.join(', ') + '. Revísalo en el ticket.');
+        }
+      }
+      if (mal.length) avisos.push('El ticket se ha creado, pero estos campos no coinciden: ' + mal.join(', ') + '. Revísalo en ATGO.');
+      reply({ ok: true, verificado: !avisos.length, ...creado, avisos });
+      refrescarPronto();
+    } catch (e) {
+      const txt = e.message || String(e);
+      if (creado) { avisos.push('El ticket se ha creado, pero no se ha podido comprobar: ' + txt); reply({ ok: true, verificado: false, ...creado, avisos }); refrescarPronto(); }
+      else if (enviado) reply({ ok: false, incierto: true, error: 'No se sabe si ATGO la ha creado (' + txt + '). Compruébalo en ATGO antes de volver a enviarla.' });
+      else reply({ ok: false, error: txt });
     }
   }
 

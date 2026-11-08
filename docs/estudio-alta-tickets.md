@@ -68,11 +68,6 @@ Tomados de la ventana «Alta rápida de incidencia» del ERP de escritorio. El f
 | Datos recepción | `datosRecepcion` | Datos de contacto. Máximo 2000 caracteres |
 | Descripción | `descripcion` | De qué va la incidencia. Máximo 4000 caracteres |
 
-Por aclarar: la pantalla web de ATGO pide además Actuación (`codAct`), que el ERP no muestra; y Serie, Proyecto y Estado no se han comprobado en la web.
+Decisiones del usuario (08/11/2026): sin Actuación, sin esperar a la API, sin sede de prueba. Un ticket creado por error se cierra en ATGO.
 
-## Lo que necesito de ti
-
-- Los **campos que quieres poder rellenar** desde Despacho y cuáles quieres con un valor fijo (y cuál).
-- Si siempre es el mismo **cliente** (p. ej. Carrefour) o varios.
-- Si hay una **sede o cliente de prueba** para el primer ticket y cómo se anula un ticket creado por error.
-- Si quieres **asignar técnico y fecha** en el mismo paso.
+Implementado en la 1.36.0 (`alta.js` y `altaCrear` en `atgo-sync.js`). Lo que el alta web no guarde de técnico, visita o proyecto se completa una vez con el guardado de la ficha.

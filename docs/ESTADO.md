@@ -4,14 +4,14 @@ Archivo de traspaso entre sesiones. Al empezar una sesión: «lee docs/ESTADO.md
 Máximo ~40 líneas: lo antiguo se resume o se borra (el detalle está en git y en `NOVEDADES` de `ajustes.js`).
 
 ## Versión actual
-- `sw.js` despacho-v1.35.2 = `APP_VERSION` (ajustes.js). `SYNC_VERSION` 1.31.0 (atgo-sync.js = app.js). Extensión 2.1.0 (lleva copia de atgo-sync.js).
+- `sw.js` despacho-v1.36.0 = `APP_VERSION` (ajustes.js). `SYNC_VERSION` 1.36.0 (atgo-sync.js = app.js). Extensión 2.2.0 (lleva copia de atgo-sync.js).
 - 1.35.0 (auditoría, lotes 1–5 y mejoras sin API; publicada el 2026-11-08): ver NOVEDADES. Nuevo `prioridades.js`.
   Control: `ctlPorDsp`, `CTL_EDADES`, vistas pron/esta, `revisarInformeAuto`. Nómina: `hab` y `vac[].p` ('m'/'t'). Incidencias: `tecCfg.vistaInc`.
   CSS: limpieza comprobada sin diferencias en 83.224 elementos; después, contraste AA y letra mínima de 11 px.
 - Publicación: `.github/workflows/pruebas.yml` publica solo si pasan las pruebas. Pages ya usa «GitHub Actions» como fuente.
 
 ## Pendiente (espera al usuario)
-- Crear tickets desde Despacho: campos definidos en el estudio; falta aclarar Actuación, sede de prueba, cómo anular uno y si se hace ya o con API (`docs/estudio-alta-tickets.md`).
+- Instalar la extensión 2.2 y validar «Nueva incidencia» (1.36.0) con un ticket real: lo crea el usuario, Claude no escribe en ATGO. Sin Actuación: si ATGO la exige, responderá con error.
 - Contraseña de ATGO en la extensión (S2) y dominio propio (S4): decisiones de empresa.
 - Repositorio público: siguen los códigos de técnico en el código (sin servidor no se pueden sacar).
 - Recogida GLS de las zonas DSP2–5 y si Canarias pertenece a algún DSP.

@@ -19,7 +19,7 @@ Publicada en GitHub Pages: https://angriogon.github.io/VISOR-INCIDENCIAS/
 
 - **Sin build, sin npm, sin framework.** HTML + JS estático. GitHub Pages publica la raíz tal cual.
 - **Scripts clásicos que comparten el ámbito global** (no son módulos ES). Orden de carga en `index.html`:
-  `dia.js` → `herramientas.js` → `edicion.js` → `panel.js` → `coord.js` → `prioridades.js` → `app.js` → `ajustes.js`. Excel (XLSX) y Leaflet se cargan
+  `dia.js` → `herramientas.js` → `edicion.js` → `panel.js` → `coord.js` → `prioridades.js` → `alta.js` → `app.js` → `ajustes.js`. Excel (XLSX) y Leaflet se cargan
   al usarlos con `cargarLibreria` (app.js).
   El arranque de `ajustes.js` va en `DOMContentLoaded` (cuando ya existe todo).
   Las funciones se llaman entre archivos solo *en tiempo de llamada*: en el nivel superior de un archivo
@@ -60,6 +60,7 @@ Publicada en GitHub Pages: https://angriogon.github.io/VISOR-INCIDENCIAS/
 | `panel.js` | Sin asignar y buzón (`recomendar`, misma sede: `mismaSede`/`sedeAvisoHtml`/`sedeConfirmHtml`), aviso de sincronización, respuestas rápidas, duración (`minutosTexto`, `duracionInfo`, `estimarMin` puede ser null) y carga en horas, conflictos, reincidencias, asignación en bloque, Semana, línea de tiempo, pliegues, mapa (Leaflet + Nominatim + OSRM) |
 | `coord.js` | Perfil COORD: pestaña CONTROL (`renderControl`, `ctlListas`/`ctlFiltradas`, filtros `ctl`, `ctlPorDsp`, antigüedad), Excel por lista (`ctlExcel`), informe (`ctlInforme`, `revisarInformeAuto`) y tabla densa de Incidencias (`incTablaHtml`). `esCoord()` decide las pestañas al arrancar (app.js) |
 | `prioridades.js` | Ventanas de ayuda al DSP: Qué hacer ahora (`queHacerLista`), Propuesta del día (`propuestaDia`), Mañana listo y `visitaTrasCaducar` |
+| `alta.js` | Ventana «Nueva incidencia» (`abrirAlta`): buscadores, confirmación y resultado. El alta la hace `altaCrear` en `atgo-sync.js` |
 | `tests/pruebas.js` | Pruebas sin dependencias (duración, caducidad, coherencia de listas y versiones). GitHub Actions las ejecuta |
 | `atgo-sync.js` | Sincronización dentro de ATGO (lista `OPERARIOS`, códigos de `ESTADOS`, `REFRESCO_MIN`, edición) |
 | `sw.js` | Service worker: `VERSION` y lista `SHELL` de archivos cacheados |
