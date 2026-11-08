@@ -430,8 +430,8 @@ let syncVieja = false;   // 'atgo': la pestaña de ATGO es más antigua · 'app'
 function cmpVer(a, b){ const x = String(a || '0').split('.').map(Number), y = String(b || '0').split('.').map(Number); for (let i = 0; i < 3; i++){ if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) - (y[i] || 0); } return 0; }
 // Borra la copia guardada de Despacho y recarga desde el servidor (notas, perfiles y ajustes no se tocan)
 async function actualizarDespacho(){
-  try{ for (const k of await caches.keys()) await caches.delete(k); }catch(e){}
-  try{ const regs = await navigator.serviceWorker.getRegistrations(); for (const r of regs) await r.unregister(); }catch(e){}
+  try{ for (const k of await caches.keys()) await caches.delete(k); }catch(e){ /* se sigue con el resto de la limpieza */ }
+  try{ const regs = await navigator.serviceWorker.getRegistrations(); for (const r of regs) await r.unregister(); }catch(e){ /* se sigue con el resto de la limpieza */ }
   location.reload();
 }
 let ultimaCarga = null;   // duración de la última carga de ATGO (se ve en Ajustes › General)
@@ -439,10 +439,10 @@ let ultimaCarga = null;   // duración de la última carga de ATGO (se ve en Aju
 // llega una carga de ATGO hecha con los técnicos de este perfil (la sincronización manda su lista en "ops").
 const mismaLista = l => Array.isArray(l) && l.slice().sort().join() === OPERARIOS.slice().sort().join();
 let perfilEsperando = (() => {
-  try { if (sessionStorage.getItem('despacho_perfil_cambiado') === PERFIL) return true; } catch (e) {}
+  if (ssLee('despacho_perfil_cambiado') === PERFIL) return true;
   const c = lsGet(ATGO_KEY, null); return !!(c && Array.isArray(c.ops) && !mismaLista(c.ops));
 })();
-function perfilListo(){ perfilEsperando = false; try { sessionStorage.removeItem('despacho_perfil_cambiado'); } catch (e) {} renderSyncAviso(); }
+function perfilListo(){ perfilEsperando = false; ssQuita('despacho_perfil_cambiado'); renderSyncAviso(); }
 if (perfilEsperando) setTimeout(() => { if (perfilEsperando) perfilListo(); }, 3 * 60000);   // por si la pestaña de ATGO no responde
 // La lista de técnicos que sincroniza la pestaña de ATGO sale de aquí (ZONAS_BASE): así no puede quedar desfasada.
 // atgo-sync.js mantiene su propia lista solo como respaldo si esta no llega.
@@ -451,18 +451,19 @@ function configurarAtgo(src){
   if (!src || atgoConfigurada === src) return;
   atgoConfigurada = src;
   // operarios: los que se sincronizan (los del perfil activo). permitidos: a quién se puede asignar (todos los perfiles)
-  try{ src.postMessage({ type:'despacho-config', operarios: OPERARIOS, permitidos: TODOS_OPS }, ATGO_ORIGIN); }catch(e){}
+  mensajeAtgo(src, { type:'despacho-config', operarios: OPERARIOS, permitidos: TODOS_OPS });
 }
 // Si esta ventana la abrió ATGO (con el marcador), avisamos de que estamos listos.
-if (window.opener){ try{ window.opener.postMessage({type:'despacho-ready'}, ATGO_ORIGIN); }catch(e){} }
+function mensajeAtgo(w, msg){ try{ w.postMessage(msg, ATGO_ORIGIN); }catch(e){ /* pestaña de ATGO cerrada: se reconecta sola */ } }
+if (window.opener) mensajeAtgo(window.opener, { type:'despacho-ready' });
 
 let atgoWin = null;
 function abrirAtgo(){
   // Con el guardián de la extensión: se pide actualizar y se enseña su pestaña (no se abre otra)
   if (puenteAtgo){ ATGO_PUENTE.postMessage({type:'despacho-refresh'}); ATGO_PUENTE.focus(); return; }
   if (atgoWin && !atgoWin.closed){
-    try{ atgoWin.postMessage({type:'despacho-refresh'}, ATGO_ORIGIN); }catch(e){}
-    try{ atgoWin.focus(); }catch(e){}
+    mensajeAtgo(atgoWin, { type:'despacho-refresh' });
+    enfocar(atgoWin);
     return;
   }
   // Sin "noopener": ATGO necesita esta referencia para enviar los datos de vuelta.
@@ -492,7 +493,7 @@ function forzarAtgo(){
   }
   const w = window.open(ATGO_ORIGIN + '/?despacho=' + Date.now() + '#/mistickets/', 'atgo-tier1');
   if (!w){ toast('El navegador bloqueó la ventana. Permite las ventanas emergentes de Despacho y repítelo'); return; }
-  atgoWin = w; try{ w.focus(); }catch(e){}
+  atgoWin = w; enfocar(w);
   setAtgoStatus('Cargando: reconectando con ATGO…');
   toast('Reabriendo ATGO desde cero… si te pide usuario, inicia sesión');
   clearTimeout(forzadoT);
@@ -1028,7 +1029,7 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:'){
         offerUpdate0(worker);
         const intentar = () => {
           if (document.getElementById('updateBar').style.display !== 'flex') return;
-          if (libre()){ try{ sessionStorage.setItem('despacho_actualizado', '1'); }catch(e){} worker.postMessage('skipWaiting'); }
+          if (libre()){ ssPon('despacho_actualizado', '1'); worker.postMessage('skipWaiting'); }
           else setTimeout(intentar, 20000);
         };
         setTimeout(intentar, 15000);
@@ -1057,7 +1058,7 @@ async function actualizarAhora(){
   try{
     const reg = 'serviceWorker' in navigator ? await navigator.serviceWorker.getRegistration() : null;
     if (reg){ await reg.update(); partes.push(reg.waiting || reg.installing ? 'hay una versión nueva: se instalará sola en unos segundos' : 'Despacho está al día (' + APP_VERSION + ')'); }
-  }catch(e){}
+  }catch(e){ diagLog('Buscar versión nueva: ' + e.message); }
   toast('Actualizar: ' + partes.join(' · '));
 }
 

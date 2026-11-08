@@ -12,6 +12,10 @@ function lsGet(k, def) { try { const v = JSON.parse(localStorage.getItem(k)); re
 // Valores de texto sueltos (no JSON) y borrado
 function lsTexto(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
 function lsPonTexto(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* preferencia menor: se volverá a guardar */ } }
+function ssLee(k) { try { return sessionStorage.getItem(k); } catch (e) { return null; } }
+function ssPon(k, v) { try { sessionStorage.setItem(k, v); } catch (e) { /* solo cambia un aviso al recargar */ } }
+function ssQuita(k) { try { sessionStorage.removeItem(k); } catch (e) { /* sin acceso: nada que borrar */ } }
+function enfocar(el, op) { try { el.focus(op); } catch (e) { /* ventana cerrada o de otro origen: el foco no es imprescindible */ } }
 function lsQuita(k) { try { localStorage.removeItem(k); } catch (e) { /* sin acceso al almacenamiento: nada que borrar */ } }
 // Si el navegador se queda sin espacio, se libera lo prescindible (ajustes.js) y se reintenta una vez
 function lsSet(k, v) {

@@ -3,13 +3,13 @@
 // asistente de inicio, diagnóstico, resumen matinal, aviso de técnico sin actividad y exportar a Excel.
 // Usa utilidades de app.js, dia.js, herramientas.js, edicion.js y panel.js solo en tiempo de llamada.
 
-const APP_VERSION = '1.35.1';   // súbela a la vez que VERSION en sw.js
+const APP_VERSION = '1.35.2';   // súbela a la vez que VERSION en sw.js
 const NOVEDADES = [
+  { v: '1.35.2', f: '2026-11-08', l: ['El botón «Deshacer» del aviso tras asignar ya se lee bien.'] },
   { v: '1.35.1', f: '2026-11-08', l: ['El aviso «Asignación guardada» con el botón «Deshacer» se cierra solo a los 10 segundos.'] },
   { v: '1.35.0', f: '2026-11-08', l: ['Mi día: «Qué hacer ahora» ordena por riesgo lo que hay que atender. En «Más»: «Propuesta del día» (reparte lo pendiente de asignar para que lo revises) y «Mañana listo» (lo que falta por dejar resuelto).', 'Aviso cuando la visita es posterior a la caducidad: en la ficha y al planificar.', 'Técnicos: habilidades y ausencias de media jornada; se tienen en cuenta al recomendar.', 'Control: semáforo y carga por DSP, antigüedad, listas «Caducarán» y «Estancadas», e informe diario automático.', 'Incidencias: vista de tabla densa.', 'Mejor contraste y letra mínima de 11 px, iconos propios y ventana con el título «Despacho».', 'Corregido: la fecha del seguimiento de las notas y el recuerdo del proyecto en los perfiles DSP.', 'Extensión 2.1: ya no descarga la sincronización de internet, no cierra la sesión antes de tiempo y no recarga una pestaña de ATGO abierta a mano. Hay que instalarla de nuevo.'] },
   { v: '1.34.0', f: '2026-11-08', l: ['«Revisión de la mañana» (botón en Mi día y en Control): incidencias sin cerrar con fecha de visita de los últimos 7 días, por día y con lo que hizo el técnico. En cada DSP, las de sus técnicos; en COORD, todas, asignadas o no.', 'Desde ahí: abrir la ficha, marcar como revisada (vuelve mañana si sigue abierta), replanificar en bloque y recordar por WhatsApp. COORD filtra por DSP y exporta a Excel.'] },
-  { v: '1.33.1', f: '2026-11-08', l: ['Incidencias: dentro de cada estado, las de cada técnico van de la visita más próxima a la más lejana; debajo, las que no tienen fecha y, al final, las de fechas ya pasadas.'] },
-  { v: '1.33.0', f: '2026-11-08', l: ['Mi día: nuevo apartado «Conflictos sede-técnicos» y casilla «Sedes con 2 técnicos»: detecta de un vistazo una misma sede o dirección con incidencias en PRESENCIAL de dos técnicos distintos. Las que coinciden el mismo día salen primero, en rojo.'] }
+  { v: '1.33.1', f: '2026-11-08', l: ['Incidencias: dentro de cada estado, las de cada técnico van de la visita más próxima a la más lejana; debajo, las que no tienen fecha y, al final, las de fechas ya pasadas.'] }
 ];
 // Resumen de lo más importante de las versiones anteriores a las 5 últimas (se ve en ⓘ › Anteriores)
 const ANTERIORES = [
@@ -40,9 +40,10 @@ const ANTERIORES = [
   'Control con listas Presencial y Todas',
   'Filtro por proyecto en Control',
   'Proyecto en la ficha y orden por columnas en Control',
-  'Extensión: guardián de la pestaña de ATGO e inicio de sesión automático'
+  'Extensión: guardián de la pestaña de ATGO e inicio de sesión automático',
+  'Conflictos sede-técnicos en Mi día'
 ];
-const NOV_VISIBLES = 5, ANTERIORES_HASTA = '1.32';   // al añadir una versión, quita la más antigua de NOVEDADES y resúmela aquí si importa
+const NOV_VISIBLES = 5, ANTERIORES_HASTA = '1.33';   // al añadir una versión, quita la más antigua de NOVEDADES y resúmela aquí si importa
 const NOV_KEY = 'dispatcher_version_vista_v1', DIAG_KEY = 'dispatcher_diag_v1', BIENV_KEY = 'dispatcher_bienvenida_v1', DATOS_VER_KEY = 'dispatcher_datos_version_v1';
 
 // ---- Novedades de la versión ----
@@ -63,7 +64,7 @@ function guardarPerfiles() { lsSet(PERFIL_KEY, perfilCfg); }
 // Al cambiar de perfil se reinicia la foto de seguimiento: así no salen como «nuevos» ni «salieron» los tickets del otro perfil
 function setPerfil(p) {
   if (p === PERFIL) return; perfilCfg.activo = p; guardarPerfiles(); lsSet(SNAP_KEY, { start: 0, items: {} });
-  try { sessionStorage.setItem('despacho_perfil_cambiado', p); } catch (e) {}   // muestra «Cargando DSPx…» hasta que lleguen sus datos
+  ssPon('despacho_perfil_cambiado', p);   // muestra «Cargando DSPx…» hasta que lleguen sus datos
   location.reload();
 }
 
@@ -169,7 +170,7 @@ function renderPerfiles() {
       </section>
     </div>
     <div class="pf-pie"><button class="btn sm" onclick="abrirNomina()" title="Altas, zona o DSP de cada técnico y bajas">${ico('equipo')} Técnicos (nómina)…</button><span>Para pasar los perfiles a otro equipo:</span><button class="btn sm ghost" onclick="exportarPerfiles()">Exportar perfiles</button><button class="btn sm ghost" onclick="importarPerfiles()">Importar perfiles</button></div>
-    ${perfilesCambiados ? `<div class="pf-aplicar"><span>Has cambiado los técnicos del perfil en uso (${PERFIL}).</span><button class="btn sm pri" onclick="lsSet(SNAP_KEY,{start:0,items:{}});try{sessionStorage.setItem('despacho_perfil_cambiado',PERFIL)}catch(e){};location.reload()">Aplicar cambios (recarga)</button></div>` : ''}`;
+    ${perfilesCambiados ? `<div class="pf-aplicar"><span>Has cambiado los técnicos del perfil en uso (${PERFIL}).</span><button class="btn sm pri" onclick="lsSet(SNAP_KEY,{start:0,items:{}});ssPon('despacho_perfil_cambiado',PERFIL);location.reload()">Aplicar cambios (recarga)</button></div>` : ''}`;
   const i = document.getElementById('pfIn'); if (i && perfBusca) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); }
 }
 function updatePerfilBtn() { const b = document.getElementById('perfilBtn'); if (b) { b.textContent = PERFIL; b.title = `Perfil ${PERFIL}: ${plural(OPERARIOS.length, 'técnico')}. Pulsa para gestionar los perfiles.`; } }
@@ -357,7 +358,7 @@ function vigilarVentana(id) {
       setTimeout(() => { if (el.hidden || el.contains(document.activeElement)) return; const f = el.querySelector('[autofocus], .cfg-tabs button.on') || visiblesFoco(el).find(x => !/iconbtn/.test(x.className)) || visiblesFoco(el)[0]; if (f) f.focus({ preventScroll: true }); }, 30);
     } else if (!abierto && el.__abierto) {
       el.__abierto = false;
-      if (antes && document.body.contains(antes) && (!document.activeElement || document.activeElement === document.body || el.contains(document.activeElement))) { try { antes.focus({ preventScroll: true }); } catch (e) {} }
+      if (antes && document.body.contains(antes) && (!document.activeElement || document.activeElement === document.body || el.contains(document.activeElement))) { enfocar(antes, { preventScroll: true }); }
     }
   }).observe(el, { attributes: true, attributeFilter: ['hidden'] });
   el.addEventListener('keydown', e => {
@@ -482,11 +483,11 @@ function copiarDiagnostico() {
 const ESPACIO_LIMITE = 3.5e6;
 function espacioUsado() {
   let n = 0;
-  try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (/^dispatcher_/.test(k)) n += k.length + (localStorage.getItem(k) || '').length; } } catch (e) {}
+  try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (/^dispatcher_/.test(k)) n += k.length + (localStorage.getItem(k) || '').length; } } catch (e) { /* sin acceso: se informa de lo contado */ }
   return n * 2;   // el navegador guarda en UTF-16: 2 bytes por carácter
 }
 function liberarEspacio() {
-  const guardar = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
+  const guardar = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* almacenamiento lleno: se sigue liberando el resto */ } };
   const vivos = new Set([...rows, ...poolRows].map(tkey));
   // 1) Hilos de tickets que ya no están (salvo con nota) y mensajes muy largos recortados
   Object.keys(hilos).forEach(k => { if (!vivos.has(k) && !notas[k]) delete hilos[k]; else hilos[k].items = hilos[k].items.slice(0, 60).map(i => ({ ...i, t: i.t.slice(0, 1500) })); });
@@ -838,7 +839,7 @@ window.addEventListener('DOMContentLoaded', () => {
   if (document.getElementById('viewDia').style.display !== 'none') renderDia(true);
   if (document.getElementById('viewCtl').style.display !== 'none') renderControl();   // también Control (usa horasOlvido de este archivo)
   // Tras una actualización silenciosa (app.js), un aviso discreto con la versión nueva
-  try { if (sessionStorage.getItem('despacho_actualizado')) { sessionStorage.removeItem('despacho_actualizado'); setTimeout(() => toast(`Despacho se ha actualizado a la versión ${APP_VERSION} · novedades en ⓘ`), 1200); } } catch (e) {}
+  if (ssLee('despacho_actualizado')) { ssQuita('despacho_actualizado'); setTimeout(() => toast(`Despacho se ha actualizado a la versión ${APP_VERSION} · novedades en ⓘ`), 1200); }
   try { revisarEspacio(); } catch (e) { diagLog('Revisión de espacio: ' + e.message); }
   const visto = lsTexto(BIENV_KEY);
   if (!visto && !lsGet(ATGO_KEY, null)) setTimeout(() => { if (document.getElementById('modal').hidden) abrirAsistente(1); }, 800);

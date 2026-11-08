@@ -49,6 +49,27 @@ Tras crear el ticket, ATGO puede abrir una pequeña encuesta según el tipo de e
 
 Opcional: asignar técnico y fecha de visita al crearlo, reutilizando lo que ya existe para asignar.
 
+## Campos definidos por el usuario (08/11/2026)
+
+Tomados de la ventana «Alta rápida de incidencia» del ERP de escritorio. El formulario de Despacho debe tener estos campos, en este orden:
+
+| Campo | Dato en ATGO web (según el estudio) | Notas |
+|---|---|---|
+| Serie | sin identificar | Por defecto 00 |
+| Cliente | `codCli` | Buscador |
+| Sede | `codSede` / `idSede` | Buscador, sedes del cliente |
+| Proyecto | sin identificar | Desplegable; en el ERP sale desactivado hasta elegir antes |
+| Fecha visita y horas | fecha de visita, `horaInicio`, `horaFin` | Opcional |
+| Operario | `codOpe` | Buscador |
+| Estado | estado inicial | Por defecto CREADO |
+| Severidad | `severidad` | Buscador |
+| Elemento | `codElemento` | Buscador |
+| Su referencia | `suReferencia` | Nº de ticket + título. Máximo 50 caracteres |
+| Datos recepción | `datosRecepcion` | Datos de contacto. Máximo 2000 caracteres |
+| Descripción | `descripcion` | De qué va la incidencia. Máximo 4000 caracteres |
+
+Por aclarar: la pantalla web de ATGO pide además Actuación (`codAct`), que el ERP no muestra; y Serie, Proyecto y Estado no se han comprobado en la web.
+
 ## Lo que necesito de ti
 
 - Los **campos que quieres poder rellenar** desde Despacho y cuáles quieres con un valor fijo (y cuál).
