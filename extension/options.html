@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Despacho · ATGO</title>
+<style>
+  :root { color-scheme: light dark; --bg:#f6f7f8; --fg:#1b2126; --sub:#5d6b75; --line:#d6dbdf; --acento:#c9862b; --ok:#2e7d4f; --err:#b3412f; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#1b2126; --fg:#e8ecef; --sub:#8b98a3; --line:#2c353c; --ok:#5cc98a; --err:#ff8a7a; } }
+  body { margin:0; background:var(--bg); color:var(--fg); font:14px/1.45 system-ui, sans-serif; min-width:360px; }
+  main { max-width:520px; margin:0 auto; padding:16px; }
+  h1 { font-size:16px; margin:0 0 4px; } h1 b { color:var(--acento); }
+  h2 { font-size:13px; text-transform:uppercase; letter-spacing:.04em; color:var(--sub); margin:18px 0 6px; }
+  .estado { border:1px solid var(--line); border-radius:9px; padding:10px 12px; }
+  .estado div { display:flex; justify-content:space-between; gap:10px; } .estado span:last-child { text-align:right; }
+  .ok { color:var(--ok); } .err { color:var(--err); }
+  label { display:block; margin:8px 0 3px; font-weight:600; }
+  input[type=text], input[type=password] { width:100%; box-sizing:border-box; padding:7px 9px; border:1px solid var(--line); border-radius:7px; background:transparent; color:inherit; font:inherit; }
+  .check { display:flex; gap:8px; align-items:flex-start; font-weight:400; margin:8px 0; }
+  .botones { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+  button { font:inherit; padding:6px 12px; border-radius:7px; border:1px solid var(--line); background:transparent; color:inherit; cursor:pointer; }
+  button.prim { background:var(--acento); border-color:var(--acento); color:#fff; }
+  .nota { font-size:12px; color:var(--sub); margin-top:10px; }
+  #msg { min-height:1.4em; margin-top:8px; }
+</style>
+</head>
+<body>
+<main>
+  <h1><b>Despacho</b> · ATGO</h1>
+  <div class="nota" id="ver"></div>
+
+  <h2>Estado</h2>
+  <div class="estado" id="estado">Cargando…</div>
+
+  <h2>Pestaña de ATGO</h2>
+  <label class="check"><input type="checkbox" id="guardian"> <span>Mantener ATGO abierto en segundo plano (pestaña fijada) y recargarlo o reabrirlo si se cierra, se cuelga o deja de enviar datos</span></label>
+  <div class="botones"><button id="ver-atgo">Ver la pestaña de ATGO</button><button id="reabrir">Recargar ATGO</button></div>
+
+  <h2>Inicio de sesión automático</h2>
+  <label class="check"><input type="checkbox" id="autoLogin"> <span>Si la sesión de ATGO caduca, iniciarla sola con estos datos</span></label>
+  <label for="usuario">Usuario de ATGO</label>
+  <input type="text" id="usuario" autocomplete="off" spellcheck="false">
+  <label for="clave">Contraseña</label>
+  <input type="password" id="clave" autocomplete="new-password" placeholder="">
+  <div class="botones">
+    <button class="prim" id="guardar">Guardar</button>
+    <button id="probar">Probar inicio de sesión</button>
+    <button id="borrar">Borrar contraseña</button>
+  </div>
+  <div id="msg"></div>
+  <p class="nota">La contraseña se guarda solo en este navegador, dentro de la extensión (no va a GitHub ni a Despacho). Cualquiera que use este perfil de Chrome con tu sesión de Windows podría verla. Si falla un intento, no se reintenta en 6 horas para no bloquear tu cuenta y te avisa con una notificación.</p>
+</main>
+<script src="options.js"></script>
+</body>
+</html>

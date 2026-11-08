@@ -23,7 +23,7 @@
   const TIMEOUT_MS = 120000;
   // Versión de este script: Despacho la compara con la suya (SYNC_VERSION en app.js) y avisa si esta pestaña
   // sigue con una versión antigua (hay que recargarla). Súbela cuando cambie este archivo.
-  const SYNC_VERSION = '1.30.0';
+  const SYNC_VERSION = '1.31.0';
 
   if (location.hostname !== 'atgo.tier1.es') { alert('Abre primero https://atgo.tier1.es e inicia sesión.'); return; }
 
@@ -36,6 +36,10 @@
   const WIN_NAME = 'despacho-visor';
 
   let pwaWin = null;
+  // Extensión 2.0: si esta es la pestaña que vigila su guardián, los mensajes van por la extensión (puente-atgo.js),
+  // que los entrega a Despacho aunque no haya sido Despacho quien abrió esta pestaña.
+  const hayPuente = () => !!document.documentElement.dataset.despachoPuente;
+  const PUENTE = { closed: false, postMessage(msg) { window.postMessage({ __despacho: 'de-atgo', msg }, location.origin); } };
   let lastPayload = null;
   let running = false;
   let timer = null;
@@ -60,6 +64,7 @@
 
   // ===== Comunicación con Despacho =====
   function openPwa(focus) {
+    if (hayPuente()) { window.postMessage({ __despacho: 'abrir-despacho' }, location.origin); return; }
     // Reutiliza la ventana de Despacho si ya existe; si no, la abre.
     if (!pwaWin || pwaWin.closed) {
       const w = window.open('', WIN_NAME);
@@ -72,6 +77,7 @@
     if (focus) try { pwaWin.focus(); } catch (e) {}
   }
   function targets() {
+    if (hayPuente()) return [PUENTE];
     const t = [];
     if (window.opener && !window.opener.closed) t.push(window.opener); // Despacho abrió esta pestaña
     if (pwaWin && !pwaWin.closed && pwaWin !== window.opener) t.push(pwaWin);
@@ -80,7 +86,13 @@
   function send(msg) {
     for (const w of targets()) { try { w.postMessage(msg, PWA_ORIGIN); } catch (e) {} }
   }
-  window.addEventListener('message', (e) => {
+  window.addEventListener('message', (ev) => {
+    let e = ev;
+    // Mensaje de Despacho que llega por el puente de la extensión: se trata igual que si viniera de su ventana
+    if (ev.source === window && ev.data && ev.data.__despacho === 'a-atgo' && ev.data.msg && typeof ev.data.msg === 'object') {
+      if (!hayPuente()) return;
+      e = { origin: PWA_ORIGIN, data: ev.data.msg, source: PUENTE };
+    }
     if (e.origin !== PWA_ORIGIN || !e.data) return;
     if (e.data.type === 'despacho-ready') {
       if (!targets().includes(e.source)) pwaWin = e.source;
@@ -305,7 +317,8 @@
   window.__despachoSync = { refreshNow };
   let opened = false;
   const sinOpener = !window.opener || window.opener.closed;
-  if (sinOpener) { openPwa(false); opened = true; }
+  if (hayPuente()) { opened = true; send({ type: 'atgo-hello' }); }   // con el puente no se abre ninguna ventana
+  else if (sinOpener) { openPwa(false); opened = true; }
   else {
     // ¿La pestaña la abrió Despacho? Si responde, no hace falta abrir otra ventana.
     try { window.opener.postMessage({ type: 'atgo-hello' }, PWA_ORIGIN); } catch (e) {}

@@ -5,6 +5,9 @@ Máximo ~40 líneas: lo antiguo se resume o se borra (el detalle está en git y 
 
 ## Versión actual
 - `sw.js` despacho-v1.31.0 = `APP_VERSION` (ajustes.js). `SYNC_VERSION` 1.30.0 (atgo-sync.js = app.js). Publicada en GitHub Pages.
+- Rama `extension-guardian` (sin publicar): 1.32.0 / SYNC 1.31.0 + extensión 2.0 (background.js guardián, puente-atgo.js con
+  inicio de sesión automático, puente-despacho.js, options.html). Mensajes `{__despacho:'de-atgo'|'a-atgo'|'a-extension'|'puente'}`;
+  sin la extensión 2.0 todo funciona como antes. Pendiente: que el usuario la pruebe y unir a main.
 - Funciones principales: perfiles DSP1–5 y COORD (panel de CONTROL con Excel), nómina, Mi día, Sin asignar, Incidencias por estado,
   Planificación (arrastrar, en bloque de 4 en 4, rellenar el día, mapa), ficha con escrituras en ATGO comprobadas, reincidencias por equipo,
   festivos, apariencia y accesibilidad, avisos de Windows, copia en OneDrive.

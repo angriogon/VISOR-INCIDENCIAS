@@ -11,9 +11,13 @@ Web: **https://angriogon.github.io/VISOR-INCIDENCIAS/**. Son archivos estáticos
    - **Extensión (recomendado):**
      1. Descarga y descomprime `despacho-extension.zip`.
      2. Abre `edge://extensions` (o `chrome://extensions`), activa *Modo de desarrollador* y pulsa *Cargar desempaquetada* sobre esa carpeta.
-     3. Abre ATGO con ⚙ › General › *Abrir ATGO*.
+     3. Pulsa el icono de la extensión (o *Detalles › Opciones de extensiones*), escribe tu usuario y contraseña de ATGO y pulsa **Guardar**.
+     4. Listo: la extensión abre ATGO en una pestaña **fijada y en segundo plano** y la vigila cada minuto. Si se cierra, se congela o deja de enviar datos durante 6 minutos, la recarga o la reabre; si la sesión caduca, inicia sesión sola. No hace falta abrir ATGO ni dejarlo a la vista.
+     - La contraseña se queda solo en ese navegador (dentro de la extensión). Si un inicio de sesión falla, no se reintenta en 6 horas, para no bloquear la cuenta, y avisa con una notificación de Windows. Sin contraseña guardada funciona igual, pero cuando caduque la sesión tendrás que iniciarla tú.
+     - Chrome o Edge tienen que estar abiertos (basta con la ventana de Despacho). Si no hay ninguna ventana normal, la pestaña de ATGO se abre en una ventana minimizada.
+     - El botón **ATGO** de la cabecera enseña esa pestaña, y **Forzar reconexión** la recarga desde cero.
    - **Favorito** (si la empresa no permite extensiones): arrastra **⟳ Despacho ATGO** desde la pantalla inicial a la barra de favoritos y púlsalo en la pestaña de ATGO.
-3. Deja la pestaña de ATGO abierta, aunque sea en segundo plano. Se actualiza cada **2 minutos**.
+3. Con el favorito, deja la pestaña de ATGO abierta, aunque sea en segundo plano. Se actualiza cada **2 minutos**.
 4. **Elegir perfil:** usa el botón del perfil en la cabecera. El primer día te guía un asistente.
 
 **Si se queda pillado:** ⚙ › General › **Forzar reconexión**, o pulsa el punto de estado de la cabecera. Recarga ATGO desde cero y, si no conecta, explica qué revisar. Si una pestaña de ATGO antigua da error, Despacho avisa para cerrarla.

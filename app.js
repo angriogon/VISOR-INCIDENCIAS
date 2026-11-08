@@ -378,7 +378,26 @@ function aplicarPendiente(){
 }
 document.addEventListener('focusout', () => setTimeout(aplicarPendiente, 400));
 setInterval(aplicarPendiente, 2000);   // por si el navegador no avisa al soltar el campo (ventana en segundo plano)
-window.addEventListener('message', (e) => {
+// Extensión 2.0 (guardián): su pestaña de ATGO no la abre Despacho, así que los mensajes llegan por la extensión
+// (puente-despacho.js). ATGO_PUENTE hace de «ventana de ATGO» para el resto del código: postMessage, focus y closed.
+let puenteAtgo = null;   // versión de la extensión si el puente está activo
+const ATGO_PUENTE = {
+  closed: false,
+  postMessage(msg){ window.postMessage({ __despacho: 'a-atgo', msg }, location.origin); },
+  focus(){ window.postMessage({ __despacho: 'a-extension', accion: 'mostrar-atgo' }, location.origin); }
+};
+const accionExtension = accion => window.postMessage({ __despacho: 'a-extension', accion }, location.origin);
+window.addEventListener('message', (ev) => {
+  let e = ev;
+  if (ev.source === window && ev.data && ev.data.__despacho){
+    if (ev.data.__despacho === 'puente'){
+      const nuevo = !puenteAtgo; puenteAtgo = String(ev.data.v || '2');
+      if (nuevo) ATGO_PUENTE.postMessage({ type: 'despacho-ready' });   // si ATGO ya estaba sincronizando, manda lo último
+      return;
+    }
+    if (ev.data.__despacho !== 'de-atgo' || !ev.data.msg || typeof ev.data.msg !== 'object') return;
+    e = { origin: ATGO_ORIGIN, data: ev.data.msg, source: ATGO_PUENTE };
+  }
   if (e.origin !== ATGO_ORIGIN || !e.data || typeof e.data !== 'object') return;
   const m = e.data;
   // Pestaña de ATGO que sincroniza: a ella se le piden los hilos y se mandan los cambios. Solo cambia con datos o al
@@ -402,7 +421,7 @@ window.addEventListener('message', (e) => {
 });
 // Versión de la sincronización que espera esta app. Si la pestaña de ATGO trae otra (la cargó antes de una
 // actualización), se avisa de que hay que recargarla. Debe coincidir con SYNC_VERSION de atgo-sync.js.
-const SYNC_VERSION = '1.30.0';
+const SYNC_VERSION = '1.31.0';
 let syncVieja = false;   // 'atgo': la pestaña de ATGO es más antigua · 'app': Despacho es más antiguo · false: iguales
 function cmpVer(a, b){ const x = String(a || '0').split('.').map(Number), y = String(b || '0').split('.').map(Number); for (let i = 0; i < 3; i++){ if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) - (y[i] || 0); } return 0; }
 // Borra la copia guardada de Despacho y recarga desde el servidor (notas, perfiles y ajustes no se tocan)
@@ -435,6 +454,8 @@ if (window.opener){ try{ window.opener.postMessage({type:'despacho-ready'}, ATGO
 
 let atgoWin = null;
 document.getElementById('atgoBtn').addEventListener('click', () => {
+  // Con el guardián de la extensión: se pide actualizar y se enseña su pestaña (no se abre otra)
+  if (puenteAtgo){ ATGO_PUENTE.postMessage({type:'despacho-refresh'}); ATGO_PUENTE.focus(); return; }
   if (atgoWin && !atgoWin.closed){
     try{ atgoWin.postMessage({type:'despacho-refresh'}, ATGO_ORIGIN); }catch(e){}
     try{ atgoWin.focus(); }catch(e){}
@@ -451,6 +472,20 @@ let forzadoEn = 0, forzadoT = null, otraAtgoCaducada = 0;
 function forzarAtgo(){
   if (typeof editPend !== 'undefined' && editPend){ toast('Espera a que termine el cambio que se está guardando en ATGO'); return; }
   atgoSource = null; atgoConfigurada = null; forzadoEn = Date.now();
+  if (puenteAtgo){
+    // El guardián recarga su pestaña de ATGO desde cero (e inicia sesión solo si hace falta)
+    accionExtension('reabrir-atgo');
+    setAtgoStatus('Cargando: reconectando con ATGO…');
+    toast('Recargando la pestaña de ATGO desde cero…');
+    clearTimeout(forzadoT);
+    forzadoT = setTimeout(() => {
+      if (typeof syncUltima !== 'undefined' && syncUltima >= forzadoEn) return;
+      confirmar(`<b>ATGO sigue sin conectar</b>
+        <ol class="md-pasos"><li>Pulsa <b>ATGO</b> arriba para ver su pestaña: si pide usuario, revisa los datos en las opciones de la extensión o inicia sesión a mano.</li>
+        <li>En <span class="mono">chrome://extensions</span> comprueba que «Despacho» está <b>activada</b> y pulsa ⟳ para recargarla.</li></ol>`, 'Entendido');
+    }, 60000);
+    return;
+  }
   const w = window.open(ATGO_ORIGIN + '/?despacho=' + Date.now() + '#/mistickets/', 'atgo-tier1');
   if (!w){ toast('El navegador bloqueó la ventana. Permite las ventanas emergentes de Despacho y repítelo'); return; }
   atgoWin = w; try{ w.focus(); }catch(e){}

@@ -1,14 +1,29 @@
 {
   "manifest_version": 3,
   "name": "Despacho · sincronización con ATGO",
-  "version": "1.1.0",
-  "description": "Arranca sola la sincronización de Despacho al abrir ATGO, sin pulsar el favorito.",
+  "version": "2.0.0",
+  "description": "Mantiene ATGO abierto en segundo plano, inicia sesión solo si caduca y envía los datos a Despacho.",
+  "permissions": ["tabs", "alarms", "storage", "notifications"],
+  "host_permissions": ["https://atgo.tier1.es/*", "https://angriogon.github.io/*"],
+  "background": { "service_worker": "background.js" },
+  "options_page": "options.html",
+  "action": { "default_title": "Despacho · ATGO", "default_popup": "options.html" },
   "content_scripts": [
+    {
+      "matches": ["https://atgo.tier1.es/*"],
+      "js": ["puente-atgo.js"],
+      "run_at": "document_start"
+    },
     {
       "matches": ["https://atgo.tier1.es/*"],
       "js": ["atgo.js"],
       "run_at": "document_idle",
       "world": "MAIN"
+    },
+    {
+      "matches": ["https://angriogon.github.io/VISOR-INCIDENCIAS/*"],
+      "js": ["puente-despacho.js"],
+      "run_at": "document_start"
     }
   ],
   "icons": { "128": "icon-128.png" }
