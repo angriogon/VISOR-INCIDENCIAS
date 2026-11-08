@@ -461,7 +461,7 @@ const IDB = {
 };
 let odHandle = null, odEstado = 'off', odUltima = lsGet('dispatcher_od_ultima', 0);
 function datosCopia() {
-  return { app: 'panel-despacho', version: 4, fecha: new Date().toISOString(), tecnicos: tecCfg, notas, avisos: { ...avisos, on: false }, cerradas, jornadas, perfiles: perfilCfg, filtros: filtrosGuardados };
+  return { altaMemoria: lsGet(ALTA_MEM_KEY, {}), app: 'panel-despacho', version: 4, fecha: new Date().toISOString(), tecnicos: tecCfg, notas, avisos: { ...avisos, on: false }, cerradas, jornadas, perfiles: perfilCfg, filtros: filtrosGuardados };
 }
 async function odElegir() {
   if (!window.showDirectoryPicker) { toast('Este navegador no permite elegir carpetas: usa Edge o Chrome'); return; }

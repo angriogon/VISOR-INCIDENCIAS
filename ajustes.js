@@ -3,13 +3,13 @@
 // asistente de inicio, diagnóstico, resumen matinal, aviso de técnico sin actividad y exportar a Excel.
 // Usa utilidades de app.js, dia.js, herramientas.js, edicion.js y panel.js solo en tiempo de llamada.
 
-const APP_VERSION = '1.37.0';   // súbela a la vez que VERSION en sw.js
+const APP_VERSION = '1.37.1';   // súbela a la vez que VERSION en sw.js
 const NOVEDADES = [
+  { v: '1.37.1', f: '2026-11-08', l: ['Nueva incidencia: Sede y Proyecto son listas con solo lo que está confirmado para ese cliente. Despacho lo aprende de las incidencias cargadas y de los tickets creados, y lo recuerda en este equipo.'] },
   { v: '1.37.0', f: '2026-11-08', l: ['La extensión 2.3 actualiza sola la sincronización con ATGO, con firma digital: esta es la última vez que hay que instalarla por ese motivo.', 'Nueva incidencia: las sedes de cada cliente aparecen según llegan, sin esperas largas, y se recuerdan en este equipo para que la próxima vez salgan al instante.'] },
   { v: '1.36.1', f: '2026-11-08', l: ['Nueva incidencia: al elegir cliente, la sede se elige entre las de ese cliente. Estado y Operario muestran todos los de ATGO, y la ventana y sus listas son más amplias.', 'Hay que instalar la extensión 2.2.1 desde Ajustes › General y recargar la pestaña de ATGO.'] },
   { v: '1.36.0', f: '2026-11-08', l: ['«Nueva incidencia»: crea tickets en ATGO con los campos del alta rápida, desde Incidencias o desde «Más» en Mi día. Pide confirmación, comprueba el ticket creado y aparece en «Mis cambios».', 'Hay que instalar la extensión 2.2 desde Ajustes › General y recargar la pestaña de ATGO.'] },
-  { v: '1.35.2', f: '2026-11-08', l: ['El botón «Deshacer» del aviso tras asignar ya se lee bien.'] },
-  { v: '1.35.1', f: '2026-11-08', l: ['El aviso «Asignación guardada» con el botón «Deshacer» se cierra solo a los 10 segundos.'] }
+  { v: '1.35.2', f: '2026-11-08', l: ['El botón «Deshacer» del aviso tras asignar ya se lee bien.'] }
 ];
 // Resumen de lo más importante de las versiones anteriores a las 5 últimas (se ve en ⓘ › Anteriores)
 const ANTERIORES = [
@@ -510,6 +510,7 @@ const MIGRACIONES = [
   () => {},   // 1: perfiles (se crean solos en app.js con todos los técnicos en DSP1)
   () => saveTec(),   // 2: separa datos de técnicos (teléfonos, GLS) y preferencias en dos claves
   () => ['dispatcher_plantillas_v2', 'dispatcher_clientes_v1', 'dispatcher_recordatorios_v1', 'dispatcher_rutina_v1', 'dispatcher_tpl_cliente'].forEach(k => { lsQuita(k); }),   // 3: datos de funciones retiradas
+  () => lsQuita('dispatcher_alta_sedes_v1'),   // 4: sedes guardadas que podían mezclar clientes
 ];
 (function migrar() {
   let v = Number(lsTexto(DATOS_VER_KEY)) || 0;

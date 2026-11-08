@@ -23,7 +23,7 @@
   const TIMEOUT_MS = 120000;
   // Versión de este script: Despacho la compara con la suya (SYNC_VERSION en app.js) y avisa si esta pestaña
   // sigue con una versión antigua (hay que recargarla). Súbela cuando cambie este archivo.
-  const SYNC_VERSION = '1.37.0';
+  const SYNC_VERSION = '1.37.1';
 
   if (location.hostname !== 'atgo.tier1.es') { alert('Abre primero https://atgo.tier1.es e inicia sesión.'); return; }
 
@@ -213,6 +213,7 @@
   const proyCache = {};
   let proyNombres = null;
   function proyectoDe(t) { const v = t.numProy ?? t.codProyecto ?? t.codProy ?? null; return v === null || v === undefined || v === 'NULL' ? null : String(v).trim(); }
+  const fichaCliente = {};   // cliente, sede y proyecto leídos de la ficha cuando la lista no los trae
   async function completarProyectos(lista, viva) {
     const H = { Authorization: 'Bearer ' + token(), Accept: 'application/json' };
     if (!proyNombres) {
@@ -223,16 +224,16 @@
       } catch (e) {}
     }
     lista.forEach(m => { if (m.proyecto != null) proyCache[m.key] = m.proyecto; });
-    const faltan = lista.filter(m => !(m.key in proyCache)).slice(0, PROY_POR_CARGA);
+    const faltan = lista.filter(m => !(m.key in proyCache) || (m.idSede == null && !(m.key in fichaCliente))).slice(0, PROY_POR_CARGA);
     let i = 0;
     const trabajador = async () => {
       while (i < faltan.length && viva()) {
         const m = faltan[i++], [p, s2, c] = m.key.split('/').map(encodeURIComponent);
-        try { const r = await fetch('/api/v1/atgo/incidencias/' + p + '/' + s2 + '/' + c, { headers: H }); if (r.ok) { const f = await r.json(); proyCache[m.key] = proyectoDe(f) || ''; } } catch (e) {}
+        try { const r = await fetch('/api/v1/atgo/incidencias/' + p + '/' + s2 + '/' + c, { headers: H }); if (r.ok) { const f = await r.json(); proyCache[m.key] = proyectoDe(f) || ''; fichaCliente[m.key] = { codCli: f.codCli, idSede: f.idSede, codSede: f.codSede, sedeTicket: f.sedeDescripcion, numProy: f.numProy, codProy: f.codProy, desProy: f.desProy }; } } catch (e) {}
       }
     };
     await Promise.all(Array.from({ length: Math.min(4, faltan.length) }, trabajador));
-    lista.forEach(m => { const k = proyCache[m.key]; m.proyecto = k || ''; m.desProyecto = k ? (proyNombres[k] || '') : ''; });
+    lista.forEach(m => { const k = proyCache[m.key]; m.proyecto = k || ''; m.desProyecto = k ? (proyNombres[k] || '') : ''; if (fichaCliente[m.key]) Object.assign(m, fichaCliente[m.key]); });
   }
   function mapTicket(t) {
     const id = t.incidenciaId || {};
@@ -256,6 +257,7 @@
       desOperario: t.desOpe || '',
       estado: t.desEstado || '',
       descCliente: t.desCli || '',
+      codCli: t.codCli, idSede: t.idSede, codSede: t.codSede, sedeTicket: t.sedeDescripcion, numProy: t.numProy, codProy: t.codProy, desProy: t.desProy,
       tipo: t.desTipoEle || '',
       proyecto: proyectoDe(t),
       elemento: t.codElemento && t.codElemento !== 'NULL' ? String(t.codElemento) : '',   // código IT del equipo (reincidencias)
@@ -480,28 +482,29 @@
     }
     return [...vistos.values()];
   }
-  const altaEtiquetaSede = s => [s.codSede, s.entidadDescripcion, s.sedeDescripcion].filter(Boolean).join('-');
-  // Sedes de un cliente. ATGO no tiene una lista directa conocida: se consultan a la vez las sedes, los elementos y los últimos
-  // tickets del cliente, cada consulta con tiempo máximo, y lo encontrado se envía según llega.
-  const ALTA_SEDES_MS = 30000;
-  const altaSedesCache = {};
+  const altaEtiquetaSede = s => { const d = String(s.sedeDescripcion || ''), c = s.codSede ? String(s.codSede).trim() : ''; return [c && d.startsWith(c) ? '' : c, s.entidadDescripcion, d].filter(Boolean).join('-'); };
+  const altaEtiquetaProyecto = p => [p.numProy ?? p.codProyecto ?? p.codProy ?? p.id, p.codProy, p.desProy ?? p.desProyecto ?? p.descripcion].filter(x => x != null && x !== '').join(' - ');
+  // Sedes y proyectos de un cliente: solo se aceptan datos que confirmen ese cliente fila a fila, nunca «por estar en el filtro».
+  // Los elementos no sirven: una sede de un elemento puede ser de otro cliente. Cada consulta tiene tiempo máximo y lo hallado se envía según llega.
+  const ALTA_DATOS_MS = 40000, ALTA_FICHAS = 30;
+  const altaDatosCache = {};
   const altaLeerConLimite = async ruta => {
-    const ctrl = new AbortController(), to = setTimeout(() => ctrl.abort(), ALTA_SEDES_MS);
+    const ctrl = new AbortController(), to = setTimeout(() => ctrl.abort(), ALTA_DATOS_MS);
     try {
       const r = await fetch('/api/v1/atgo' + ruta, { headers: { Authorization: 'Bearer ' + token(), Accept: 'application/json' }, signal: ctrl.signal });
       if (!r.ok) throw new Error('ATGO respondió ' + r.status);
       return await r.json();
     } finally { clearTimeout(to); }
   };
-  async function altaEnviarSedes(cli, reply) {
-    if (altaSedesCache[cli]) { reply({ ok: true, items: altaSedesCache[cli] }); return; }
-    const enc = encodeURIComponent(cli), mapa = new Map(), tiempos = {};
-    const pon = x => { if (x && x.idSede != null && !mapa.has(String(x.idSede))) mapa.set(String(x.idSede), { v: x.idSede, cod: x.codSede, l: altaEtiquetaSede(x) || String(x.idSede) }); };
-    const lista = () => [...mapa.values()].sort((a, b) => a.l.localeCompare(b.l, 'es', { numeric: true }));
-    const delCliente = x => x.codCli == null || altaIgual(x.codCli, cli);
-    const avisa = () => { if (mapa.size) reply({ ok: true, parcial: true, items: lista() }); };
-    // Solo se usa un filtro si ATGO lo aplica de verdad: con un cliente inexistente no debe devolver nada
-    const filtraDeVerdad = ruta => altaLeerConLimite(ruta + 'codCli.equals=__SIN_CLIENTE__').then(d => !altaFilas(d).length);
+  async function altaEnviarDatosCliente(cli, nombre, reply) {
+    if (altaDatosCache[cli]) { reply({ ok: true, items: altaDatosCache[cli] }); return; }
+    const enc = encodeURIComponent(cli), sedes = new Map(), proyectos = new Map(), tiempos = {};
+    const orden = m => [...m.values()].sort((a, b) => a.l.localeCompare(b.l, 'es', { numeric: true }));
+    const datos = () => ({ sedes: orden(sedes), proyectos: orden(proyectos) });
+    const avisa = () => { if (sedes.size || proyectos.size) reply({ ok: true, parcial: true, items: datos() }); };
+    const delCliente = x => x.codCli != null ? altaIgual(x.codCli, cli) : x.desCli != null && !!nombre && altaIgual(x.desCli, nombre);
+    const ponSede = x => { if (x.idSede != null && !sedes.has(String(x.idSede))) sedes.set(String(x.idSede), { v: x.idSede, cod: x.codSede, l: altaEtiquetaSede(x) || String(x.idSede) }); };
+    const ponProyecto = x => { const v = x.numProy ?? null; if (v != null && v !== '' && !proyectos.has(String(v))) proyectos.set(String(v), { v, l: altaEtiquetaProyecto(x) }); };
     const paso = async (nom, fn) => {
       const t0 = Date.now();
       try { tiempos[nom] = (await fn()) + ' · ' + (Date.now() - t0) + ' ms'; }
@@ -510,23 +513,32 @@
     await Promise.all([
       paso('sedes', async () => {
         const f = altaFilas(await altaLeerConLimite('/sede?size=2000&q=codCli.equals=' + enc));
-        if (!f.length || !f.every(x => x.codCli != null && altaIgual(x.codCli, cli))) return 'sin filtro por cliente';
-        f.forEach(pon); avisa(); return f.length + ' filas';
+        if (!f.length || !f.every(x => x.codCli != null && altaIgual(x.codCli, cli))) return 'sin cliente en la respuesta';
+        f.forEach(ponSede); avisa(); return f.length + ' filas';
       }),
-      paso('elementos', async () => {
-        const [vale, d] = await Promise.all([filtraDeVerdad('/elemento?size=1&q='), altaLeerConLimite('/elemento?size=500&q=codCli.equals=' + enc)]);
-        if (!vale) return 'sin filtro por cliente';
-        const f = altaFilas(d).filter(delCliente); f.forEach(pon); avisa(); return f.length + ' filas';
+      paso('proyectos', async () => {
+        const f = altaFilas(await altaLeerConLimite('/proyecto')).filter(x => x.codCli != null && altaIgual(x.codCli, cli));
+        f.forEach(ponProyecto); avisa(); return f.length + ' del cliente';
       }),
       paso('tickets', async () => {
         const ruta = p => '/incidencias/listado?page=' + p + '&size=50&sort=fechaRegistro,desc&q=codCli.equals=' + enc;
-        const [vale, a, b] = await Promise.all([filtraDeVerdad('/incidencias/listado?page=0&size=1&sort=fechaRegistro,desc&q='), altaLeerConLimite(ruta(0)), altaLeerConLimite(ruta(1)).catch(() => null)]);
-        if (!vale) return 'sin filtro por cliente';
-        const f = [...altaFilas(a), ...altaFilas(b)].filter(delCliente); f.forEach(pon); avisa(); return f.length + ' filas';
+        const [a, b] = await Promise.all([altaLeerConLimite(ruta(0)), altaLeerConLimite(ruta(1)).catch(() => null)]);
+        const filas = [...altaFilas(a), ...altaFilas(b)].filter(delCliente);
+        filas.forEach(x => { ponSede(x); ponProyecto(x); }); avisa();
+        // Si la lista no trae sede o proyecto, se completa con unas pocas fichas (los tickets más recientes)
+        const faltan = filas.filter(x => x.idSede == null || x.numProy === undefined).slice(0, ALTA_FICHAS);
+        let i = 0;
+        await Promise.all(Array.from({ length: Math.min(4, faltan.length) }, async () => {
+          while (i < faltan.length) {
+            const id = faltan[i++].incidenciaId; if (!id) continue;
+            try { const f = await altaLeerConLimite('/incidencias/' + encodeURIComponent(id.periodo) + '/' + encodeURIComponent(id.codSerie) + '/' + encodeURIComponent(id.codInc)); if (delCliente(f)) { ponSede(f); ponProyecto(f); avisa(); } } catch (e) { /* se sigue con las demás */ }
+          }
+        }));
+        return filas.length + ' tickets · ' + faltan.length + ' fichas';
       })
     ]);
-    const items = lista();
-    if (items.length) altaSedesCache[cli] = items;
+    const items = datos();
+    if (items.sedes.length || items.proyectos.length) altaDatosCache[cli] = items;
     reply({ ok: true, items, tiempos });
   }
   async function altaListas(m, dest) {
@@ -535,12 +547,12 @@
       if (!token()) throw new Error('la sesión de ATGO ha caducado: vuelve a iniciar sesión');
       const q = encodeURIComponent(String(m.q || '').replace(/[,=]/g, ' ').trim().slice(0, 60)), cli = m.codCli ? String(m.codCli) : '';
       let items;
-      if (m.que === 'cliente') items = altaFilas(await altaLeer('/cliente?nocache=' + (Math.floor(Math.random() * 998) + 1) + '&q=desCli.contains=' + q)).map(c => ({ v: c.codCli, l: c.codCli + ' - ' + c.desCli }));
+      if (m.que === 'cliente') items = altaFilas(await altaLeer('/cliente?nocache=' + (Math.floor(Math.random() * 998) + 1) + '&q=desCli.contains=' + q)).map(c => ({ v: c.codCli, d: c.desCli, l: c.codCli + ' - ' + c.desCli }));
       else if (m.que === 'sede') items = altaFilas(await altaLeer('/sede/selector?needle=' + q)).map(s => ({ v: s.idSede, cod: s.codSede, l: altaEtiquetaSede(s) }));
-      else if (m.que === 'sedes-cliente') { if (!cli) throw new Error('falta el cliente'); await altaEnviarSedes(cli, reply); return; }
+      else if (m.que === 'datos-cliente') { if (!cli) throw new Error('falta el cliente'); await altaEnviarDatosCliente(cli, String(m.desCli || ''), reply); return; }
       else if (m.que === 'operario') items = (await altaTodos('/operario', 'codOpe')).map(o => { const v = String(o.codOpe).trim().toUpperCase(); return { v, l: v + (o.desOpe ? ' - ' + String(o.desOpe).trim() : '') }; }).sort((a, b) => a.v.localeCompare(b.v));
       else if (m.que === 'elemento') items = altaFilas(await altaLeer('/elemento?q=type:or,codElemento.contains=' + q + ',referencia.contains=' + q)).map(e => ({ v: e.codElemento, l: e.codElemento + ' - ' + e.referencia }));
-      else if (m.que === 'proyecto') items = altaFilas(await altaLeer('/proyecto?q=type:or,desProy.contains=' + q + ',codProy.contains=' + q)).map(p => { const v = p.numProy ?? p.codProyecto ?? p.codProy ?? p.id; return { v, l: v + ' - ' + (p.desProy ?? p.desProyecto ?? p.descripcion ?? '') }; });
+      else if (m.que === 'proyecto') items = altaFilas(await altaLeer('/proyecto?q=type:or,desProy.contains=' + q + ',codProy.contains=' + q)).map(p => ({ v: p.numProy ?? p.codProyecto ?? p.codProy ?? p.id, l: altaEtiquetaProyecto(p) }));
       else if (m.que === 'severidad') items = altaFilas(await altaLeer('/severidad' + (cli ? '?codcli=' + encodeURIComponent(cli) : ''))).map(s => ({ v: s.codSeveridad, l: s.descripcion }));
       else if (m.que === 'estado') items = altaFilas(await altaLeer(rutaEstados())).map(s => ({ v: s.estado, l: s.desEstado }));
       else throw new Error('lista no válida');
@@ -577,12 +589,14 @@
       const estados = altaFilas(await altaLeer(rutaEstados()));
       const est = d.estado !== '' && d.estado != null ? estados.find(x => altaIgual(x.estado, d.estado)) : estados[0];
       if (!est) throw new Error('estado no válido');
+      // Quién crea el ticket: el código del usuario con la sesión abierta en esta pestaña (la web de ATGO lo guarda ahí)
+      const creador = (() => { const c = String(localStorage.getItem('codigoOperario') || '').trim().toUpperCase(); return c && c !== 'UNDEFINED' ? c : null; })();
       const lugar = [sede.domicilio, sede.poblacion].filter(Boolean).join(', ') + (sede.provincia ? ' (' + sede.provincia + ')' : '');
       const dto = { codDivision: ele && ele.codDivision || null, desDivision: ele && ele.desDivision || null, codCli: cli.codCli, desCli: cli.desCli, email: cli.email ?? null, cif: cli.cif ?? null,
         codSede: sede.codSede ?? d.codSede ?? null, idSede: d.idSede, sedeDescripcion: texto(d.sedeEtiqueta, 300, 'La sede'), direccion: sede.domicilio ?? null, domicilio: sede.domicilio ?? null, poblacion: sede.poblacion ?? null, provincia: sede.provincia ?? null, cp: sede.cp ?? null, localizacion: lugar, telefono: null,
         codElemento: ele ? ele.codElemento : null, codigoInterno: ele ? ele.sedeDescripcion ?? null : null, codTipoEle: ele ? ele.codTipoEle ?? null : null, fechaGarantia: ele && ele.fechaFinGarantia ? String(ele.fechaFinGarantia).replace(/\//g, '-') : null,
         codAct: null, codArt: null, estado: est.estado, severidad: d.severidad, suReferencia, datosRecepcion, descripcion, codOpe, numProy: d.numProy ?? null,
-        fechaVisita: d.fechaVisita || null, horaInicioVisita: d.horaInicio || null, horaFinVisita: d.horaFin || null, geolocalizacion: null };
+        fechaVisita: d.fechaVisita || null, horaInicioVisita: d.horaInicio || null, horaFinVisita: d.horaFin || null, geolocalizacion: null, usuario: creador };
       const H = { Authorization: 'Bearer ' + token() };
       enviado = true;
       const r = await fetch('/api/v1/atgo/incidencias/alta', { method: 'POST', headers: { ...H, 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(dto) });
@@ -618,6 +632,7 @@
           if (faltan.length) avisos.push('ATGO no ha guardado: ' + faltan.join(', ') + '. Revísalo en el ticket.');
         }
       }
+      if (creador && ficha.usuario != null && !altaIgual(ficha.usuario, creador)) avisos.push('ATGO ha registrado como creador a ' + ficha.usuario + ', no a ' + creador + '. El ticket está bien; solo cambia ese dato.');
       if (mal.length) avisos.push('El ticket se ha creado, pero estos campos no coinciden: ' + mal.join(', ') + '. Revísalo en ATGO.');
       reply({ ok: true, verificado: !avisos.length, ...creado, avisos });
       refrescarPronto();

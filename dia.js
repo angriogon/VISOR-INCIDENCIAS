@@ -745,6 +745,7 @@ function restoreBackup(file) {
       if (d.cerradas && typeof d.cerradas === 'object') { cerradas = { ...d.cerradas, ...cerradas }; podarCerradas(); hechos.push('cerradas'); }
       if (d.jornadas && typeof d.jornadas === 'object') { jornadas = { ...d.jornadas, ...jornadas }; lsSet(JORN_KEY, jornadas); }
       if (d.perfiles && d.perfiles.tecs && lsSet(PERFIL_KEY, { ...d.perfiles, activo: PERFIL, matriz1: true, conocidos: Array.isArray(d.perfiles.conocidos) ? d.perfiles.conocidos : BASE_OPS })) hechos.push('perfiles (se aplican al recargar)');   // matriz1: una copia antigua no vuelve a la lista matriz al recargar
+      if (d.altaMemoria && typeof d.altaMemoria === 'object') lsSet(ALTA_MEM_KEY, { ...lsGet(ALTA_MEM_KEY, {}), ...d.altaMemoria });
       if (Array.isArray(d.filtros)) { filtrosGuardados = d.filtros; lsSet(FILTROS_KEY, d.filtros); }
       refreshVisible();
       toast('Restaurado: ' + (hechos.join(', ') || 'nada que restaurar'));

@@ -243,8 +243,16 @@ igual('orden visita: próximas primero; luego sin fecha; al final las pasadas',
   igual('Alta: un mismo envío nunca crea dos tickets', /altasUsadas\.has\(m\.id\)\) return;/.test(sync), true);
   igual('Alta: una sola llamada de creación', sync.split("/incidencias/alta'").length - 1, 1);
   igual('Alta: Estado muestra todos los estados, no solo los iniciales', /rutaEstados = \(\) => '\/estados'/.test(sync), true);
-  igual('Alta: las sedes por cliente comprueban que ATGO aplica el filtro', /filtraDeVerdad/.test(sync) && /__SIN_CLIENTE__/.test(sync), true);
-  igual('Alta: cada consulta de sedes tiene tiempo máximo', /ctrl\.abort\(\), ALTA_SEDES_MS/.test(sync), true);
+  igual('Alta: cada consulta del cliente tiene tiempo máximo', /ctrl\.abort\(\), ALTA_DATOS_MS/.test(sync), true);
+  igual('Alta: solo se aceptan filas que confirman su cliente', /const delCliente = x => x\.codCli != null \? altaIgual\(x\.codCli, cli\) : x\.desCli != null/.test(sync), true);
+  igual('Alta: las sedes no salen de los elementos', /elemento\?size=/.test(sync), false);
+  {
+    const m = vm.createContext({ lsGet: () => ({}), lsSet: () => true });
+    vm.runInContext([extraer(altaSrc, 'function altaRecordarEn('), extraer(altaSrc, 'function altaGuardarMemoria('), 'var ALTA_MEM_CLIENTES = 300, ALTA_MEM_KEY = "k", guardado = null; lsSet = function (k, v) { guardado = v; };', extraer(altaSrc, 'function altaAprender(')].join('\n'), m);
+    m.lsGet = () => ({});
+    vm.runInContext("altaAprender([{codCli:'C1',idSede:1,sedeTicket:'A',numProy:9,codProy:'P',desProy:'D'},{idSede:2,sedeTicket:'SIN CLIENTE'},{codCli:'C2',idSede:3,sedeTicket:'B'}])", m);
+    igual('Alta: la memoria separa por cliente y descarta filas sin cliente', JSON.stringify([Object.keys(m.guardado).sort(), Object.keys(m.guardado.C1.sedes), Object.keys(m.guardado.C2.sedes), m.guardado.C1.proyectos['9'].l]), '[["C1","C2"],["1"],["3"],"9 - P - D"]');
+  }
   igual('Alta: la sincronización anuncia la capacidad', /caps: \[[^\]]*'alta'/.test(sync), true);
 }
 

@@ -72,4 +72,4 @@ Decisiones del usuario (08/11/2026): sin Actuación, sin esperar a la API, sin s
 
 Implementado en la 1.36.0 (`alta.js` y `altaCrear` en `atgo-sync.js`). Lo que el alta web no guarde de técnico, visita o proyecto se completa una vez con el guardado de la ficha.
 
-Sedes por cliente (1.37.0): el código público de ATGO no muestra una relación directa. `altaEnviarSedes` consulta a la vez `/sede?q=codCli.equals=` (solo si cada fila confirma el cliente), los elementos y los 100 tickets más recientes del cliente, con 30 s como máximo, y envía lo encontrado según llega. Por eso la lista ofrece «Buscar en todas las sedes».
+Sedes y proyectos por cliente (1.37.1): solo se aceptan datos que confirman su cliente fila a fila (`altaEnviarDatosCliente` en `atgo-sync.js`): consulta de sedes y catálogo de proyectos si traen `codCli`, y tickets del cliente. Los elementos se descartaron porque mezclaban sedes de otros clientes. Despacho guarda lo aprendido en `dispatcher_alta_memoria_v1` (`altaAprender`). «Buscar en todas» sigue disponible para sedes o proyectos aún sin tickets.
