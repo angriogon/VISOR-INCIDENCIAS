@@ -72,4 +72,4 @@ Decisiones del usuario (08/11/2026): sin Actuación, sin esperar a la API, sin s
 
 Implementado en la 1.36.0 (`alta.js` y `altaCrear` en `atgo-sync.js`). Lo que el alta web no guarde de técnico, visita o proyecto se completa una vez con el guardado de la ficha.
 
-Sedes por cliente (1.36.1): el código público de ATGO no muestra una relación directa. `altaSedesDeCliente` prueba `/sede?q=codCli.equals=` (solo si cada fila confirma el cliente) y, si no, reúne las sedes de los elementos y de los 300 tickets más recientes del cliente. Por eso la lista ofrece «Buscar en todas las sedes».
+Sedes por cliente (1.37.0): el código público de ATGO no muestra una relación directa. `altaEnviarSedes` consulta a la vez `/sede?q=codCli.equals=` (solo si cada fila confirma el cliente), los elementos y los 100 tickets más recientes del cliente, con 30 s como máximo, y envía lo encontrado según llega. Por eso la lista ofrece «Buscar en todas las sedes».

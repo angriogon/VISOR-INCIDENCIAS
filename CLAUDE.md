@@ -38,7 +38,7 @@ Publicada en GitHub Pages: https://angriogon.github.io/VISOR-INCIDENCIAS/
   Si añades datos nuevos, inclúyelos en `exportBackup`/`restoreBackup` (dia.js).
   El handle de OneDrive va en IndexedDB (`IDB`, herramientas.js).
 - **Sincronización ATGO:** `atgo-sync.js` se ejecuta *dentro* de la pestaña de ATGO y habla con la PWA por `postMessage`.
-  La extensión lleva su propia copia (`extension/atgo-sync.js`, idéntica; no descarga código) y la ejecuta en su pestaña vigilada; el favorito carga la publicada.
+  La extensión descarga la publicada, comprueba su firma (`atgo-sync.firma.json`, `syncFirmada` en background.js) y la ejecuta en su pestaña vigilada; si no es válida, usa la última válida o su copia `extension/atgo-sync.js`. El favorito carga la publicada.
   Con la extensión los mensajes van por el puente `{__despacho:'de-atgo'|'a-atgo'|'a-extension'|'puente'}` (`ATGO_PUENTE`/`puenteAtgo` en app.js; `puente-atgo.js` y `puente-despacho.js`):
   - ATGO → PWA: `atgo-data`, `atgo-hilo`, `atgo-estado`, `atgo-editado`, `atgo-status`, `atgo-hello`
     (se reciben en `app.js`, `window.addEventListener('message', …)`).
@@ -76,7 +76,7 @@ Publicada en GitHub Pages: https://angriogon.github.io/VISOR-INCIDENCIAS/
 3. **Técnicos duplicados:** `ZONAS_BASE` (app.js) manda; `OPERARIOS` (atgo-sync.js) es el respaldo y debe coincidir.
    Asignar: siempre por `asignarLote` (también una sola) y técnico recomendado por `recomendar` (sugerirTecnico lo usa).
    Lo mismo con estados: por nombre en `ESTADOS` (app.js) y por código en `atgo-sync.js`.
-4. Si cambias `extension/` o `atgo-sync.js`, copia `atgo-sync.js` a `extension/`, sube su versión en `manifest.json` y regenera `despacho-extension.zip` (las pruebas y GitHub Actions lo comprueban).
+4. Si cambias `atgo-sync.js`, ejecuta `node tools/firmar-sync.mjs`: la extensión lo descarga y solo lo ejecuta con firma válida, sin reinstalarse (las pruebas fallan si falta la firma). La clave privada está en `%USERPROFILE%\.despacho` y nunca va al repositorio. Si cambias la propia `extension/` (guardián, puentes, permisos), sube su versión en `manifest.json`, copia antes `atgo-sync.js` a `extension/` y regenera `despacho-extension.zip`.
 5. No elimines funcionalidades existentes al añadir otras. Si retiras algo, quita también su CSS, sus textos y, si guardaba datos,
    añade su clave a la migración de limpieza (`MIGRACIONES` en ajustes.js). No dejes archivos ni código sin uso.
 6. Cualquier escritura en ATGO debe pedir confirmación, verificarse después y no reintentarse sola.

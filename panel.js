@@ -271,7 +271,7 @@ function renderSyncAviso() {
     el.hidden = false;
     el.innerHTML = syncVieja === 'app'
       ? `${ico('alerta')} Despacho no está actualizado (la pestaña de ATGO ya tiene la versión nueva) <button class="btn sm" onclick="actualizarDespacho()">Actualizar Despacho</button>`
-      : `${ico('alerta')} La sincronización de ATGO está anticuada: ${puenteAtgo ? 'instala la última extensión (Ajustes › General)' : 'recarga su pestaña (F5)'} <button class="btn sm" onclick="abrirAtgo()">Ir a ATGO</button>`;
+      : `${ico('alerta')} La sincronización de ATGO está anticuada: ${puenteAtgo ? 'se actualizará sola en unos minutos; si sigue este aviso, instala la última extensión (Ajustes › General)' : 'recarga su pestaña (F5)'} <button class="btn sm" onclick="abrirAtgo()">Ir a ATGO</button>`;
     return;
   }
   if (typeof otraAtgoCaducada !== 'undefined' && otraAtgoCaducada && Date.now() - otraAtgoCaducada < 3 * 60000) {

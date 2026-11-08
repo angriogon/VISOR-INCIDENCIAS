@@ -23,7 +23,7 @@
   const TIMEOUT_MS = 120000;
   // Versión de este script: Despacho la compara con la suya (SYNC_VERSION en app.js) y avisa si esta pestaña
   // sigue con una versión antigua (hay que recargarla). Súbela cuando cambie este archivo.
-  const SYNC_VERSION = '1.36.1';
+  const SYNC_VERSION = '1.37.0';
 
   if (location.hostname !== 'atgo.tier1.es') { alert('Abre primero https://atgo.tier1.es e inicia sesión.'); return; }
 
@@ -318,7 +318,7 @@
   }
   function refreshNow() { if (running) { otraVez = true; return; } clearTimeout(timer); syncOnce(); }
 
-  window.__despachoSync = { refreshNow };
+  window.__despachoSync = { refreshNow, ocupado: () => escriturasEnCurso > 0 };
   let opened = false;
   const sinOpener = !window.opener || window.opener.closed;
   if (hayPuente()) { opened = true; send({ type: 'atgo-hello' }); }   // con el puente no se abre ninguna ventana
@@ -334,6 +334,9 @@
   // ===== Edición en ATGO (fase 1): comentario en el hilo y cambio de estado =====
   // Se hace con tu sesión, igual que desde la web de ATGO, y después se vuelve a leer para comprobarlo.
   let estadosAtgo = null, poolOps = null;
+  // Mientras haya una escritura a medias, el guardián de la extensión no recarga esta pestaña
+  let escriturasEnCurso = 0;
+  const conEscritura = async fn => { escriturasEnCurso++; try { return await fn(); } finally { escriturasEnCurso--; } };
   const pad = n => String(n).padStart(2, '0');
   function ahoraAtgo() { const d = new Date(); return pad(d.getDate()) + '/' + pad(d.getMonth() + 1) + '/' + d.getFullYear() + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds()); }
   // Réplica del guardado de la ficha de ATGO ("editar" de su web): mismos parámetros, orden y valores
@@ -389,7 +392,8 @@
     await Promise.all(Array.from({ length: Math.min(LOTE_PARALELO, items.length) }, trabajador));
     refreshNow();
   }
-  async function editar(m, dest) {
+  function editar(m, dest) { return conEscritura(() => editarAhora(m, dest)); }
+  async function editarAhora(m, dest) {
     const reply = (o) => { try { dest.postMessage({ type: 'atgo-editado', id: m.id, key: m.key, accion: m.accion, ...o }, PWA_ORIGIN); } catch (e) {} };
     try {
       if (!/^\d+\/[^/]+\/\d+$/.test(m.key || '')) throw new Error('ticket no válido');
@@ -477,32 +481,53 @@
     return [...vistos.values()];
   }
   const altaEtiquetaSede = s => [s.codSede, s.entidadDescripcion, s.sedeDescripcion].filter(Boolean).join('-');
-  // Sedes de un cliente. ATGO no tiene una lista directa conocida: se prueba la consulta por cliente y solo vale si cada fila
-  // confirma ese cliente; si no, se reúnen las sedes de sus elementos y de sus tickets más recientes.
+  // Sedes de un cliente. ATGO no tiene una lista directa conocida: se consultan a la vez las sedes, los elementos y los últimos
+  // tickets del cliente, cada consulta con tiempo máximo, y lo encontrado se envía según llega.
+  const ALTA_SEDES_MS = 30000;
   const altaSedesCache = {};
-  async function altaSedesDeCliente(cli) {
-    const enc = encodeURIComponent(cli), mapa = new Map();
+  const altaLeerConLimite = async ruta => {
+    const ctrl = new AbortController(), to = setTimeout(() => ctrl.abort(), ALTA_SEDES_MS);
+    try {
+      const r = await fetch('/api/v1/atgo' + ruta, { headers: { Authorization: 'Bearer ' + token(), Accept: 'application/json' }, signal: ctrl.signal });
+      if (!r.ok) throw new Error('ATGO respondió ' + r.status);
+      return await r.json();
+    } finally { clearTimeout(to); }
+  };
+  async function altaEnviarSedes(cli, reply) {
+    if (altaSedesCache[cli]) { reply({ ok: true, items: altaSedesCache[cli] }); return; }
+    const enc = encodeURIComponent(cli), mapa = new Map(), tiempos = {};
     const pon = x => { if (x && x.idSede != null && !mapa.has(String(x.idSede))) mapa.set(String(x.idSede), { v: x.idSede, cod: x.codSede, l: altaEtiquetaSede(x) || String(x.idSede) }); };
-    const delCliente = x => x.codCli == null || altaIgual(x.codCli, cli);
     const lista = () => [...mapa.values()].sort((a, b) => a.l.localeCompare(b.l, 'es', { numeric: true }));
-    try {
-      const f = altaFilas(await altaLeer('/sede?size=2000&q=codCli.equals=' + enc));
-      if (f.length && f.every(x => x.codCli != null && altaIgual(x.codCli, cli))) { f.forEach(pon); return lista(); }
-    } catch (e) { /* ATGO no admite esa consulta: se sigue con elementos y tickets */ }
-    // Solo se usa el filtro si ATGO lo aplica de verdad: con un cliente inexistente no debe devolver nada
-    const filtraCliente = async ruta => { try { return !altaFilas(await altaLeer(ruta + 'codCli.equals=__SIN_CLIENTE__')).length; } catch (e) { return false; } };
-    try {
-      if (await filtraCliente('/elemento?size=1&q=')) altaFilas(await altaLeer('/elemento?size=2000&q=codCli.equals=' + enc)).filter(delCliente).forEach(pon);
-    } catch (e) { /* sin elementos: quedan los tickets */ }
-    const tickets = await filtraCliente('/incidencias/listado?page=0&size=1&sort=fechaRegistro,desc&q=');
-    for (let page = 0; tickets && page < 3; page++) {
-      try {
-        const d = await altaLeer('/incidencias/listado?page=' + page + '&size=100&sort=fechaRegistro,desc&q=codCli.equals=' + enc);
-        altaFilas(d).filter(delCliente).forEach(pon);
-        if (d.last !== false) break;
-      } catch (e) { break; }
-    }
-    return lista();
+    const delCliente = x => x.codCli == null || altaIgual(x.codCli, cli);
+    const avisa = () => { if (mapa.size) reply({ ok: true, parcial: true, items: lista() }); };
+    // Solo se usa un filtro si ATGO lo aplica de verdad: con un cliente inexistente no debe devolver nada
+    const filtraDeVerdad = ruta => altaLeerConLimite(ruta + 'codCli.equals=__SIN_CLIENTE__').then(d => !altaFilas(d).length);
+    const paso = async (nom, fn) => {
+      const t0 = Date.now();
+      try { tiempos[nom] = (await fn()) + ' · ' + (Date.now() - t0) + ' ms'; }
+      catch (e) { tiempos[nom] = (e.name === 'AbortError' ? 'tiempo agotado' : 'error') + ' · ' + (Date.now() - t0) + ' ms'; }
+    };
+    await Promise.all([
+      paso('sedes', async () => {
+        const f = altaFilas(await altaLeerConLimite('/sede?size=2000&q=codCli.equals=' + enc));
+        if (!f.length || !f.every(x => x.codCli != null && altaIgual(x.codCli, cli))) return 'sin filtro por cliente';
+        f.forEach(pon); avisa(); return f.length + ' filas';
+      }),
+      paso('elementos', async () => {
+        const [vale, d] = await Promise.all([filtraDeVerdad('/elemento?size=1&q='), altaLeerConLimite('/elemento?size=500&q=codCli.equals=' + enc)]);
+        if (!vale) return 'sin filtro por cliente';
+        const f = altaFilas(d).filter(delCliente); f.forEach(pon); avisa(); return f.length + ' filas';
+      }),
+      paso('tickets', async () => {
+        const ruta = p => '/incidencias/listado?page=' + p + '&size=50&sort=fechaRegistro,desc&q=codCli.equals=' + enc;
+        const [vale, a, b] = await Promise.all([filtraDeVerdad('/incidencias/listado?page=0&size=1&sort=fechaRegistro,desc&q='), altaLeerConLimite(ruta(0)), altaLeerConLimite(ruta(1)).catch(() => null)]);
+        if (!vale) return 'sin filtro por cliente';
+        const f = [...altaFilas(a), ...altaFilas(b)].filter(delCliente); f.forEach(pon); avisa(); return f.length + ' filas';
+      })
+    ]);
+    const items = lista();
+    if (items.length) altaSedesCache[cli] = items;
+    reply({ ok: true, items, tiempos });
   }
   async function altaListas(m, dest) {
     const reply = o => { try { dest.postMessage({ type: 'atgo-alta-lista', id: m.id, que: m.que, ...o }, PWA_ORIGIN); } catch (e) { /* Despacho se ha cerrado */ } };
@@ -512,7 +537,7 @@
       let items;
       if (m.que === 'cliente') items = altaFilas(await altaLeer('/cliente?nocache=' + (Math.floor(Math.random() * 998) + 1) + '&q=desCli.contains=' + q)).map(c => ({ v: c.codCli, l: c.codCli + ' - ' + c.desCli }));
       else if (m.que === 'sede') items = altaFilas(await altaLeer('/sede/selector?needle=' + q)).map(s => ({ v: s.idSede, cod: s.codSede, l: altaEtiquetaSede(s) }));
-      else if (m.que === 'sedes-cliente') { if (!cli) throw new Error('falta el cliente'); items = altaSedesCache[cli] || (altaSedesCache[cli] = await altaSedesDeCliente(cli)); }
+      else if (m.que === 'sedes-cliente') { if (!cli) throw new Error('falta el cliente'); await altaEnviarSedes(cli, reply); return; }
       else if (m.que === 'operario') items = (await altaTodos('/operario', 'codOpe')).map(o => { const v = String(o.codOpe).trim().toUpperCase(); return { v, l: v + (o.desOpe ? ' - ' + String(o.desOpe).trim() : '') }; }).sort((a, b) => a.v.localeCompare(b.v));
       else if (m.que === 'elemento') items = altaFilas(await altaLeer('/elemento?q=type:or,codElemento.contains=' + q + ',referencia.contains=' + q)).map(e => ({ v: e.codElemento, l: e.codElemento + ' - ' + e.referencia }));
       else if (m.que === 'proyecto') items = altaFilas(await altaLeer('/proyecto?q=type:or,desProy.contains=' + q + ',codProy.contains=' + q)).map(p => { const v = p.numProy ?? p.codProyecto ?? p.codProy ?? p.id; return { v, l: v + ' - ' + (p.desProy ?? p.desProyecto ?? p.descripcion ?? '') }; });
@@ -522,7 +547,8 @@
       reply({ ok: true, items: ['cliente', 'sede', 'elemento', 'proyecto'].includes(m.que) ? items.slice(0, 100) : items });
     } catch (e) { reply({ ok: false, items: [], error: e.message || String(e) }); }
   }
-  async function altaCrear(m, dest) {
+  function altaCrear(m, dest) { return conEscritura(() => altaCrearAhora(m, dest)); }
+  async function altaCrearAhora(m, dest) {
     const reply = o => { try { dest.postMessage({ type: 'atgo-alta', id: m.id, ...o }, PWA_ORIGIN); } catch (e) { /* Despacho se ha cerrado: el ticket queda en ATGO */ } };
     if (altasUsadas.has(m.id)) return;
     altasUsadas.add(m.id);

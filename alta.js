@@ -2,18 +2,19 @@
 // Mismos campos y orden que «Alta rápida de incidencia» del ERP, sin Actuación. Las listas y el alta se hacen en la pestaña de ATGO
 // (atgo-sync.js: altaListas y altaCrear). Un alta se envía una sola vez: nunca se reintenta sola, porque crearía un ticket duplicado.
 const ALTA_ESPERA_MS = 60000, ALTA_DEBOUNCE_MS = 300, ALTA_MIN_BUSCA = 2, ALTA_DUPLICADO_MS = 30 * 60000;
+const ALTA_SEDES_KEY = 'dispatcher_alta_sedes_v1', ALTA_SEDES_CLIENTES = 40, ALTA_SEDES_ESPERA_MS = 45000;   // caché: se reconstruye sola, no va en la copia de seguridad
 const ALTA_MAX = { ref: 50, recepcion: 2000, descripcion: 4000 };
 const ALTA_BUSCADORES = { cliente: 'Cliente', sede: 'Sede', elemento: 'Elemento', proyecto: 'Proyecto' };
 function altaVacia() {
-  return { cliente: null, sede: null, elemento: null, proyecto: null, textos: {}, severidades: [], estados: [], operarios: [], sedesCli: null, todasSedes: false, severidad: '', estado: '', operario: '', fecha: '', desde: '', hasta: '', ref: '', recepcion: '', descripcion: '', error: '', incierto: false, enviando: false, idEnvio: '', resultado: null };
+  return { cliente: null, sede: null, elemento: null, proyecto: null, textos: {}, severidades: [], estados: [], operarios: [], sedesCli: null, sedesCargando: false, sedesListas: false, sedesError: '', todasSedes: false, severidad: '', estado: '', operario: '', fecha: '', desde: '', hasta: '', ref: '', recepcion: '', descripcion: '', error: '', incierto: false, enviando: false, idEnvio: '', resultado: null };
 }
-let altaEst = altaVacia(), altaRes = {}, altaUltima = {}, altaT = {}, altaEsperaT = null, altaRecientes = [];
+let altaEst = altaVacia(), altaRes = {}, altaUltima = {}, altaT = {}, altaEsperaT = null, altaSedesT = null, altaRecientes = [];
 const altaId = () => 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 function altaOcupada() { return altaEst.enviando; }
 
 function abrirAlta() {
   if (!hiloFuente()) { toast('Conecta ATGO (Ajustes › General) y repítelo'); return; }
-  if (!atgoCaps.includes('alta')) { confirmar('<b>Falta actualizar la extensión</b><p>Para crear incidencias, instala la extensión 2.2.1 desde Ajustes › General y recarga la pestaña de ATGO.</p>', 'Entendido'); return; }
+  if (!atgoCaps.includes('alta')) { confirmar('<b>Falta actualizar la extensión</b><p>Para crear incidencias, instala la última extensión desde Ajustes › General y recarga la pestaña de ATGO.</p>', 'Entendido'); return; }
   if (altaEst.resultado) altaEst = altaVacia();
   const m = document.getElementById('modal');
   m.innerHTML = '<div class="md-box md-alta" id="altaBox"></div>'; m.hidden = false;
@@ -77,7 +78,7 @@ function altaCargarListas() {
   altaPedir('severidad');
   if (!altaEst.estados.length) altaPedir('estado');
   if (!altaEst.operarios.length) altaPedir('operario');
-  if (altaEst.cliente && altaEst.sedesCli === null) altaPedir('sedes-cliente');
+  if (altaEst.cliente && !altaEst.sedesCargando && !altaEst.sedesListas) altaPedirSedes();
 }
 function altaPintarListas() {
   const a = altaEst, sev = document.getElementById('al-severidad'), est = document.getElementById('al-estado'), op = document.getElementById('al-op'); if (!sev || !est || !op) return;
@@ -88,9 +89,16 @@ function altaPintarListas() {
 function recibirAltaLista(m) {
   if (m.id !== altaUltima[m.que]) return;   // respuesta de una búsqueda anterior
   if (m.que === 'sedes-cliente') {
-    altaEst.sedesCli = m.ok ? m.items : []; altaEst.sedesError = m.ok ? '' : errorAtgo(m.error);
-    const inp = document.getElementById('al-sede');
-    if (inp && document.activeElement === inp && !altaEst.sede && !altaEst.todasSedes) altaPintarSedes();
+    const a = altaEst;
+    if (m.ok && m.items.length) a.sedesCli = altaMezclarSedes(a.sedesCli || [], m.items);
+    if (!m.parcial) {
+      clearTimeout(altaSedesT);
+      a.sedesCargando = false; a.sedesListas = true; a.sedesError = m.ok ? '' : errorAtgo(m.error);
+      if (a.sedesCli === null) a.sedesCli = [];
+      if (a.cliente && a.sedesCli.length) altaGuardarSedes(a.cliente.v, a.sedesCli);
+      if (m.tiempos) diagLog('Sedes del cliente: ' + Object.entries(m.tiempos).map(([k, v]) => k + ' ' + v).join(' · '), 'alta');
+    }
+    altaRepintarSedes();
     return;
   }
   if (m.que === 'severidad' || m.que === 'estado' || m.que === 'operario') {
@@ -123,23 +131,51 @@ function altaSoltar(que) {
 // Al cambiar de cliente, la sede y el proyecto elegidos dejan de valer
 function altaReiniciarCliente() {
   const a = altaEst;
-  a.sede = null; a.proyecto = null; a.sedesCli = null; a.todasSedes = false; a.textos.sede = ''; a.textos.proyecto = '';
+  clearTimeout(altaSedesT);
+  a.sede = null; a.proyecto = null; a.sedesCli = null; a.sedesCargando = false; a.sedesListas = false; a.sedesError = ''; a.todasSedes = false; a.textos.sede = ''; a.textos.proyecto = '';
   ['sede', 'proyecto'].forEach(q => {
     const inp = document.getElementById('al-' + q), res = document.getElementById('alRes-' + q);
     if (inp) { inp.value = ''; inp.disabled = !a.cliente; inp.placeholder = altaPista(q); }
     if (res) res.hidden = true;
   });
 }
+// Sedes de cada cliente guardadas en este PC: salen al instante mientras ATGO confirma por detrás
+function altaMezclarSedes(a, b) {
+  const m = new Map(); [...a, ...b].forEach(x => m.set(String(x.v), x));
+  return [...m.values()].sort((x, y) => x.l.localeCompare(y.l, 'es', { numeric: true }));
+}
+function altaGuardarSedes(cli, items) {
+  const g = lsGet(ALTA_SEDES_KEY, {}); g[cli] = { ts: Date.now(), items: items.slice(0, 500) };
+  Object.entries(g).sort((a, b) => b[1].ts - a[1].ts).slice(ALTA_SEDES_CLIENTES).forEach(([k]) => delete g[k]);
+  lsSet(ALTA_SEDES_KEY, g);
+}
+function altaPedirSedes() {
+  const a = altaEst, g = lsGet(ALTA_SEDES_KEY, {})[a.cliente.v];
+  a.sedesCli = g ? g.items : null; a.sedesCargando = true; a.sedesListas = false; a.sedesError = '';
+  const id = altaPedir('sedes-cliente');
+  clearTimeout(altaSedesT);
+  altaSedesT = setTimeout(() => {
+    if (altaUltima['sedes-cliente'] !== id || !altaEst.sedesCargando) return;
+    const e = altaEst; e.sedesCargando = false; e.sedesListas = true; if (e.sedesCli === null) e.sedesCli = [];
+    if (!e.sedesCli.length) e.sedesError = 'ATGO está tardando demasiado. Busca en todas las sedes.';
+    altaRepintarSedes();
+  }, ALTA_SEDES_ESPERA_MS);
+  if (!id) { a.sedesCargando = false; a.sedesListas = true; if (a.sedesCli === null) a.sedesCli = []; a.sedesError = 'Sin conexión con la pestaña de ATGO'; }
+}
+function altaRepintarSedes() {
+  const a = altaEst, inp = document.getElementById('al-sede'), res = document.getElementById('alRes-sede');
+  if (inp && res && !a.sede && !a.todasSedes && (document.activeElement === inp || !res.hidden)) altaPintarSedes();
+}
 // Sedes del cliente elegido: se ven al entrar en el campo y se filtran al escribir, sin preguntar a ATGO cada vez
 function altaFocoSede() { if (altaEst.cliente && !altaEst.sede && !altaEst.todasSedes) altaPintarSedes(); }
 function altaPintarSedes() {
   const a = altaEst, res = document.getElementById('alRes-sede'); if (!res) return;
   res.hidden = false;
-  if (a.sedesCli === null) { res.innerHTML = '<div class="al-vacio">Cargando las sedes de este cliente…</div>'; return; }
-  const t = norm(a.textos.sede || '').trim();
-  altaRes.sede = a.sedesCli.filter(x => !t || norm(x.l).includes(t)).slice(0, 300);
-  const vacio = a.sedesError ? esc(a.sedesError) : a.sedesCli.length ? 'Ninguna sede coincide' : 'ATGO no indica sedes para este cliente';
+  const t = norm(a.textos.sede || '').trim(), todas = a.sedesCli || [];
+  altaRes.sede = todas.filter(x => !t || norm(x.l).includes(t)).slice(0, 300);
+  const vacio = a.sedesCargando ? 'Cargando las sedes de este cliente…' : a.sedesError ? esc(a.sedesError) : todas.length ? 'Ninguna sede coincide' : 'ATGO no indica sedes para este cliente';
   res.innerHTML = (altaRes.sede.length ? altaRes.sede.map((x, i) => `<button type="button" onclick="altaElegir('sede',${i})" onkeydown="altaTecla(event,'sede')">${esc(x.l)}</button>`).join('') : `<div class="al-vacio">${vacio}</div>`)
+    + (altaRes.sede.length && a.sedesCargando ? '<div class="al-vacio">Buscando más sedes en ATGO…</div>' : '')
     + '<button type="button" class="al-otras" onclick="altaBuscarEnTodas()" onkeydown="altaTecla(event,\'sede\')">¿No está? Buscar en todas las sedes</button>';
 }
 function altaBuscarEnTodas() {
@@ -153,6 +189,8 @@ function altaBuscarEnTodas() {
 function altaElegir(que, i) {
   const x = (altaRes[que] || [])[i]; if (!x) return;
   altaEst[que] = x; altaEst.textos[que] = x.l;
+  // Una sede encontrada fuera de la lista del cliente se recuerda para la próxima vez
+  if (que === 'sede' && altaEst.todasSedes && altaEst.cliente) { altaEst.sedesCli = altaMezclarSedes(altaEst.sedesCli || [], [x]); altaGuardarSedes(altaEst.cliente.v, altaEst.sedesCli); }
   const inp = document.getElementById('al-' + que), res = document.getElementById('alRes-' + que);
   if (inp) { inp.value = x.l; inp.focus(); } if (res) res.hidden = true;
   if (que === 'cliente') { altaReiniciarCliente(); altaEst.textos.cliente = x.l; altaCargarListas(); }

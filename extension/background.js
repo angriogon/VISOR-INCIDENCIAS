@@ -29,6 +29,83 @@ async function setEst(cambios) {
 const ahora = () => Date.now();
 const min = n => n * 60000;
 
+// ===== Sincronización firmada =====
+// atgo-sync.js se descarga de Despacho, pero solo se ejecuta si lo firmó la clave privada del responsable, que no está en GitHub.
+// Si la firma falla, es de una versión anterior o no hay red, se usa la última válida o la copia que lleva la extensión.
+const SYNC_URL = PWA_URL + 'atgo-sync.js', FIRMA_URL = PWA_URL + 'atgo-sync.firma.json';
+const CLAVE_SYNC = { kty: 'EC', crv: 'P-256', x: 'EVPbiPlcDt2sbw-SKqFMP9ZjHzfu82Z5MH381emTKmY', y: 'HbXZwssPKq-5ucE0A6dojqkEs_EgwYGkjgQCZgFbEHU' };
+const ENTRE_COMPROBACIONES_MIN = 5;
+const versionDe = codigo => (/const SYNC_VERSION = '(\d+\.\d+\.\d+)'/.exec(codigo) || [])[1] || '';
+function cmpVersion(a, b) {
+  const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number);
+  for (let i = 0; i < 3; i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) - (y[i] || 0); }
+  return 0;
+}
+async function firmaValida(codigo, f) {
+  if (!f || typeof f.firma !== 'string' || !f.v || versionDe(codigo) !== f.v) return false;
+  try {
+    const clave = await crypto.subtle.importKey('jwk', CLAVE_SYNC, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify']);
+    const firma = Uint8Array.from(atob(f.firma), c => c.charCodeAt(0));
+    return await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, clave, firma, new TextEncoder().encode('despacho-sync|' + f.v + '|' + codigo));
+  } catch (err) { return false; }
+}
+async function bajar(url) {
+  const ctrl = new AbortController(), to = setTimeout(() => ctrl.abort(), 10000);
+  try {
+    const r = await fetch(url + '?t=' + ahora(), { cache: 'no-store', signal: ctrl.signal });
+    if (!r.ok) throw new Error(String(r.status));
+    return await r.text();
+  } finally { clearTimeout(to); }
+}
+async function versionEmpaquetada() {
+  const r = await fetch(chrome.runtime.getURL('atgo-sync.js'));
+  return versionDe(await r.text());
+}
+// La versión válida más reciente, o null si lo mejor es la copia de la extensión
+async function syncFirmada() {
+  const empaquetada = await versionEmpaquetada();
+  const g = (await chrome.storage.local.get('syncFirmada')).syncFirmada;
+  let mejor = g && cmpVersion(g.firma.v, empaquetada) >= 0 && await firmaValida(g.codigo, g.firma) ? g : null;
+  try {
+    const [texto, json] = await Promise.all([bajar(SYNC_URL), bajar(FIRMA_URL)]);
+    const codigo = texto.replace(/\r\n/g, '\n'), firma = JSON.parse(json);
+    if (await firmaValida(codigo, firma) && cmpVersion(firma.v, mejor ? mejor.firma.v : empaquetada) >= 0) {
+      if (!mejor || cmpVersion(firma.v, mejor.firma.v) > 0) await chrome.storage.local.set({ syncFirmada: { codigo, firma } });
+      mejor = { codigo, firma };
+    }
+  } catch (err) { /* sin red o publicación a medias: sirve la última válida */ }
+  return mejor;
+}
+async function ejecutarSync(tabId) {
+  const s = await syncFirmada();
+  if (s) {
+    try {
+      const [r] = await chrome.scripting.executeScript({ target: { tabId }, world: 'MAIN', args: [s.codigo], func: codigo => {
+        const el = document.createElement('script'); el.textContent = codigo; document.documentElement.appendChild(el); el.remove();
+        return !!window.__despachoSync;
+      } });
+      if (r && r.result) return s.firma.v;
+    } catch (err) { /* se usa la copia de la extensión */ }
+  }
+  await chrome.scripting.executeScript({ target: { tabId }, world: 'MAIN', files: ['atgo-sync.js'] });
+  return versionEmpaquetada();
+}
+// Si hay una versión firmada más nueva que la que corre, se recarga solo la pestaña del guardián y solo si está libre
+async function pestanaOcupada(tab) {
+  try {
+    const [r] = await chrome.scripting.executeScript({ target: { tabId: tab.id }, world: 'MAIN', func: () => !!(window.__despachoSync && window.__despachoSync.ocupado && window.__despachoSync.ocupado()) });
+    return !r || r.result !== false;
+  } catch (err) { return true; }
+}
+async function comprobarVersionSync(tab, e) {
+  if (ahora() - (e.ultimaComprobacionSync || 0) < min(ENTRE_COMPROBACIONES_MIN)) return;
+  await setEst({ ultimaComprobacionSync: ahora() });
+  if (!e.syncEnPestana || tab.active || e.enLogin) return;
+  const s = await syncFirmada();
+  if (!s || cmpVersion(s.firma.v, e.syncEnPestana) <= 0 || await pestanaOcupada(tab)) return;
+  await recargar(tab, 'sincronización ' + s.firma.v);
+}
+
 // ===== Pestaña gestionada =====
 async function pestanaGestionada() {
   const e = await est();
@@ -94,6 +171,7 @@ async function revisar() {
     await setEst({ ultimoAviso: ahora() });
     avisar('sin-datos', 'ATGO no envía datos', 'Despacho lleva más de ' + AVISO_SIN_DATOS_MIN + ' minutos sin datos de ATGO, aunque se ha recargado la pestaña. Ábrela para ver qué pasa.');
   }
+  await comprobarVersionSync(tab, e);
 }
 
 function avisar(id, titulo, texto) {
@@ -153,11 +231,11 @@ chrome.runtime.onMessage.addListener((m, sender, responder) => {
     const e = await est();
     const desdeGestionada = sender.tab && sender.tab.id === e.tabId;
     switch (m && m.tipo) {
-      // Sincronización empaquetada en la extensión: se ejecuta en la página de ATGO, sin descargar código de ninguna web
+      // Se ejecuta en la página de ATGO la última sincronización con firma válida o, si no la hay, la copia de la extensión
       case 'arrancar-sync': {
         const c = await cfg();
         if (!sender.tab || !(sender.tab.url || '').startsWith(ATGO_ORIGIN) || (c.guardian && !desdeGestionada)) return responder(false);
-        try { await chrome.scripting.executeScript({ target: { tabId: sender.tab.id }, world: 'MAIN', files: ['atgo-sync.js'] }); return responder(true); }
+        try { const v = await ejecutarSync(sender.tab.id); if (desdeGestionada) await setEst({ syncEnPestana: v }); return responder(true); }
         catch (err) { return responder(false); }
       }
       // Puente de ATGO al cargar: ¿es la pestaña que gestiono?

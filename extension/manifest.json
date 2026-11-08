@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Despacho · sincronización con ATGO",
-  "version": "2.2.1",
+  "version": "2.3.0",
   "description": "Mantiene ATGO abierto en segundo plano, inicia sesión solo si caduca y envía los datos a Despacho.",
   "permissions": ["tabs", "alarms", "storage", "notifications", "scripting"],
   "host_permissions": ["https://atgo.tier1.es/*", "https://angriogon.github.io/*"],

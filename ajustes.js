@@ -3,13 +3,13 @@
 // asistente de inicio, diagnóstico, resumen matinal, aviso de técnico sin actividad y exportar a Excel.
 // Usa utilidades de app.js, dia.js, herramientas.js, edicion.js y panel.js solo en tiempo de llamada.
 
-const APP_VERSION = '1.36.1';   // súbela a la vez que VERSION en sw.js
+const APP_VERSION = '1.37.0';   // súbela a la vez que VERSION en sw.js
 const NOVEDADES = [
+  { v: '1.37.0', f: '2026-11-08', l: ['La extensión 2.3 actualiza sola la sincronización con ATGO, con firma digital: esta es la última vez que hay que instalarla por ese motivo.', 'Nueva incidencia: las sedes de cada cliente aparecen según llegan, sin esperas largas, y se recuerdan en este equipo para que la próxima vez salgan al instante.'] },
   { v: '1.36.1', f: '2026-11-08', l: ['Nueva incidencia: al elegir cliente, la sede se elige entre las de ese cliente. Estado y Operario muestran todos los de ATGO, y la ventana y sus listas son más amplias.', 'Hay que instalar la extensión 2.2.1 desde Ajustes › General y recargar la pestaña de ATGO.'] },
   { v: '1.36.0', f: '2026-11-08', l: ['«Nueva incidencia»: crea tickets en ATGO con los campos del alta rápida, desde Incidencias o desde «Más» en Mi día. Pide confirmación, comprueba el ticket creado y aparece en «Mis cambios».', 'Hay que instalar la extensión 2.2 desde Ajustes › General y recargar la pestaña de ATGO.'] },
   { v: '1.35.2', f: '2026-11-08', l: ['El botón «Deshacer» del aviso tras asignar ya se lee bien.'] },
-  { v: '1.35.1', f: '2026-11-08', l: ['El aviso «Asignación guardada» con el botón «Deshacer» se cierra solo a los 10 segundos.'] },
-  { v: '1.35.0', f: '2026-11-08', l: ['Mi día: «Qué hacer ahora» ordena por riesgo lo que hay que atender. En «Más»: «Propuesta del día» (reparte lo pendiente de asignar para que lo revises) y «Mañana listo» (lo que falta por dejar resuelto).', 'Aviso cuando la visita es posterior a la caducidad: en la ficha y al planificar.', 'Técnicos: habilidades y ausencias de media jornada; se tienen en cuenta al recomendar.', 'Control: semáforo y carga por DSP, antigüedad, listas «Caducarán» y «Estancadas», e informe diario automático.', 'Incidencias: vista de tabla densa.', 'Mejor contraste y letra mínima de 11 px, iconos propios y ventana con el título «Despacho».', 'Corregido: la fecha del seguimiento de las notas y el recuerdo del proyecto en los perfiles DSP.', 'Extensión 2.1: ya no descarga la sincronización de internet, no cierra la sesión antes de tiempo y no recarga una pestaña de ATGO abierta a mano. Hay que instalarla de nuevo.'] }
+  { v: '1.35.1', f: '2026-11-08', l: ['El aviso «Asignación guardada» con el botón «Deshacer» se cierra solo a los 10 segundos.'] }
 ];
 // Resumen de lo más importante de las versiones anteriores a las 5 últimas (se ve en ⓘ › Anteriores)
 const ANTERIORES = [
@@ -42,9 +42,10 @@ const ANTERIORES = [
   'Proyecto en la ficha y orden por columnas en Control',
   'Extensión: guardián de la pestaña de ATGO e inicio de sesión automático',
   'Conflictos sede-técnicos en Mi día',
-  'Revisión de la mañana'
+  'Revisión de la mañana',
+  'Qué hacer ahora, Propuesta del día y Mañana listo'
 ];
-const NOV_VISIBLES = 5, ANTERIORES_HASTA = '1.34';   // al añadir una versión, quita la más antigua de NOVEDADES y resúmela aquí si importa
+const NOV_VISIBLES = 5, ANTERIORES_HASTA = '1.35';   // al añadir una versión, quita la más antigua de NOVEDADES y resúmela aquí si importa
 const NOV_KEY = 'dispatcher_version_vista_v1', DIAG_KEY = 'dispatcher_diag_v1', BIENV_KEY = 'dispatcher_bienvenida_v1', DATOS_VER_KEY = 'dispatcher_datos_version_v1';
 
 // ---- Novedades de la versión ----
@@ -387,7 +388,7 @@ function renderCfg() {
       <div class="cfg-t">${esc(document.getElementById('fileStatus').textContent)}${esc(document.getElementById('atgoStatus').textContent)}</div>
       ${ultimaCarga && ultimaCarga.s != null ? `<div class="cfg-t">Última carga: ${ultimaCarga.ops != null ? plural(ultimaCarga.ops, 'técnico') + ' en ' : ''}${ultimaCarga.s} s${ultimaCarga.s > 90 ? ' · lenta: avisa si pasa a menudo' : ''}</div>` : ''}
       <div class="acts"><button class="btn sm pri" onclick="event.stopPropagation();actualizarAhora()" title="Trae ya los datos de ATGO, sin esperar a los 2 minutos ni recargar, y busca una versión nueva de Despacho">⟳ ACTUALIZAR</button><button class="btn sm" onclick="abrirAtgo()">Abrir ATGO</button><button class="btn sm" onclick="forzarAtgo()" title="Si ATGO se queda pillado: lo recarga desde cero y rehace la conexión">⟳ Forzar reconexión</button><button class="btn sm" onclick="elegirExcel()">Importar Excel</button><button class="btn sm ghost" onclick="abrirAsistente()">Asistente de inicio</button></div>
-      <div class="cfg-t">Extensión para Chrome y Edge (2.1): <a href="despacho-extension.zip" download>descargar</a>. Descomprímela, sustituye la carpeta anterior y pulsa ⟳ en chrome://extensions.</div>
+      <div class="cfg-t">Extensión para Chrome y Edge: <a href="despacho-extension.zip" download>descargar</a>. Descomprímela, sustituye la carpeta anterior y pulsa ⟳ en chrome://extensions. La sincronización se actualiza sola.</div>
       <div class="cfg-t">Tema, color, tamaño y accesibilidad: en la pestaña <a href="#" onclick="event.preventDefault();event.stopPropagation();cfgTab='apa';renderCfg()">Apariencia</a>.</div>
       <div class="cfg-h">Resúmenes y avisos del día</div>
       <div class="cfg-row"><label><input type="checkbox" ${tecCfg.resumenOn !== false ? 'checked' : ''} onchange="setPref('resumenOn',this.checked)"> Resumen matinal a las</label><input type="time" aria-label="Hora del resumen matinal" value="${esc(tecCfg.resumenHora || '08:00')}" onchange="setPref('resumenHora',this.value)"></div>

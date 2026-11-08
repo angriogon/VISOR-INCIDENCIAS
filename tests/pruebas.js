@@ -243,7 +243,8 @@ igual('orden visita: próximas primero; luego sin fecha; al final las pasadas',
   igual('Alta: un mismo envío nunca crea dos tickets', /altasUsadas\.has\(m\.id\)\) return;/.test(sync), true);
   igual('Alta: una sola llamada de creación', sync.split("/incidencias/alta'").length - 1, 1);
   igual('Alta: Estado muestra todos los estados, no solo los iniciales', /rutaEstados = \(\) => '\/estados'/.test(sync), true);
-  igual('Alta: las sedes por cliente comprueban que ATGO aplica el filtro', /filtraCliente/.test(sync) && /__SIN_CLIENTE__/.test(sync), true);
+  igual('Alta: las sedes por cliente comprueban que ATGO aplica el filtro', /filtraDeVerdad/.test(sync) && /__SIN_CLIENTE__/.test(sync), true);
+  igual('Alta: cada consulta de sedes tiene tiempo máximo', /ctrl\.abort\(\), ALTA_SEDES_MS/.test(sync), true);
   igual('Alta: la sincronización anuncia la capacidad', /caps: \[[^\]]*'alta'/.test(sync), true);
 }
 
@@ -277,8 +278,20 @@ const scripts = [...html.matchAll(/<script src="([a-z-]+\.js)"/g)].map(m => m[1]
 scripts.forEach(f => [...leer(f).matchAll(/^(?:async\s+)?function\s+([\w$]+)/gm)].forEach(m => { (defs[m[1]] = defs[m[1]] || []).push(f); }));
 igual('sin funciones globales duplicadas', Object.entries(defs).filter(([, l]) => l.length > 1).map(([n, l]) => n + ': ' + l.join(', ')), []);
 const nl = s => s.replace(/\r\n/g, '\n');
-igual('la extensión lleva la misma atgo-sync.js que la web', nl(leer('extension/atgo-sync.js')) === nl(leer('atgo-sync.js')), true);
-igual('la extensión no descarga código', /\.src\s*=|importScripts|fetch\(/.test(leer('extension/background.js') + leer('extension/puente-atgo.js') + leer('extension/puente-despacho.js')), false);
+{
+  const cripto = require('crypto'), web = nl(leer('atgo-sync.js')), bg = leer('extension/background.js'), f = JSON.parse(leer('atgo-sync.firma.json'));
+  const vSync = c => (/const SYNC_VERSION = '([\d.]+)'/.exec(c) || [])[1], num = v => v.split('.').reduce((t, x) => t * 1000 + Number(x), 0);
+  const jwk = JSON.parse(/const CLAVE_SYNC = (\{[^}]+\})/.exec(bg)[1].replace(/(\w+):/g, '"$1":').replace(/'/g, '"'));
+  const clave = cripto.createPublicKey({ key: jwk, format: 'jwk' });
+  const vale = codigo => cripto.verify('sha256', Buffer.from('despacho-sync|' + f.v + '|' + codigo), { key: clave, dsaEncoding: 'ieee-p1363' }, Buffer.from(f.firma, 'base64'));
+  igual('atgo-sync.js publicado tiene firma válida', vale(web), true);
+  igual('la firma es de la versión publicada', f.v, vSync(web));
+  igual('una sincronización alterada no pasa la firma', vale(web + ' '), false);
+  igual('la copia de la extensión no es más nueva que la web', num(vSync(nl(leer('extension/atgo-sync.js')))) <= num(vSync(web)), true);
+  igual('la clave privada no está en el repositorio', /"d"\s*:/.test(leer('atgo-sync.firma.json')) || fs.existsSync(path.join(raiz, 'firma-atgo-sync.jwk')), false);
+}
+igual('los puentes de la extensión no descargan código', /\.src\s*=|importScripts|fetch\(/.test(leer('extension/puente-atgo.js') + leer('extension/puente-despacho.js')), false);
+igual('el guardián solo descarga con su URL y comprueba la firma antes de usarlo', /\.src\s*=|importScripts/.test(leer('extension/background.js')) === false && /await firmaValida\(codigo, firma\)/.test(leer('extension/background.js')), true);
 igual('los scripts no usan localStorage directamente salvo en lsGet/lsSet y el liberador de espacio', scripts.filter(f => !['dia.js', 'ajustes.js'].includes(f) && /localStorage\./.test(leer(f))), []);
 
 // ---- Habilidades, ausencias parciales y visita después de caducar ----
