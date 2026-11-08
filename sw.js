@@ -1,6 +1,6 @@
 // Service worker del Panel de Despacho.
 // Sube VERSION cada vez que publiques cambios para que la app instalada se actualice.
-const VERSION = 'despacho-v1.38.0';
+const VERSION = 'despacho-v1.38.1';
 const SHELL = [
   './',
   './index.html',
@@ -56,7 +56,8 @@ self.addEventListener('fetch', (event) => {
   if (req.mode === 'navigate') {
     event.respondWith((async () => {
       try {
-        const fresh = await fetch(req);
+        // no-cache: siempre se pregunta al servidor; si no, la caché del navegador podía servir una página de hace 10 min
+        const fresh = await fetch(req.url, { cache: 'no-cache', credentials: 'same-origin' });
         const cache = await caches.open(VERSION);
         cache.put('./index.html', fresh.clone());
         return fresh;
@@ -66,6 +67,9 @@ self.addEventListener('fetch', (event) => {
     })());
     return;
   }
+
+  // Actualización completa: directo a la red
+  if (req.cache === 'reload') return;
 
   // Resto (iconos, librería, fuentes): primero caché, si no, red y se guarda.
   event.respondWith((async () => {

@@ -4,7 +4,7 @@ Archivo de traspaso entre sesiones. Al empezar una sesión: «lee docs/ESTADO.md
 Máximo ~40 líneas: lo antiguo se resume o se borra (el detalle está en git y en `NOVEDADES` de `ajustes.js`).
 
 ## Versión actual
-- `sw.js` despacho-v1.38.0 = `APP_VERSION` (ajustes.js). `SYNC_VERSION` 1.38.0 (atgo-sync.js = app.js). Extensión 2.3.0: descarga la sincronización firmada (`tools/firmar-sync.mjs`; clave en `%USERPROFILE%\.despacho`, si se pierde hay que generar otra y reinstalar).
+- `sw.js` despacho-v1.38.1 = `APP_VERSION` (ajustes.js). `SYNC_VERSION` 1.38.0 (atgo-sync.js = app.js). Extensión 2.3.0: descarga la sincronización firmada (`tools/firmar-sync.mjs`; clave en `%USERPROFILE%\.despacho`, si se pierde hay que generar otra y reinstalar).
 - 1.35.0 (auditoría, lotes 1–5 y mejoras sin API; publicada el 2026-11-08): ver NOVEDADES. Nuevo `prioridades.js`.
   Control: `ctlPorDsp`, `CTL_EDADES`, vistas pron/esta, `revisarInformeAuto`. Nómina: `hab` y `vac[].p` ('m'/'t'). Incidencias: `tecCfg.vistaInc`.
   CSS: limpieza comprobada sin diferencias en 83.224 elementos; después, contraste AA y letra mínima de 11 px.

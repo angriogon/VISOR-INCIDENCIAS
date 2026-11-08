@@ -446,10 +446,37 @@ const SYNC_VERSION = '1.38.0';
 let syncVieja = false;   // 'atgo': la pestaña de ATGO es más antigua · 'app': Despacho es más antiguo · false: iguales
 function cmpVer(a, b){ const x = String(a || '0').split('.').map(Number), y = String(b || '0').split('.').map(Number); for (let i = 0; i < 3; i++){ if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) - (y[i] || 0); } return 0; }
 // Borra la copia guardada de Despacho y recarga desde el servidor (notas, perfiles y ajustes no se tocan)
+// Actualización completa, como Ctrl+F5: GitHub Pages deja los archivos 10 min en la caché del navegador y una recarga normal podría reutilizarlos.
+// Sin conexión no se toca nada, para no perder la copia que permite abrir Despacho.
+let actualizandoApp = false;
+async function borrarCachesApp(){ try{ for (const k of await caches.keys()) await caches.delete(k); }catch(e){ /* se sigue con el resto de la limpieza */ } }
 async function actualizarDespacho(){
-  try{ for (const k of await caches.keys()) await caches.delete(k); }catch(e){ /* se sigue con el resto de la limpieza */ }
-  try{ const regs = await navigator.serviceWorker.getRegistrations(); for (const r of regs) await r.unregister(); }catch(e){ /* se sigue con el resto de la limpieza */ }
+  if (actualizandoApp) return;
+  actualizandoApp = true;
+  try{ const r = await fetch('sw.js?comprobar=' + Date.now(), { cache: 'no-store' }); if (!r.ok) throw new Error(String(r.status)); }
+  catch(e){
+    actualizandoApp = false;
+    const b = document.getElementById('updateBtn'); if (b){ b.disabled = false; b.textContent = 'Actualizar'; }
+    toast('Sin conexión: inténtalo cuando vuelva'); return;
+  }
+  await borrarCachesApp();
+  const archivos = ['./', ...[...document.querySelectorAll('script[src], link[rel="stylesheet"][href]')].map(e => e.src || e.href).filter(u => u.startsWith(location.origin))];
+  await Promise.all(archivos.map(u => fetch(u, { cache: 'reload' }).catch(() => null)));
+  await borrarCachesApp();   // lo que el service worker antiguo haya guardado mientras tanto
+  // No se quita el service worker: sin él, el navegador reutilizaría de su memoria los archivos ya cargados y seguiría la versión antigua
+  try{ const reg = await navigator.serviceWorker.getRegistration(); if (reg) await reg.update(); }catch(e){ /* se recarga igualmente */ }
   location.reload();
+}
+// Botón «Actualizar»: usa la versión que esté esperando ahora (la del aviso pudo quedar sustituida por otra más nueva).
+// Si en unos segundos no se ha recargado, hace la actualización completa: nunca se queda sin hacer nada.
+const ACTUALIZAR_ESPERA_MS = 5000;
+async function pulsarActualizar(){
+  const b = document.getElementById('updateBtn');
+  if (b){ b.disabled = true; b.textContent = 'Actualizando…'; }
+  ssPon('despacho_actualizado', '1');
+  setTimeout(actualizarDespacho, ACTUALIZAR_ESPERA_MS);
+  try{ const reg = await navigator.serviceWorker.getRegistration(); if (reg && reg.waiting) reg.waiting.postMessage('skipWaiting'); }
+  catch(e){ diagLog('Actualizar: ' + e.message); }
 }
 let ultimaCarga = null;   // duración de la última carga de ATGO (se ve en Ajustes › General)
 // Tras cambiar de perfil (o si los datos guardados son de otro perfil) se avisa «Cargando DSPx…» hasta que
@@ -1031,34 +1058,33 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:'){
   window.addEventListener('load', async () => {
     try{
       const reg = await navigator.serviceWorker.register('sw.js');
-      const offerUpdate = (worker) => {
-        const bar = document.getElementById('updateBar');
-        bar.style.display = 'flex';
-        document.getElementById('updateBtn').onclick = () => worker.postMessage('skipWaiting');
+      const offerUpdate = () => {
+        document.getElementById('updateBar').style.display = 'flex';
+        document.getElementById('updateBtn').onclick = pulsarActualizar;
       };
       // Actualización silenciosa: si no estás haciendo nada (ningún campo en uso, ni ficha, ventana, buscador,
       // envío a ATGO o cola de rutas abiertos), se aplica sola; si no, se reintenta cada 20 s.
       const libre = () => !ocupado() && document.getElementById('modal').hidden && document.getElementById('drawer').hidden && document.getElementById('palette').hidden
         && document.getElementById('cfgMenu').hidden && !editPend && !altaOcupada() && !loteEnCurso && !rutasCola && !(document.getElementById('undoBar') && !document.getElementById('undoBar').hidden);
-      const offerUpdate0 = offerUpdate;
-      const offerUpdateSolo = (worker) => {
-        offerUpdate0(worker);
+      const offerUpdateSolo = () => {
+        offerUpdate();
         const intentar = () => {
           if (document.getElementById('updateBar').style.display !== 'flex') return;
-          if (libre()){ ssPon('despacho_actualizado', '1'); worker.postMessage('skipWaiting'); }
+          if (libre()){ if (reg.waiting){ ssPon('despacho_actualizado', '1'); reg.waiting.postMessage('skipWaiting'); } }
           else setTimeout(intentar, 20000);
         };
         setTimeout(intentar, 15000);
       };
-      if (reg.waiting && navigator.serviceWorker.controller) offerUpdateSolo(reg.waiting);
+      if (reg.waiting && navigator.serviceWorker.controller) offerUpdateSolo();
       reg.addEventListener('updatefound', () => {
         const nw = reg.installing;
         nw && nw.addEventListener('statechange', () => {
-          if (nw.state === 'installed' && navigator.serviceWorker.controller) offerUpdateSolo(nw);
+          if (nw.state === 'installed' && navigator.serviceWorker.controller) offerUpdateSolo();
         });
       });
-      let reloading = false;
-      navigator.serviceWorker.addEventListener('controllerchange', () => { if (!reloading){ reloading = true; location.reload(); } });
+      // Una página sin service worker (primera visita o tras Ctrl+F5) ya viene de la red: no hace falta recargarla al quedar controlada
+      let reloading = false, conControl = !!navigator.serviceWorker.controller;
+      navigator.serviceWorker.addEventListener('controllerchange', () => { if (!conControl){ conControl = true; return; } if (!reloading){ reloading = true; location.reload(); } });
     }catch(e){ console.warn('Service worker no registrado:', e); }
   });
 }
