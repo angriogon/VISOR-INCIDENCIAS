@@ -2,6 +2,18 @@
 // Nada de este archivo escribe en ATGO: las notas y el seguimiento se guardan en este equipo.
 // Usa utilidades de app.js (rows, esc, toast, norm, ZONAS, nextWorkday, ddmmyyyy, …) en tiempo de llamada.
 
+// Diagnóstico: en el primer archivo que se carga, para registrar también los fallos de arranque de los demás
+const DIAG_KEY = 'dispatcher_diag_v1';
+function diagLista() { return lsGet(DIAG_KEY, []) || []; }
+function diagLog(msg, src) { const l = diagLista(); l.unshift({ ts: Date.now(), msg: String(msg).slice(0, 300), src: String(src || '').slice(0, 120) }); lsSet(DIAG_KEY, l.slice(0, 40)); }
+// «true»: así llegan también los archivos propios que no se han podido cargar (no avisan de otro modo)
+window.addEventListener('error', e => {
+  const t = e.target;
+  if (t && t !== window) { const u = t.src || t.href || ''; if (/^(SCRIPT|LINK)$/.test(t.tagName || '') && u.startsWith(location.origin)) diagLog('No se pudo cargar el archivo', u.split('/').pop()); return; }
+  diagLog(e.message, (e.filename || '').split('/').pop() + ':' + e.lineno);
+}, true);
+window.addEventListener('unhandledrejection', e => diagLog('Promesa: ' + (e.reason && e.reason.message || e.reason)));
+
 const SNAP_KEY = 'dispatcher_snap_v1', EVT_KEY = 'dispatcher_eventos_v1', NOTAS_KEY = 'dispatcher_notas_v1';
 const ENV_KEY = 'dispatcher_envios_v1', AVI_KEY = 'dispatcher_avisos_v1';
 const PARADO_SIN_CAMBIOS = 3;   // días sin cambios para considerar un ticket parado

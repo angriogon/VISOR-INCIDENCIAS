@@ -3,13 +3,13 @@
 // asistente de inicio, diagnóstico, resumen matinal, aviso de técnico sin actividad y exportar a Excel.
 // Usa utilidades de app.js, dia.js, herramientas.js, edicion.js y panel.js solo en tiempo de llamada.
 
-const APP_VERSION = '1.38.1';   // súbela a la vez que VERSION en sw.js
+const APP_VERSION = '1.38.2';   // súbela a la vez que VERSION en sw.js
 const NOVEDADES = [
+  { v: '1.38.2', f: '2026-11-08', l: ['La página y el código llegan siempre juntos, de la misma versión. Nueva incidencia hace menos consultas a ATGO y le da más tiempo si va lento.'] },
   { v: '1.38.1', f: '2026-11-08', l: ['El botón «Actualizar» ya no se queda sin hacer nada: si la actualización normal no termina en unos segundos, hace una completa, como Ctrl+F5.'] },
   { v: '1.38.0', f: '2026-11-08', l: ['Arriba, siempre a la vista: Nueva incidencia, Plegar secciones y Desplegar secciones. La tabla densa de Incidencias es más compacta y llega hasta el final de la pantalla.', 'Control: informes por cliente y proyecto, tendencias, indicadores por técnico, equilibrio de carga y mapa nacional. El informe diario admite dos horas y se guarda en OneDrive.', 'Primera visita resuelta, confirmar la visita a la tienda, aviso de visita tras caducar en Incidencias y Planificación, tablero en la Propuesta del día y más avisos en Qué hacer ahora. El perfil se elige solo según tu usuario de ATGO.'] },
   { v: '1.37.1', f: '2026-11-08', l: ['Nueva incidencia: Sede y Proyecto son listas con solo lo que está confirmado para ese cliente. Despacho lo aprende de las incidencias cargadas y de los tickets creados, y lo recuerda en este equipo.'] },
-  { v: '1.37.0', f: '2026-11-08', l: ['La extensión 2.3 actualiza sola la sincronización con ATGO, con firma digital: esta es la última vez que hay que instalarla por ese motivo.', 'Nueva incidencia: las sedes de cada cliente aparecen según llegan, sin esperas largas, y se recuerdan en este equipo para que la próxima vez salgan al instante.'] },
-  { v: '1.36.1', f: '2026-11-08', l: ['Nueva incidencia: al elegir cliente, la sede se elige entre las de ese cliente. Estado y Operario muestran todos los de ATGO, y la ventana y sus listas son más amplias.', 'Hay que instalar la extensión 2.2.1 desde Ajustes › General y recargar la pestaña de ATGO.'] }
+  { v: '1.37.0', f: '2026-11-08', l: ['La extensión 2.3 actualiza sola la sincronización con ATGO, con firma digital: esta es la última vez que hay que instalarla por ese motivo.', 'Nueva incidencia: las sedes de cada cliente aparecen según llegan, sin esperas largas, y se recuerdan en este equipo para que la próxima vez salgan al instante.'] }
 ];
 // Resumen de lo más importante de las versiones anteriores a las 5 últimas (se ve en ⓘ › Anteriores)
 const ANTERIORES = [
@@ -47,7 +47,7 @@ const ANTERIORES = [
   'Nueva incidencia: alta de tickets en ATGO'
 ];
 const NOV_VISIBLES = 5, ANTERIORES_HASTA = '1.36';   // al añadir una versión, quita la más antigua de NOVEDADES y resúmela aquí si importa
-const NOV_KEY = 'dispatcher_version_vista_v1', DIAG_KEY = 'dispatcher_diag_v1', BIENV_KEY = 'dispatcher_bienvenida_v1', DATOS_VER_KEY = 'dispatcher_datos_version_v1';
+const NOV_KEY = 'dispatcher_version_vista_v1', BIENV_KEY = 'dispatcher_bienvenida_v1', DATOS_VER_KEY = 'dispatcher_datos_version_v1';
 
 // ---- Novedades de la versión ----
 function abrirNovedades() {
@@ -470,10 +470,6 @@ function anadirFestivo() {
 function quitarFestivo(f, z) { tecCfg.festivos = (tecCfg.festivos || []).filter(x => !(x.f === f && (x.z || '') === z)); saveTec(); renderCfg(); refreshVisible(); }
 
 // ---- Diagnóstico: registro local de errores ----
-function diagLista() { return lsGet(DIAG_KEY, []) || []; }
-function diagLog(msg, src) { const l = diagLista(); l.unshift({ ts: Date.now(), msg: String(msg).slice(0, 300), src: String(src || '').slice(0, 120) }); lsSet(DIAG_KEY, l.slice(0, 40)); }
-window.addEventListener('error', e => diagLog(e.message, (e.filename || '').split('/').pop() + ':' + e.lineno));
-window.addEventListener('unhandledrejection', e => diagLog('Promesa: ' + (e.reason && e.reason.message || e.reason)));
 function copiarDiagnostico() {
   const txt = [`Despacho ${APP_VERSION} · perfil ${PERFIL} · ${new Date().toLocaleString('es-ES')}`, navigator.userAgent,
     `Datos: ${source || 'ninguno'} · ${rows.length} incidencias · ${poolRows.length} sin asignar · última sincronización ${syncUltima ? new Date(syncUltima).toLocaleString('es-ES') : '—'}`,

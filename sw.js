@@ -1,6 +1,6 @@
 // Service worker del Panel de Despacho.
 // Sube VERSION cada vez que publiques cambios para que la app instalada se actualice.
-const VERSION = 'despacho-v1.38.1';
+const VERSION = 'despacho-v1.38.2';
 const SHELL = [
   './',
   './index.html',
@@ -52,18 +52,15 @@ self.addEventListener('fetch', (event) => {
   // Mapa: los mosaicos y la búsqueda de direcciones no se guardan en la caché de la app
   if (/tile\.openstreetmap\.org|nominatim\.openstreetmap\.org|router\.project-osrm\.org/.test(req.url)) return;
 
-  // Páginas: primero red (para recibir actualizaciones), si no hay conexión, caché.
+  // Páginas: la de esta misma versión. La nueva llega con la actualización, junto a su código: así nunca se mezclan
+  // una página nueva y un código antiguo (el código antiguo podría no encontrar lo que busca y no arrancar).
   if (req.mode === 'navigate') {
     event.respondWith((async () => {
-      try {
-        // no-cache: siempre se pregunta al servidor; si no, la caché del navegador podía servir una página de hace 10 min
-        const fresh = await fetch(req.url, { cache: 'no-cache', credentials: 'same-origin' });
-        const cache = await caches.open(VERSION);
-        cache.put('./index.html', fresh.clone());
-        return fresh;
-      } catch (e) {
-        return (await caches.match('./index.html')) || (await caches.match('./'));
-      }
+      const cache = await caches.open(VERSION), guardada = await cache.match('./index.html');
+      if (guardada) return guardada;
+      const fresh = await fetch(req.url, { cache: 'no-cache', credentials: 'same-origin' });
+      if (fresh.ok) cache.put('./index.html', fresh.clone());
+      return fresh;
     })());
     return;
   }
@@ -73,14 +70,11 @@ self.addEventListener('fetch', (event) => {
 
   // Resto (iconos, librería, fuentes): primero caché, si no, red y se guarda.
   event.respondWith((async () => {
-    const cached = await caches.match(req);
+    const cache = await caches.open(VERSION), cached = await cache.match(req);
     if (cached) return cached;
     try {
       const res = await fetch(req);
-      if (res && (res.ok || res.type === 'opaque')) {
-        const cache = await caches.open(VERSION);
-        cache.put(req, res.clone());
-      }
+      if (res && (res.ok || res.type === 'opaque')) cache.put(req, res.clone());
       return res;
     } catch (e) {
       return cached || Response.error();

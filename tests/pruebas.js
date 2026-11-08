@@ -260,6 +260,12 @@ igual('orden visita: próximas primero; luego sin fecha; al final las pasadas',
   igual('Alta: cada consulta del cliente tiene tiempo máximo', /ctrl\.abort\(\), ALTA_DATOS_MS/.test(sync), true);
   igual('Alta: solo se aceptan filas que confirman su cliente', /const delCliente = x => x\.codCli != null \? altaIgual\(x\.codCli, cli\) : x\.desCli != null/.test(sync), true);
   igual('Alta: las sedes no salen de los elementos', /elemento\?size=/.test(sync), false);
+  igual('Alta: sin consultas que ATGO no resuelve', /sede\?size=/.test(sync), false);
+  {
+    const sw = leer('sw.js'), nav = sw.slice(sw.indexOf("req.mode === 'navigate'"), sw.indexOf('Actualización completa'));
+    igual('La página sale de la caché de su versión antes que de la red', nav.indexOf('cache.match') > -1 && nav.indexOf('cache.match') < nav.indexOf('fetch('), true);
+    igual('El registro de errores se activa en el primer archivo', leer('dia.js').includes("window.addEventListener('error'") && !leer('ajustes.js').includes("window.addEventListener('error'"), true);
+  }
   {
     const m = vm.createContext({ lsGet: () => ({}), lsSet: () => true });
     vm.runInContext([extraer(altaSrc, 'function altaRecordarEn('), extraer(altaSrc, 'function altaGuardarMemoria('), 'var ALTA_MEM_CLIENTES = 300, ALTA_MEM_KEY = "k", guardado = null; lsSet = function (k, v) { guardado = v; };', extraer(altaSrc, 'function altaAprender(')].join('\n'), m);

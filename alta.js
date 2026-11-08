@@ -2,7 +2,7 @@
 // Mismos campos y orden que «Alta rápida de incidencia» del ERP, sin Actuación. Las listas y el alta se hacen en la pestaña de ATGO
 // (atgo-sync.js: altaListas y altaCrear). Un alta se envía una sola vez: nunca se reintenta sola, porque crearía un ticket duplicado.
 const ALTA_ESPERA_MS = 60000, ALTA_DEBOUNCE_MS = 300, ALTA_MIN_BUSCA = 2, ALTA_DUPLICADO_MS = 30 * 60000;
-const ALTA_MEM_KEY = 'dispatcher_alta_memoria_v1', ALTA_MEM_CLIENTES = 300, ALTA_DATOS_ESPERA_MS = 70000;
+const ALTA_MEM_KEY = 'dispatcher_alta_memoria_v1', ALTA_MEM_CLIENTES = 300, ALTA_DATOS_ESPERA_MS = 90000;
 const ALTA_POR_CLIENTE = { sede: ['sedes', 'sus sedes', 'en todas las sedes', '¿Sede nueva? Buscar en todas'], proyecto: ['proyectos', 'sus proyectos', 'en todos los proyectos', '¿No está? Buscar en todos'] };
 const ALTA_MAX = { ref: 50, recepcion: 2000, descripcion: 4000 };
 const ALTA_BUSCADORES = { cliente: 'Cliente', sede: 'Sede', elemento: 'Elemento', proyecto: 'Proyecto' };

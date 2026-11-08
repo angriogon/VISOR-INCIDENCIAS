@@ -23,7 +23,7 @@
   const TIMEOUT_MS = 120000;
   // Versión de este script: Despacho la compara con la suya (SYNC_VERSION en app.js) y avisa si esta pestaña
   // sigue con una versión antigua (hay que recargarla). Súbela cuando cambie este archivo.
-  const SYNC_VERSION = '1.38.0';
+  const SYNC_VERSION = '1.38.2';
 
   if (location.hostname !== 'atgo.tier1.es') { alert('Abre primero https://atgo.tier1.es e inicia sesión.'); return; }
 
@@ -485,9 +485,9 @@
   }
   const altaEtiquetaSede = s => { const d = String(s.sedeDescripcion || ''), c = s.codSede ? String(s.codSede).trim() : ''; return [c && d.startsWith(c) ? '' : c, s.entidadDescripcion, d].filter(Boolean).join('-'); };
   const altaEtiquetaProyecto = p => [p.numProy ?? p.codProyecto ?? p.codProy ?? p.id, p.codProy, p.desProy ?? p.desProyecto ?? p.descripcion].filter(x => x != null && x !== '').join(' - ');
-  // Sedes y proyectos de un cliente: solo se aceptan datos que confirmen ese cliente fila a fila, nunca «por estar en el filtro».
-  // Los elementos no sirven: una sede de un elemento puede ser de otro cliente. Cada consulta tiene tiempo máximo y lo hallado se envía según llega.
-  const ALTA_DATOS_MS = 40000, ALTA_FICHAS = 30;
+  // Sedes y proyectos de un cliente: salen de sus tickets, y cada fila debe confirmar ese cliente. ATGO no admite pedir sedes por cliente
+  // ni su catálogo de proyectos lo indica. Cada consulta tiene tiempo máximo y lo hallado se envía según llega.
+  const ALTA_DATOS_MS = 60000, ALTA_FICHAS = 30;
   const altaDatosCache = {};
   const altaLeerConLimite = async ruta => {
     const ctrl = new AbortController(), to = setTimeout(() => ctrl.abort(), ALTA_DATOS_MS);
@@ -512,15 +512,6 @@
       catch (e) { tiempos[nom] = (e.name === 'AbortError' ? 'tiempo agotado' : 'error') + ' · ' + (Date.now() - t0) + ' ms'; }
     };
     await Promise.all([
-      paso('sedes', async () => {
-        const f = altaFilas(await altaLeerConLimite('/sede?size=2000&q=codCli.equals=' + enc));
-        if (!f.length || !f.every(x => x.codCli != null && altaIgual(x.codCli, cli))) return 'sin cliente en la respuesta';
-        f.forEach(ponSede); avisa(); return f.length + ' filas';
-      }),
-      paso('proyectos', async () => {
-        const f = altaFilas(await altaLeerConLimite('/proyecto')).filter(x => x.codCli != null && altaIgual(x.codCli, cli));
-        f.forEach(ponProyecto); avisa(); return f.length + ' del cliente';
-      }),
       paso('tickets', async () => {
         const ruta = p => '/incidencias/listado?page=' + p + '&size=50&sort=fechaRegistro,desc&q=codCli.equals=' + enc;
         const [a, b] = await Promise.all([altaLeerConLimite(ruta(0)), altaLeerConLimite(ruta(1)).catch(() => null)]);
