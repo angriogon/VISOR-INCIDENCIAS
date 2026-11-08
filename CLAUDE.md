@@ -62,6 +62,7 @@ Publicada en GitHub Pages: https://angriogon.github.io/VISOR-INCIDENCIAS/
 | `prioridades.js` | Ventanas de ayuda al DSP: Qué hacer ahora (`queHacerLista`), Propuesta del día (`propuestaDia`), Mañana listo y `visitaTrasCaducar` |
 | `alta.js` | Ventana «Nueva incidencia» (`abrirAlta`): buscadores, confirmación y resultado. El alta la hace `altaCrear` en `atgo-sync.js` |
 | `analisis.js` | COORD: informes por cliente y proyecto, tendencias (`coordFotoHoy`), indicadores por técnico, equilibrio, mapa nacional. También `primeraVisitaResumen` (informe semanal) |
+| `movil.js` + `movil.firma.json` | Despacho móvil: vista de solo lectura que se abre dentro de la página de ATGO con un favorito que comprueba la firma. Lleva copias literales de funciones de la PWA (las pruebas exigen que coincidan: si cambias el original, copia también aquí). No forma parte de la PWA ni de `SHELL` |
 | `tests/pruebas.js` | Pruebas sin dependencias (duración, caducidad, coherencia de listas y versiones). GitHub Actions las ejecuta |
 | `atgo-sync.js` | Sincronización dentro de ATGO (lista `OPERARIOS`, códigos de `ESTADOS`, `REFRESCO_MIN`, edición) |
 | `sw.js` | Service worker: `VERSION` y lista `SHELL` de archivos cacheados |
@@ -77,7 +78,7 @@ Publicada en GitHub Pages: https://angriogon.github.io/VISOR-INCIDENCIAS/
 3. **Técnicos duplicados:** `ZONAS_BASE` (app.js) manda; `OPERARIOS` (atgo-sync.js) es el respaldo y debe coincidir.
    Asignar: siempre por `asignarLote` (también una sola) y técnico recomendado por `recomendar` (sugerirTecnico lo usa).
    Lo mismo con estados: por nombre en `ESTADOS` (app.js) y por código en `atgo-sync.js`.
-4. Si cambias `atgo-sync.js`, ejecuta `node tools/firmar-sync.mjs`: la extensión lo descarga y solo lo ejecuta con firma válida, sin reinstalarse (las pruebas fallan si falta la firma). La clave privada está en `%USERPROFILE%\.despacho` y nunca va al repositorio. Si cambias la propia `extension/` (guardián, puentes, permisos), sube su versión en `manifest.json`, copia antes `atgo-sync.js` a `extension/` y regenera `despacho-extension.zip`.
+4. Si cambias `atgo-sync.js` o `movil.js` (sube `MOVIL_VERSION`), ejecuta `node tools/firmar-sync.mjs`: la extensión lo descarga y solo lo ejecuta con firma válida, sin reinstalarse (las pruebas fallan si falta la firma). La clave privada está en `%USERPROFILE%\.despacho` y nunca va al repositorio. Si cambias la propia `extension/` (guardián, puentes, permisos), sube su versión en `manifest.json`, copia antes `atgo-sync.js` a `extension/` y regenera `despacho-extension.zip`.
 5. No elimines funcionalidades existentes al añadir otras. Si retiras algo, quita también su CSS, sus textos y, si guardaba datos,
    añade su clave a la migración de limpieza (`MIGRACIONES` en ajustes.js). No dejes archivos ni código sin uso.
 6. Cualquier escritura en ATGO debe pedir confirmación, verificarse después y no reintentarse sola.

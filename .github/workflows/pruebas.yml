@@ -41,7 +41,7 @@ jobs:
       - name: Preparar los archivos
         run: |
           mkdir _site
-          cp index.html styles.css manifest.webmanifest favicon.svg *.js *.png atgo-sync.firma.json despacho-extension.zip .nojekyll _site/
+          cp index.html styles.css manifest.webmanifest favicon.svg *.js *.png atgo-sync.firma.json movil.firma.json despacho-extension.zip .nojekyll _site/
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site

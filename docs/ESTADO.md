@@ -10,6 +10,8 @@ Máximo ~40 líneas: lo antiguo se resume o se borra (el detalle está en git y 
   CSS: limpieza comprobada sin diferencias en 83.224 elementos; después, contraste AA y letra mínima de 11 px.
 - Publicación: `.github/workflows/pruebas.yml` publica solo si pasan las pruebas. Pages ya usa «GitHub Actions» como fuente.
 
+- Despacho móvil 1.0.0 (`movil.js`): consulta en Android con el PC apagado; fase 0 validada en el móvil real (63 consultas, 200 incidencias, unos 50 s).
+
 ## Pendiente (espera al usuario)
 - Primer ticket real creado por el usuario el 2026-11-08 (2026/00/102390) y correcto. Por validar: que Sede y Proyecto solo traigan lo del cliente (Diagnóstico registra «Datos del cliente»).
 - Contraseña de ATGO en la extensión (S2) y dominio propio (S4): decisiones de empresa.

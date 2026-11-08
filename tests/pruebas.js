@@ -227,6 +227,23 @@ igual('orden visita: próximas primero; luego sin fecha; al final las pasadas',
   [vis('06/11/2026'), vis(''), vis('24/11/2026'), vis('19/10/2026'), vis('10/11/2026', '12:00'), vis('11/11/2026'), vis('10/11/2026', '08:00')].sort((a, b) => cov.ordenVisita(a, b, hoyOv)).map(x => (x.fVisita.slice(0, 5) || 'sin') + (x.desdeHora ? ' ' + x.desdeHora : '')),
   ['10/11 08:00', '10/11 12:00', '11/11', '24/11', 'sin', '06/11', '19/10']);
 
+// ---- Despacho móvil ----
+{
+  const sinCr = s => s.replace(/\r\n/g, '\n'), cripto = require('crypto'), mov = sinCr(leer('movil.js')), f = JSON.parse(leer('movil.firma.json')), bg = leer('extension/background.js');
+  const jwk = JSON.parse(/const CLAVE_SYNC = (\{[^}]+\})/.exec(bg)[1].replace(/(\w+):/g, '"$1":').replace(/'/g, '"'));
+  igual('movil.js publicado tiene firma válida', cripto.verify('sha256', Buffer.from('despacho-movil|' + f.v + '|' + mov), { key: cripto.createPublicKey({ key: jwk, format: 'jwk' }), dsaEncoding: 'ieee-p1363' }, Buffer.from(f.firma, 'base64')), true);
+  igual('la firma del móvil es de su versión', mov.includes("MOVIL_VERSION = '" + f.v + "'"), true);
+  igual('el móvil solo tiene una llamada a ATGO', mov.split('fetch(').length - 1, 1);
+  igual('el móvil nunca escribe en ATGO', /method\s*:|['"](POST|PUT|PATCH|DELETE)['"]|XMLHttpRequest|sendBeacon/.test(mov), false);
+  igual('el móvil no envía el token a otro sitio', (mov.match(/https?:\/\/[^'"\s)]+/g) || []).every(u => /atgo\.tier1\.es|google\.com\/maps|wa\.me/.test(u)), true);
+  const copias = [['f', 'app.js', 'function norm('], ['f', 'app.js', 'function cleanInitials('], ['f', 'app.js', 'function horaMin('], ['f', 'app.js', 'function esPresencial('], ['f', 'dia.js', 'function esCierre('], ['f', 'herramientas.js', 'function fechasEnTexto('], ['f', 'herramientas.js', 'function caducidadHiloCalc('], ['f', 'herramientas.js', 'function cadNivel('], ['f', 'herramientas.js', 'function zonaDeTexto('], ['f', 'atgo-sync.js', 'function proyectoDe('], ['f', 'atgo-sync.js', 'function mapTicket(']];
+  copias.forEach(([, a, c]) => { const o = extraer(sinCr(leer(a)), c), m = extraer(mov, c); igual('móvil igual que ' + a + ': ' + c, m === o, true); });
+  const bloque = (s, c) => { const i = s.indexOf(c), m = /[\]}];(?=[ \t]*(\/\/[^\n]*)?\n)/.exec(s.slice(i)); return s.slice(i, i + m.index + 2); };
+  [['app.js', 'const ZONAS_BASE ='], ['app.js', 'const ESTADO_COLOR ='], ['panel.js', 'const POOL_ZONA ='], ['dia.js', 'const HILO_SISTEMA ='], ['dia.js', 'const ESTADOS_CIERRE =']].forEach(([a, c]) => igual('móvil igual que ' + a + ': ' + c, bloque(mov, c) === bloque(sinCr(leer(a)), c), true));
+  ['const PROV_ZONA =', 'const PROV_RE =', 'const CAD_RE =', 'const MESES ='].forEach(c => igual('móvil igual que herramientas.js: ' + c, extraer(mov, c) === extraer(sinCr(leer('herramientas.js')), c), true));
+  igual('móvil usa los mismos estados que la sincronización', /const ESTADOS_ATGO = (\[[^\]]+\])/.exec(mov)[1], /const ESTADOS = (\[[^\]]+\])/.exec(sinCr(leer('atgo-sync.js')))[1]);
+}
+
 // ---- Primera visita resuelta ----
 {
   const an = leer('analisis.js'), m = vm.createContext({ hilos: {}, reincidencias: () => ({}), isoHoy: d => d.toISOString().slice(0, 10) });
