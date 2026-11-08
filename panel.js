@@ -402,6 +402,29 @@ function cargaHtml(op, f) {
 }
 
 // ===== Conflictos de planificación =====
+// Conflictos SEDE-TÉCNICOS (Mi día): una misma sede o dirección con incidencias en PRESENCIAL de dos técnicos distintos.
+// Dos tickets van juntos si coincide la sede o la dirección. Primero los que coinciden el mismo día; después, por fecha de visita.
+function conflictosSede() {
+  const disp = ZONAS_BASE.filter(z => z.dispatcher).flatMap(z => z.ops);
+  const l = rows.filter(r => { const op = cleanInitials(r.operario); return esPresencial(r) && op && !/^XXX/.test(op) && !disp.includes(op) && ((r.descSede || '').trim() || (r.domicilio || '').trim()); });
+  const padre = l.map((_, i) => i), raiz = i => padre[i] === i ? i : (padre[i] = raiz(padre[i])), visto = {};
+  l.forEach((r, i) => [(r.descSede || '').trim() && 's:' + sedeKey(r), (r.domicilio || '').trim() && 'd:' + norm(r.domicilio)].filter(Boolean).forEach(k => { if (k in visto) padre[raiz(i)] = raiz(visto[k]); else visto[k] = i; }));
+  const grupos = new Map(); l.forEach((r, i) => { const k = raiz(i); if (!grupos.has(k)) grupos.set(k, []); grupos.get(k).push(r); });
+  const orden = f => f ? f.split('/').reverse().join('') : '99999999';
+  return [...grupos.values()].map(g => {
+    const ops = [...new Set(g.map(r => cleanInitials(r.operario)))], porDia = {};
+    g.forEach(r => { if (r.fVisita) (porDia[r.fVisita] = porDia[r.fVisita] || new Set()).add(cleanInitials(r.operario)); });
+    const tickets = g.slice().sort((a, b) => orden(a.fVisita).localeCompare(orden(b.fVisita)) || horaMin(a.desdeHora) - horaMin(b.desdeHora));
+    return { ops, tickets, mismoDia: Object.keys(porDia).filter(f => porDia[f].size > 1).sort((a, b) => orden(a).localeCompare(orden(b))) };
+  }).filter(c => c.ops.length > 1).sort((a, b) => (b.mismoDia.length ? 1 : 0) - (a.mismoDia.length ? 1 : 0) || orden(a.mismoDia[0] || a.tickets[0].fVisita).localeCompare(orden(b.mismoDia[0] || b.tickets[0].fVisita)));
+}
+function conflictosSedeHtml(lista) {
+  if (!lista.length) return '<div class="dempty">Ninguna sede tiene incidencias en PRESENCIAL con dos técnicos distintos.</div>';
+  return `<div class="cs-l">${lista.map(c => { const r0 = c.tickets[0]; return `<div class="cs-g${c.mismoDia.length ? ' dia' : ''}">
+    <div class="cs-h"><b>${esc(r0.descSede || r0.domicilio)}</b><span class="cs-ops">${c.ops.map(op => `<i style="--c:${colorTec(op)}">${esc(op)}</i>`).join('')}</span>${c.mismoDia.length ? `<em>Mismo día · ${esc(c.mismoDia.map(f => f.slice(0, 5)).join(', '))}</em>` : ''}</div>
+    <small>${esc([r0.descCliente, r0.domicilio].filter(Boolean).join(' · '))}</small>
+    <ul class="tlist">${c.tickets.map(r => ticketLi(r, esc(r.fVisita ? r.fVisita.slice(0, 5) + (r.desdeHora ? ' ' + r.desdeHora : '') : 'Sin fecha'), c.mismoDia.includes(r.fVisita) ? 'due' : '')).join('')}</ul></div>`; }).join('')}</div>`;
+}
 function mismoSitio(a, b) { return (!!(a.descSede || '').trim() && sedeKey(a) === sedeKey(b)) || (!!(a.domicilio || '').trim() && norm(a.domicilio) === norm(b.domicilio)); }
 function conflictos(f) {
   const out = [];
@@ -682,7 +705,7 @@ function seccionesExtra() {
 }
 
 // ===== Secciones plegables de Mi día =====
-const PLIEGUE_DEF = { secNov: false, secTL: false };   // abiertas por defecto; el resto, plegadas
+const PLIEGUE_DEF = { secNov: false, secTL: false, secSedes: false };   // abiertas por defecto; el resto, plegadas
 function plegada(id) { return id in pliegues ? pliegues[id] : !(id in PLIEGUE_DEF); }
 function aplicarPliegues(root) {
   root.querySelectorAll('.dsec[id]').forEach(s => {

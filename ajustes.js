@@ -3,13 +3,13 @@
 // asistente de inicio, diagnóstico, resumen matinal, aviso de técnico sin actividad y exportar a Excel.
 // Usa utilidades de app.js, dia.js, herramientas.js, edicion.js y panel.js solo en tiempo de llamada.
 
-const APP_VERSION = '1.32.0';   // súbela a la vez que VERSION en sw.js
+const APP_VERSION = '1.33.0';   // súbela a la vez que VERSION en sw.js
 const NOVEDADES = [
+  { v: '1.33.0', f: '2026-11-08', l: ['Mi día: nuevo apartado «Conflictos sede-técnicos» y casilla «Sedes con 2 técnicos»: detecta de un vistazo una misma sede o dirección con incidencias en PRESENCIAL de dos técnicos distintos. Las que coinciden el mismo día salen primero, en rojo.'] },
   { v: '1.32.0', f: '2026-11-08', l: ['Extensión 2.0: mantiene una pestaña de ATGO fijada en segundo plano, la recarga o la reabre si se cierra, se cuelga o deja de enviar datos, e inicia sesión sola si caduca (usuario y contraseña en las opciones de la extensión). Ya no hace falta abrir ATGO.', 'Con la extensión 2.0, el botón ATGO enseña su pestaña y «Forzar reconexión» la recarga desde cero.'] },
   { v: '1.31.0', f: '2026-10-17', l: ['La ficha muestra el proyecto de la incidencia, junto al cliente (también al copiarla).', 'Control (COORD): pulsa la cabecera de una columna (Nº, Caducidad, Cliente · sede, Técnico, DSP, Estado…) para ordenar por ella; otra vez, al revés; la tercera, el orden normal. Por Estado quedan agrupados por orden alfabético. El Excel sale en el mismo orden.'] },
   { v: '1.30.0', f: '2026-10-17', l: ['Control (COORD): nuevo selector de Proyecto junto al de cliente, con los proyectos de sus incidencias y cuántas tiene cada uno. Selector de cliente más ancho.', 'El proyecto sale también en las listas y en el Excel. La primera vez se va completando en unas cargas de ATGO.', 'Recarga una vez la pestaña de ATGO (F5).'] },
-  { v: '1.29.1', f: '2026-10-17', l: ['⚙ › General › ACTUALIZAR: trae al momento los datos de ATGO, sin esperar a los 2 minutos ni recargar la página, y comprueba si hay versión nueva de Despacho.'] },
-  { v: '1.29.0', f: '2026-10-17', l: ['Control (COORD): la cifra «Abiertas» pasa a «Presencial», como el estado de ATGO, con el total de abiertas debajo.', 'Pulsar una cifra muestra su lista en el propio panel (nuevas pestañas Presencial y Todas), sin ir a Incidencias.', 'Al elegir un cliente se ven todas sus incidencias abiertas, también las ya asignadas.'] },
+  { v: '1.29.1', f: '2026-10-17', l: ['⚙ › General › ACTUALIZAR: trae al momento los datos de ATGO, sin esperar a los 2 minutos ni recargar la página, y comprueba si hay versión nueva de Despacho.'] }
 ];
 // Resumen de lo más importante de las versiones anteriores a las 5 últimas (se ve en ⓘ › Anteriores)
 const ANTERIORES = [
@@ -36,9 +36,10 @@ const ANTERIORES = [
   'Mapa al momento con las direcciones situadas en segundo plano',
   'Extensión para Chrome y Edge que sincroniza ATGO sola',
   'Actualización silenciosa y sincronización cada 2 minutos',
-  'Caducidad de Control sin contar FUERA DE MANTENIMIENTO'
+  'Caducidad de Control sin contar FUERA DE MANTENIMIENTO',
+  'Control con listas Presencial y Todas'
 ];
-const NOV_VISIBLES = 5, ANTERIORES_HASTA = '1.28.1';   // al añadir una versión, quita la más antigua de NOVEDADES y resúmela aquí si importa
+const NOV_VISIBLES = 5, ANTERIORES_HASTA = '1.29';   // al añadir una versión, quita la más antigua de NOVEDADES y resúmela aquí si importa
 const NOV_KEY = 'dispatcher_version_vista_v1', DIAG_KEY = 'dispatcher_diag_v1', BIENV_KEY = 'dispatcher_bienvenida_v1', DATOS_VER_KEY = 'dispatcher_datos_version_v1';
 
 // ---- Novedades de la versión ----

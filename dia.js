@@ -645,11 +645,13 @@ function renderDia(force) {
   const evHoy = eventos.filter(e => isoHoy(new Date(e.ts)) === isoHoy()).length;
   const mat = material(), cads = caducidadesProximas();
   const cadV = cads.filter(x => cadNivel(x.c) === 'venc').length, cadU = cads.filter(x => cadNivel(x.c) === 'urg').length;
+  const confSedes = conflictosSede(), confSedesDia = confSedes.filter(c => c.mismoDia.length).length;
   const tiles = [
     { go: 'secNov', n: nv.length, l: 'Novedades', s: `${evHoy} hoy`, hot: nv.some(evImportante) },
     { go: 'mio', n: mio.length, l: 'A tu nombre', s: 'por asignar', hot: mio.length > 0 },
     { go: 'sin', n: sinListas().mias.length, l: 'Sin asignar', s: 'pendientes en tu zona', hot: sinListas().mias.length > 0 },
     { go: 'man', n: `${rt.enviadas}/${rt.total}`, l: `Rutas ${DIAS[M.getDay()]}`, s: rt.cambiadas ? `${rt.cambiadas} cambiadas tras enviar` : 'enviadas', hot: rt.cambiadas > 0 || (rt.total > 0 && rt.enviadas < rt.total && ahora.getHours() >= 15) },
+    { go: 'secSedes', n: confSedes.length, l: 'Sedes con 2 técnicos', s: `${confSedesDia} el mismo día`, hot: confSedes.length > 0 },
     { go: 'secCad', n: cads.length, l: 'Caducidades', s: `${cadV} vencidas · ${cadU} en 24 h`, hot: cadV + cadU > 0 },
     { go: 'secMat', n: mat.enMaterial.length + mat.listos.length, l: 'Material', s: `${mat.listos.length} listos para visita`, hot: mat.listos.length > 0 }
   ];
@@ -675,6 +677,10 @@ function renderDia(force) {
       <section class="dsec" id="secTL"><div class="dsh"><h2>Hoy en directo</h2><small>visitas de hoy · hora prevista y real</small></div>${lineaTiempoHtml()}</section>
       </div>
       <div class="dcol">
+        <section class="dsec" id="secSedes">
+          <div class="dsh"><h2>Conflictos sede-técnicos</h2><small>Misma sede o dirección con dos técnicos en PRESENCIAL</small></div>
+          ${conflictosSedeHtml(confSedes)}
+        </section>
         ${seccionesExtra()}
         <section class="dsec" id="secCad">
           <div class="dsh"><h2>Caducidades</h2><small>Vencidas y próximas ${SLA_PRONTO_HORAS} h · según el hilo</small></div>

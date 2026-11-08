@@ -83,7 +83,7 @@ vm.runInContext([
   extraer(app, 'function zonaOps('), extraer(app, 'function zonaDe('), extraer(app, 'function opIndex('), extraer(app, 'function esPresencial('), extraer(app, 'function horaMin('), extraer(app, 'function sortByHora('), extraer(app, 'function ddmmyyyy('),
   extraer(dia, 'function tkey('), extraer(dia, 'const ESTADOS_CIERRE'), extraer(dia, 'function esCierre('),
   extraer(herr, 'const PROV_ZONA'), extraer(herr, 'const PROV_RE'), extraer(herr, 'function zonaTicket('), extraer(herr, 'function poblacionDe('),
-  extraer(panel, 'const POOL_ZONA'), extraer(herr, 'function zonaDeTexto('), extraer(panel, 'function zonaComodin('), extraer(panel, 'function zonaPool('), extraer(panel, 'function sedeKey('), extraer(panel, 'function mismaSede('), extraer(panel, 'function recomendar('), extraer(panel, 'function mismoSitio('), extraer(panel, 'function conflictos('), extraer(panel, 'function fmtMin('),
+  extraer(panel, 'const POOL_ZONA'), extraer(herr, 'function zonaDeTexto('), extraer(panel, 'function zonaComodin('), extraer(panel, 'function zonaPool('), extraer(panel, 'function sedeKey('), extraer(panel, 'function mismaSede('), extraer(panel, 'function recomendar('), extraer(panel, 'function mismoSitio('), extraer(panel, 'function conflictosSede('), extraer(panel, 'function conflictos('), extraer(panel, 'function fmtMin('),
   "let rows = [], poolOpsDesc = {}, duracionFija = {}; const JORNADA_MIN = 480; const tecCfg = {}; function cargaMin() { return 0; } function estimarMin(r) { return duracionFija[r.key] || null; } let bajasPrueba = []; function enBaja(op) { return bajasPrueba.includes(op); } function noDisponible(op) { return enBaja(op); }"
 ].join('\n'), cr);
 const T = (key, op, sede, extra) => ({ key, num: key.replace(/\//g, ''), operario: op, estado: 'PRESENCIAL', descSede: sede, descCliente: 'CARREFOUR', provincia: 'CEUTA', poblacion: 'CEUTA', fVisita: '', ...(extra || {}) });
@@ -207,6 +207,17 @@ igual('COORD: fuera de mantenimiento sin SLA; presencial y escalado sí', ['FUER
 const cpr = {}; vm.createContext(cpr);
 vm.runInContext(extraer(leer('atgo-sync.js'), 'function proyectoDe('), cpr);
 igual('proyecto: numProy o codProyecto; vacío o NULL = sin proyecto', [cpr.proyectoDe({ numProy: 1234 }), cpr.proyectoDe({ codProyecto: ' P-7 ' }), cpr.proyectoDe({ numProy: 'NULL' }), cpr.proyectoDe({})], ['1234', 'P-7', null, null]);
+
+// ---- Mi día: conflictos sede-técnicos ----
+const csFila = (key, op, sede, f, extra) => T(key, op, sede, { fVisita: f, domicilio: 'Calle ' + sede, ...(extra || {}) });
+vm.runInContext('rows = ' + JSON.stringify([
+  csFila('9/00/1', 'DSG', 'SEDE A', '20/10/2026'), csFila('9/00/2', 'ACAB', 'SEDE A', '22/10/2026'),           // dos técnicos, días distintos
+  csFila('9/00/3', 'LGV', 'SEDE B', '19/10/2026'), csFila('9/00/4', 'ADJC', 'OTRO NOMBRE', '19/10/2026', { domicilio: 'Calle SEDE B' }),   // misma dirección, mismo día
+  csFila('9/00/5', 'JVR', 'SEDE C', '19/10/2026'), csFila('9/00/6', 'JVR', 'SEDE C', '20/10/2026'),            // mismo técnico: no es conflicto
+  csFila('9/00/7', 'EACL', 'SEDE D', '19/10/2026'), csFila('9/00/8', 'AAR', 'SEDE D', '19/10/2026', { estado: 'EN FABRICANTE' }),          // el otro no está en PRESENCIAL
+  csFila('9/00/9', 'AMRG', 'SEDE E', ''), csFila('9/00/10', 'DSJ', 'SEDE E', '19/10/2026')                     // el dispatcher no cuenta
+]), cr);
+igual('conflictos sede: solo dos técnicos en PRESENCIAL, el mismo día primero', JSON.parse(JSON.stringify(cr.conflictosSede().map(c => [c.ops.slice().sort().join(), c.mismoDia]))), [['ADJC,LGV', ['19/10/2026']], ['ACAB,DSG', []]]);
 
 // ---- Coherencia de configuración ----
 const vSyncA = (leer('atgo-sync.js').match(/SYNC_VERSION = '([\d.]+)'/) || [])[1], vSyncP = (app.match(/SYNC_VERSION = '([\d.]+)'/) || [])[1];

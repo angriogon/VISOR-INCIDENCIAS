@@ -105,6 +105,8 @@ try {
     out.sinNombre = [...document.querySelectorAll('button')].filter(b => b.offsetParent && !(b.getAttribute('aria-label') || b.textContent.trim())).length;
     // ⚙ › General › ACTUALIZAR: pide los datos a la pestaña de ATGO sin recargar
     { const prev = atgoSource, pedidos = []; atgoSource = { closed: false, postMessage: m => pedidos.push(m.type) }; await actualizarAhora(); out.actualizar = pedidos.join() === 'despacho-refresh' && /Actualizar:/.test(document.getElementById('toast').textContent); atgoSource = prev; }
+    // Mi día: conflictos sede-técnicos (dos técnicos en la misma sede)
+    { const pres = rows.filter(r => esPresencial(r) && !/^XXX|AMRG/.test(r.operario)), a = pres[0], b = pres.find(r => r.operario !== a.operario), sede = [b.descSede, b.domicilio]; b.descSede = a.descSede; b.domicilio = a.domicilio; showTab('dia'); await paso(100); out.conflictoSede = !!document.querySelector('#secSedes .cs-g') && /Sedes con 2/.test(document.querySelector('.tiles').textContent); [b.descSede, b.domicilio] = sede; }
     // Lote: una pestaña de ATGO simulada contesta las 3 de una vez; las filas se actualizan sin recargar
     { const prevCaps = atgoCaps.slice(), prevSrc = atgoSource, prevConf = confirmar; const recibidos = [];
       atgoCaps = [...atgoCaps, 'editar', 'asignar', 'lote']; confirmar = async () => true;
@@ -116,7 +118,7 @@ try {
     out.errores = diagLista().map(d => d.msg);
     return out;
   }, payload);
-  const esperado = { actualizar: true, vacaciones: true, lote: 'despacho-editar-lote:3 · 3 · true', nomina: 69, bajaSelector: true, acento: '#0b8ad6', accesible: true, amplia: true, novedades: 6, sinNombre: 0, festivo: 'Fiesta Nacional', proxLab: '2026-10-13', viernesSanto: 'Viernes Santo', rellenar: true, contacto: true, sede: 4, misCambios: 1, sinCerrar: 1, olvidada: true, botonMisCambios: true, zonasDsp1: true, zonasDsp2: 0, ordenSin: '93,91,92', filtroDsp: 'DSP1', perfilDSP2: 16, perfilDSP5: 5, selectorCorto: true, selectorTodos: 70, filas: 6, sinAsignar: 1, avisoVersion: 'atgo', enCurso: 'c', marcadas: 1, buscador: true, duracion: true };
+  const esperado = { conflictoSede: true, actualizar: true, vacaciones: true, lote: 'despacho-editar-lote:3 · 3 · true', nomina: 69, bajaSelector: true, acento: '#0b8ad6', accesible: true, amplia: true, novedades: 6, sinNombre: 0, festivo: 'Fiesta Nacional', proxLab: '2026-10-13', viernesSanto: 'Viernes Santo', rellenar: true, contacto: true, sede: 4, misCambios: 1, sinCerrar: 1, olvidada: true, botonMisCambios: true, zonasDsp1: true, zonasDsp2: 0, ordenSin: '93,91,92', filtroDsp: 'DSP1', perfilDSP2: 16, perfilDSP5: 5, selectorCorto: true, selectorTodos: 70, filas: 6, sinAsignar: 1, avisoVersion: 'atgo', enCurso: 'c', marcadas: 1, buscador: true, duracion: true };
   for (const [k, v] of Object.entries(esperado)) if (r[k] !== v) errores.push(`${k}: esperado ${JSON.stringify(v)}, obtenido ${JSON.stringify(r[k])}`);
   for (const t of ['dia', 'sin', 'inc', 'sem', 'man']) if (!r['vista_' + t]) errores.push('La vista ' + t + ' está vacía');
   r.errores.forEach(e => errores.push('Diagnóstico: ' + e));

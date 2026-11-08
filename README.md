@@ -52,6 +52,7 @@ Lo que pide acción hoy:
 - Sin asignar de tu zona.
 - Rutas enviadas.
 - **Hoy en directo:** línea de tiempo por técnico.
+- **Conflictos sede-técnicos:** una misma sede o dirección con incidencias en PRESENCIAL de dos técnicos distintos; las del mismo día, primero.
 - Conflictos del próximo laborable (dos citas a la misma hora en la misma sede no cuentan como solape).
 - Caducidades y material.
 
