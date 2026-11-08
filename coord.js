@@ -153,7 +153,7 @@ function renderControl() {
     : ctlTabla(['Nº', 'Caducidad', 'Cliente · sede', 'Técnico', 'DSP', 'Estado'], (F[vista] || F.cad).map(ctlFila), { cad: 'Ninguna caducada con estos filtros.', hoy: 'Ninguna caduca hoy con estos filtros.', pron: 'Ninguna caduca en los próximos tres días.', esta: `Ninguna lleva más de ${ESTANCADA_DIAS} días sin movimiento.`, pres: 'Ninguna en PRESENCIAL con estos filtros.', todas: 'Ninguna incidencia abierta con estos filtros.' }[vista] || 'Nada con estos filtros.', 'main');
   root.innerHTML = `
     <div class="ctl-cab"><div><h2>Control</h2><span>${esc(diaLargo(new Date()))} · todos los DSP${syncUltima ? ' · ATGO ' + esc(hhmm(syncUltima)) : ''}</span></div>
-      <span class="acts">${typeof revisionBotonHtml === 'function' ? revisionBotonHtml() : ''}<button class="btn pri" onclick="ctlInforme()" title="Un Excel con el resumen por DSP y una hoja por lista (con los filtros puestos)">↓ Informe completo (Excel)</button></span></div>
+      <span class="acts">${anBotonesHtml()}${typeof revisionBotonHtml === 'function' ? revisionBotonHtml() : ''}<button class="btn pri" onclick="ctlInforme()" title="Un Excel con el resumen por DSP y una hoja por lista (con los filtros puestos)">↓ Informe completo (Excel)</button></span></div>
     <div class="ctl-kpis">
       ${kpi('pres', F.pres.length, 'Presencial', `de ${F.todas.length} abiertas en total`)}
       ${kpi('pend', F.pend.length, 'Sin asignar', '', F.pend.length ? 'warn' : '')}
@@ -210,22 +210,30 @@ async function ctlExcel(que) {
 // Informe diario: se descarga solo a la hora elegida si Despacho está abierto y con datos recientes (sin los filtros de la pantalla)
 const INFORME_KEY = 'dispatcher_informe_v1';
 async function revisarInformeAuto() {
-  if (!esCoord() || !tecCfg.informeOn || !horaPasada(tecCfg.informeHora || '09:00') || lsTexto(INFORME_KEY) === isoHoy()) return;
-  if (!syncUltima || Date.now() - syncUltima > 10 * 60000) return;
-  lsPonTexto(INFORME_KEY, isoHoy());
+  if (!esCoord() || !tecCfg.informeOn || !syncUltima || Date.now() - syncUltima > 10 * 60000) return;
+  const hoy = isoHoy(), g = lsTexto(INFORME_KEY) || '', hechos = g.startsWith(hoy) ? (g.split('|')[1] || '1') : '';
+  const horas = [['1', tecCfg.informeHora || '09:00'], ['2', tecCfg.informeHora2]].filter(x => x[1] && horaPasada(x[1]));
+  if (!horas.length || horas.every(x => hechos.includes(x[0]))) return;
+  lsPonTexto(INFORME_KEY, hoy + '|' + [...new Set([...hechos, ...horas.map(x => x[0])])].join(''));
   const antes = ctl; ctl = { ...ctl, dsp: '', cli: '', proy: '', q: '', edad: '' };
-  try { await ctlInforme(); } catch (e) { diagLog('Informe diario: ' + e.message); } finally { ctl = antes; }
+  try { await ctlInforme(true); } catch (e) { diagLog('Informe diario: ' + e.message); } finally { ctl = antes; }
 }
 // Tabla densa de Incidencias: los mismos filtros, una fila por incidencia
 function incFila(r) {
-  return `<tr data-key="${esc(tkey(r))}" style="--c:${estadoColor(r.estado)}"><td class="mono ctl-n">${esc(r.num || '—')}</td><td class="mono">${esc(r.fVisita || '—')}${r.desdeHora ? ' ' + esc(r.desdeHora) : ''}</td><td>${ctlCadHtml(r)}</td>
+  return `<tr data-key="${esc(tkey(r))}" style="--c:${estadoColor(r.estado)}"><td class="mono ctl-n">${esc(r.num || '—')}</td><td class="mono">${esc(r.fVisita || '—')}${r.desdeHora ? ' ' + esc(r.desdeHora) : ''}</td><td>${ctlCadHtml(r)}${tcBadge(r)}</td>
     <td class="ctl-sede"><b>${esc(r.descCliente || '—')}</b><small>${esc(r.descSede || '')}${r.poblacion ? ' · ' + esc(r.poblacion) : ''}</small></td><td>${ctlTecHtml(r)}</td><td>${estadoPill(r.estado)}</td></tr>`;
 }
 function incTablaHtml(lista) {
   return `<div class="inc-tabla">${ctlTabla(['Nº', 'Visita', 'Caducidad', 'Cliente · sede', 'Técnico', 'Estado'], ctlOrdenar(lista, 'inc').map(incFila), 'Nada con este filtro.', 'inc')}</div>`;
 }
+// La tabla densa ocupa la pantalla hasta abajo; el desplazamiento queda dentro de ella
+function ajustarTablaInc() {
+  const t = document.querySelector('.inc-tabla .ctl-tabla'); if (!t) return;
+  t.style.height = Math.max(260, window.innerHeight - t.getBoundingClientRect().top - window.scrollY - 12) + 'px';
+}
+window.addEventListener('resize', ajustarTablaInc);
 // Informe completo: resumen por DSP y una hoja por lista (con los filtros que estén puestos)
-async function ctlInforme() {
+async function ctlInforme(auto) {
   try { await cargarXLSX(); } catch (e) { toast('No se pudo cargar el módulo de Excel (sin conexión)'); return; }
   const F = ctlFiltradas(), wb = XLSX.utils.book_new();
   const dsps = [...PERFILES.filter(p => p !== 'COORD'), '—'];
@@ -239,6 +247,15 @@ async function ctlInforme() {
   const est = Object.entries(F.todas.reduce((m, r) => { m[r.estado || '—'] = (m[r.estado || '—'] || 0) + 1; return m; }, {})).sort((a, b) => b[1] - a[1]).map(([e, n]) => ({ Estado: e, Incidencias: n }));
   if (est.length) { const w = XLSX.utils.json_to_sheet(est); ctlAnchos(w, est); XLSX.utils.book_append_sheet(wb, w, 'Por estado'); }
   ['pres', 'pend', 'cad', 'hoy', 'pron', 'esta', 'ruta', 'todas'].forEach(q => { const d = ctlHoja(q, F); const w = XLSX.utils.json_to_sheet(d.length ? d : [{ 'Nº': 'Ninguna' }]); ctlAnchos(w, d); XLSX.utils.book_append_sheet(wb, w, CTL_NOMBRES[q].slice(0, 31)); });
+  // El automático se guarda en la carpeta de la copia (OneDrive) si hay una elegida; si no, se descarga
+  if (auto === true && odHandle) {
+    try {
+      if ((await odHandle.queryPermission({ mode: 'readwrite' })) === 'granted') {
+        await odEscribir(ctlArchivo('informe'), new Uint8Array(XLSX.write(wb, { bookType: 'xlsx', type: 'array' })));
+        toast('Informe de control guardado en «' + odHandle.name + '»'); return;
+      }
+    } catch (e) { diagLog('Informe en carpeta: ' + e.message); }
+  }
   XLSX.writeFile(wb, ctlArchivo('informe'));
   toast('Informe de control descargado');
 }

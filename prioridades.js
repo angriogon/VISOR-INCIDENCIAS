@@ -3,6 +3,11 @@
 // es «Planificar», y lo hace por asignarLote (confirmación, comprobación campo a campo y sin reintentos).
 
 // La visita (o la fecha iso que se va a poner) es posterior al día en que caduca
+function tcBadge(r) {
+  if (!r || !r.fVisita || sinSla(r) || !esPresencial(r)) return '';
+  const c = caducidad(r);
+  return c && c.ts >= Date.now() && visitaTrasCaducar(r) ? `<span class="cad urg" title="La visita (${esc(r.fVisita)}) es posterior a la caducidad">${ico('reloj')} visita tras caducar</span>` : '';
+}
 function visitaTrasCaducar(r, iso) {
   const c = sinSla(r) ? null : caducidad(r), d = parseEs(r.fVisita), f = iso || (d ? isoHoy(d) : '');
   return !!(c && f && f > isoHoy(new Date(c.ts)));
@@ -32,6 +37,12 @@ function queHacerLista() {
     if (!sin && vis && vis < hoy && !revisadas.includes(tkey(r))) pon(r, 70, `Visita del ${r.fVisita} sin cerrar`);
     if (sin) { const d = registro(r), h = d ? (ahora - d.getTime()) / 3600000 : 0; if (h >= olvido) pon(r, 60, 'Sin asignar desde hace ' + (h < 48 ? Math.round(h) + ' h' : Math.round(h / 24) + ' días')); }
   });
+  const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
+  rutaHoy().forEach(x => { const r = x.r, op = cleanInitials(x.op); if (x.st === 'p' && r.desdeHora && TECNICOS.includes(op) && horaMin(r.desdeHora) + 30 < nowMin) pon(r, 78, `${op} no ha iniciado la visita de las ${r.desdeHora}`); });
+  material().listos.forEach(x => { if (!parseEs(x.r.fVisita)) pon(x.r, 65, 'Material listo: falta planificar la visita'); });
+  eventos.filter(e => e.tipo === 'comentario' && !e.visto && ahora - e.ts < 3 * 86400000).forEach(e => { const r = ticketDe(e.key); if (r && TECNICOS.includes(cleanInitials(r.operario))) pon(r, 55, 'Comentario nuevo de ' + (e.autor || e.op)); });
+  const fm = ddmmyyyy(nextWorkday());
+  Object.keys(envios[fm] || {}).forEach(op => { const st = estadoEnvio(op, fm), r = st && st.cambiada && rows.find(x => x.fVisita === fm && x.operario === op && esPresencial(x)); if (r) pon(r, 68, `La ruta de ${cleanInitials(op)} cambió tras enviarla: reenvíala`); });
   const cad = r => { const c = caducidad(r); return c ? c.ts : 9e15; };
   return [...lista.values()].sort((a, b) => b.peso - a.peso || cad(a.r) - cad(b.r));
 }
@@ -64,6 +75,23 @@ function mostrarPropuesta() {
   const m = document.getElementById('modal'); m.innerHTML = '<div class="md-box md-qh" id="propBox"></div>'; m.hidden = false; renderPropuesta();
 }
 function propFechaCambia(v) { if (v) { propFecha = v; propSel = {}; renderPropuesta(); } }
+let propVista = 'lista';
+function propCambiaVista(v) { propVista = v; renderPropuesta(); }
+function propArrastra(ev) { ev.dataTransfer.setData('text/plain', ev.currentTarget.dataset.k); ev.dataTransfer.effectAllowed = 'move'; }
+function propSoltar(ev, op) {
+  ev.preventDefault();
+  const k = ev.dataTransfer.getData('text/plain'); if (!k || !propSel[k]) return;
+  propSel[k].op = op; propSel[k].on = !!op; renderPropuesta();
+}
+function propTableroHtml(l) {
+  const f = ddmmyyyy(new Date(propFecha + 'T12:00'));
+  l.forEach(x => { const k = tkey(x.r); propSel[k] = propSel[k] || { on: !!x.op, op: x.op }; });
+  const ops = [...new Set([...l.map(x => propSel[tkey(x.r)].op).filter(Boolean), ...l.flatMap(x => x.rec.slice(0, 3).map(y => y.op))])].sort();
+  const tarj = x => `<div class="pt-t" draggable="true" data-k="${esc(tkey(x.r))}" ondragstart="propArrastra(event)" title="${esc(x.r.descSede || '')}"><b class="mono">${esc(String(x.r.num).slice(-5))}</b><span>${esc(x.r.descSede || x.r.descCliente || '—')}</span><small>${esc(x.r.poblacion || '')}</small></div>`;
+  const col = (op, tit, sub, its) => `<section class="pt-c" ondragover="event.preventDefault()" ondrop="propSoltar(event,'${jsq(op)}')"><h4>${esc(tit)} <small>${esc(sub)}</small></h4>${its.map(tarj).join('') || '<div class="pt-v">Suelta aquí</div>'}</section>`;
+  const de = op => l.filter(x => propSel[tkey(x.r)].op === op);
+  return `<div class="pt">${col('', 'Sin técnico', '', de(''))}${ops.map(op => { const its = de(op), m = cargaMin(op, f) + its.reduce((s, x) => s + (estimarMin(x.r) || 0), 0); return col(op, op, m ? fmtMin(m) : plural(its.length, 'visita'), its); }).join('')}</div>`;
+}
 function propMarcadas() { return Object.entries(propSel).filter(([, e]) => e.on && e.op); }
 function propBarra() { const b = document.getElementById('propOk'); if (b) { const n = propMarcadas().length; b.disabled = !n; b.textContent = n ? 'Planificar ' + plural(n, 'incidencia') + ' en ATGO' : 'Marca alguna incidencia'; } }
 function renderPropuesta() {
@@ -77,8 +105,8 @@ function renderPropuesta() {
       <select aria-label="Técnico para ${esc(r.num)}" onchange="propSel['${jsq(k)}'].op=this.value;propSel['${jsq(k)}'].on=!!this.value;this.closest('.pd-fila').querySelector('input').checked=!!this.value;propBarra()">${opcionesTecnico(x.rec, e.op, 'Sin técnico')}</select></div>`;
   };
   box.innerHTML = `<div class="dw-head"><div><div class="dw-num" style="color:var(--ink)">Propuesta del día</div><div class="dw-sub">Reparto de lo pendiente de asignar de tu zona, según carga, población y disponibilidad. No se guarda nada hasta que lo apliques y lo confirmes.</div></div><button class="iconbtn" onclick="cerrarModal()" aria-label="Cerrar">✕</button></div>
-    <div class="pd-cab"><label>Fecha de visita <input type="date" value="${esc(propFecha)}" onchange="propFechaCambia(this.value)"></label><span class="dim">${plural(l.length, 'incidencia')}</span></div>
-    ${l.length ? `<div class="qh-lista">${l.map(fila).join('')}</div><div class="pd-pie"><span class="hint">Se pide confirmación y cada ficha se comprueba en ATGO.</span><button class="btn pri" id="propOk" onclick="propAplicar()"></button></div>` : '<div class="dempty">No hay nada pendiente de asignar en tu zona.</div>'}`;
+    <div class="pd-cab"><label>Fecha de visita <input type="date" value="${esc(propFecha)}" onchange="propFechaCambia(this.value)"></label><span class="dim">${plural(l.length, 'incidencia')}</span><span class="seg mini" role="group" aria-label="Vista">${[['lista', 'Lista'], ['tablero', 'Tablero']].map(([v, t]) => `<button class="segb${propVista === v ? ' on' : ''}" aria-pressed="${propVista === v}" onclick="propCambiaVista('${v}')">${t}</button>`).join('')}</span></div>
+    ${l.length ? `${propVista === 'tablero' ? propTableroHtml(l) : `<div class="qh-lista">${l.map(fila).join('')}</div>`}<div class="pd-pie"><span class="hint">Se pide confirmación y cada ficha se comprueba en ATGO.</span><button class="btn pri" id="propOk" onclick="propAplicar()"></button></div>` : '<div class="dempty">No hay nada pendiente de asignar en tu zona.</div>'}`;
   propBarra();
 }
 async function propAplicar() {
@@ -120,9 +148,36 @@ function abrirMananaListo() {
 
 // Entradas del menú «Más» de Mi día
 function masDiaHtml() {
-  return '<button onclick="abrirPropuesta()" title="Reparte lo pendiente de asignar de tu zona">Propuesta del día</button><button onclick="abrirMananaListo()">Mañana listo</button><button onclick="abrirAlta()" title="Crear una incidencia en ATGO">Nueva incidencia</button>';
+  return '<button onclick="abrirPropuesta()" title="Reparte lo pendiente de asignar de tu zona">Propuesta del día</button><button onclick="abrirMananaListo()">Mañana listo</button>';
 }
 document.addEventListener('click', e => {
   const dentro = e.target.closest && e.target.closest('.mas-lista button');
   document.querySelectorAll('details.mas[open]').forEach(d => { if (dentro || !d.contains(e.target)) d.open = false; });
 });
+
+// ---- Confirmar la visita a la tienda (plantilla en Ajustes › WhatsApp) ----
+const CONFIRMA_DEF = 'Buenos días:\n\nLes confirmamos la visita de nuestro técnico {tecnico} el {fecha}{franja} en {sede}, por la incidencia {num}.\n\nUn saludo.';
+function confirmaPlant() { return tecCfg.confirmaTpl || CONFIRMA_DEF; }
+function confirmaTexto(r) {
+  const franja = r.desdeHora ? (r.hastaHora ? ` de ${r.desdeHora} a ${r.hastaHora}` : ` a las ${r.desdeHora}`) : '';
+  const vars = { tecnico: nombreTecnico(r) || cleanInitials(r.operario), fecha: r.fVisita || '', franja, sede: r.descSede || '', num: r.num || '', cliente: r.descCliente || '', direccion: r.domicilio || '' };
+  return confirmaPlant().replace(/\{(\w+)\}/g, (m, k) => vars[k] != null ? vars[k] : m);
+}
+function confirmaFichaHtml(r) {
+  if (!r || !r.fVisita || !esPresencial(r)) return '';
+  return `<div class="dw-sec"><div class="dw-h">Tienda</div><div class="dw-quick"><button class="chip sm" onclick="abrirConfirma('${jsq(tkey(r))}')">Confirmar visita</button></div></div>`;
+}
+function abrirConfirma(k) {
+  const r = ticketDe(k); if (!r) return;
+  const m = document.getElementById('modal'), mail = String(r.email || '').trim(), tel = String(r.telefono || '').replace(/[^\d+]/g, '');
+  m.innerHTML = `<div class="md-box md-confirm"><div class="dw-head"><div><div class="dw-num" style="color:var(--ink)">Confirmar visita</div><div class="dw-sub">Nº ${esc(r.num)} · ${esc(r.descSede || '')}</div></div><button class="iconbtn" onclick="cerrarModal()" aria-label="Cerrar">✕</button></div>
+    <label class="cfg-ta"><span>Correo de la tienda</span><input id="confMail" type="email" value="${esc(/@/.test(mail) ? mail : '')}" autocomplete="off"></label>
+    <label class="cfg-ta"><span>Mensaje</span><textarea id="confTxt" rows="7">${esc(confirmaTexto(r))}</textarea></label>
+    <div class="acts" style="justify-content:flex-end">${tel.length >= 6 ? `<a class="btn" href="tel:${esc(tel)}">Llamar · ${esc(r.telefono)}</a>` : ''}<button class="btn" onclick="copyText(document.getElementById('confTxt').value)">Copiar</button><button class="btn pri" onclick="confirmaCorreo('${jsq(k)}')">Abrir en el correo</button></div></div>`;
+  m.hidden = false;
+}
+function confirmaCorreo(k) {
+  const r = ticketDe(k) || {}, a = document.createElement('a');
+  a.href = 'mailto:' + encodeURIComponent(document.getElementById('confMail').value.trim()).replace('%40', '@') + '?subject=' + encodeURIComponent('Confirmación de visita · ' + (r.descSede || '') + ' · ' + (r.num || '')) + '&body=' + encodeURIComponent(document.getElementById('confTxt').value);
+  a.click();
+}

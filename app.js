@@ -368,10 +368,25 @@ function ocupado(){
   return !!a && /^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName) && a.type !== 'checkbox' && !!a.closest('main, #cfgMenu');
 }
 let atgoEnCola = null, atgoEnColaDesde = 0;
+// Perfil automático: el que corresponde al usuario de ATGO. Lo que elijas a mano se recuerda para ese usuario.
+function perfilDeUsuario(u){
+  const g = perfilCfg.porUsuario || {};
+  if (PERFILES.includes(g[u])) return g[u];
+  const en = PERFILES.filter(p => p !== 'COORD' && (perfilCfg.tecs[p] || []).includes(u));
+  return en.length === 1 ? en[0] : null;
+}
+function perfilSegunUsuario(u){
+  if (!u) return;
+  if (perfilCfg.usuario !== u){ perfilCfg.usuario = u; guardarPerfiles(); }
+  if (tecCfg.perfilAuto === false) return;
+  const p = perfilDeUsuario(u);
+  if (!p || p === PERFIL || ssLee('despacho_perfil_auto') === p || ocupado() || !document.getElementById('modal').hidden) return;
+  ssPon('despacho_perfil_auto', p); setPerfil(p);
+}
 function aplicarDatosAtgo(m){
   const y = window.scrollY;
   applyAtgo(m, false); recibirPool(m);
-  if (!m.partial) { recordarProyectos(); altaAprender([...(m.rows || []), ...(m.pool || [])]); }
+  if (!m.partial) { recordarProyectos(); altaAprender([...(m.rows || []), ...(m.pool || [])]); coordFotoHoy(); perfilSegunUsuario(m.usuario); }
   if (Math.abs(window.scrollY - y) > 2) window.scrollTo(0, y);   // mantener el sitio de la página
   setTimeout(() => { try { precargarGeo(); } catch (e) { diagLog('Precarga del mapa: ' + e.message); } }, 8000);   // sitúa en segundo plano las visitas de la semana (el mapa abre ya situado)
 }
@@ -427,7 +442,7 @@ window.addEventListener('message', (ev) => {
 });
 // Versión de la sincronización que espera esta app. Si la pestaña de ATGO trae otra (la cargó antes de una
 // actualización), se avisa de que hay que recargarla. Debe coincidir con SYNC_VERSION de atgo-sync.js.
-const SYNC_VERSION = '1.37.1';
+const SYNC_VERSION = '1.38.0';
 let syncVieja = false;   // 'atgo': la pestaña de ATGO es más antigua · 'app': Despacho es más antiguo · false: iguales
 function cmpVer(a, b){ const x = String(a || '0').split('.').map(Number), y = String(b || '0').split('.').map(Number); for (let i = 0; i < 3; i++){ if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) - (y[i] || 0); } return 0; }
 // Borra la copia guardada de Despacho y recarga desde el servidor (notas, perfiles y ajustes no se tocan)
@@ -528,9 +543,9 @@ function vistaTabla(){ return tecCfg.vistaInc === 'tabla'; }
 function cambiarVistaInc(){ tecCfg.vistaInc = vistaTabla() ? '' : 'tabla'; saveTec(); render(); }
 function render(){
   const data = filteredRows();
-  const bv = document.getElementById('vistaIncBtn'), ba = document.getElementById('toggleAll');
+  const bv = document.getElementById('vistaIncBtn');
   if (bv){ bv.setAttribute('aria-pressed', vistaTabla()); bv.classList.toggle('on', vistaTabla()); }
-  if (ba) ba.hidden = vistaTabla();
+  actualizarPlegar();
   const panel = document.getElementById('groupsPanel');
   const rutaAll = rutaHoy();
   const rutaZona = rutaAll.filter(x => (!zonaSel || zonaDe(x.op) === zonaSel));
@@ -556,10 +571,9 @@ function render(){
   const ops = verAusentes ? todosOps : todosOps.filter(op => !ausentes.includes(op));
   const ausHtml = ausentes.length ? `<div class="aus-aviso">${ico('ausente')} <span>${plural(ausentes.length, 'técnico')} no disponible${ausentes.length === 1 ? '' : 's'} (${esc(ausentes.map(op => op + ' ' + ausenciaTexto(op)).join(' · '))}) con ${plural(ausentes.reduce((n, op) => n + (byOp[op] || []).length, 0), 'incidencia')} por reasignar</span><button class="btn sm" onclick="verAusentes=!verAusentes;render()">${verAusentes ? 'Ocultarlos' : 'Ver sus incidencias'}</button></div>` : '';
   renderedOps = ops;
-  updToggle();
   if (!ops.length){ panel.innerHTML = `<div class="empty"><h2>Nada con este filtro</h2>${filtroActivo() || zonaSel ? `<div class="acts" style="justify-content:center;margin-top:10px"><button class="btn" onclick="filtroInc={est:'',cad:false,q:''};zonaSel=null;renderFilters();render()">Quitar filtros</button></div>` : '<div>Este perfil no tiene incidencias abiertas ahora mismo.</div>'}</div>`; return; }
 
-  if (vistaTabla()){ panel.innerHTML = ausHtml + incTablaHtml(data.filter(r => ops.includes(r.operario))); return; }
+  if (vistaTabla()){ panel.innerHTML = ausHtml + incTablaHtml(data.filter(r => ops.includes(r.operario))); ajustarTablaInc(); return; }
   panel.innerHTML = ausHtml + ZONAS.map(z => {
     const zops = ops.filter(op => zonaDe(op) === z.nombre).sort((a, b) => opIndex(a) - opIndex(b));
     if (!zops.length) return '';
@@ -611,7 +625,7 @@ function visitaHoyHtml(x){
   return `<div class="vh ln-color" data-key="${esc(tkey(r))}" style="--c:${estadoColor(r.estado)}">
     <span class="vh-i st-${x.st}" title="${esc(ST_LAB[x.st])}">${ST_ICO[x.st]}</span>
     <span class="vh-h${x.late ? ' late' : ''}" title="${x.late ? 'Ya debería haber empezado' : ''}">${esc(hora)}</span>
-    <span class="vh-n">${numHtml(r)}${segBadges(r)}${cadBadge(r)}</span>
+    <span class="vh-n">${numHtml(r)}${segBadges(r)}${cadBadge(r)}${tcBadge(r)}</span>
     <span class="vh-s">${esc(r.descSede || r.domicilio || '—')}${mot ? ` · <span class="vh-m">${esc(mot.slice(0, 90))}</span>` : ''}</span>
     <span class="vh-st st-${x.st}">${esc(lab)}${x.ts ? ' ' + hhmm(x.ts) : ''} ${x.salio ? '' : estadoPill(r.estado)}</span>
   </div>`;
@@ -657,7 +671,7 @@ function fechasHtml(r){
 function lineHtml(r){
   const txt = [r.tipo, r.descSede || '—', r.referencia && 'Ref ' + r.referencia, r.descCliente, r.domicilio].filter(Boolean);
   return `<div class="line ln-color" data-key="${esc(tkey(r))}" style="--c:${estadoColor(r.estado)}" title="${esc(txt.join(' · '))}">
-    <span class="ln-tx">${numHtml(r)}${fechasHtml(r)}${segBadges(r)}${reincBadge(r)}
+    <span class="ln-tx">${numHtml(r)}${fechasHtml(r)}${segBadges(r)}${tcBadge(r)}${reincBadge(r)}
     <span class="ln-d">${esc(txt.join(' · '))}</span></span>
     <span class="ln-end">${estadoPill(r.estado || '—')}</span>
   </div>`;
@@ -680,20 +694,18 @@ function toggleGroup(op){
   collapsed[op] = !isCol(op);
   const el = document.querySelector(`.tg[data-op="${CSS.escape(op)}"]`);
   if (el) el.classList.toggle('collapsed', isCol(op));
-  updToggle();
 }
-const ICON_EXPAND = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg>';
-const ICON_COLLAPSE = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 20 5-5 5 5"/><path d="m7 4 5 5 5-5"/></svg>';
-function updToggle(){
-  const b = document.getElementById('toggleAll'); if (!b) return;
-  const all = renderedOps.length && renderedOps.every(isCol);
-  b.innerHTML = all ? ICON_EXPAND : ICON_COLLAPSE;
-  b.title = all ? 'Desplegar todos' : 'Plegar todos';
+// Botones Plegar y Desplegar de la cabecera: actúan sobre las secciones de la pestaña abierta
+function vistaPlegable() { return ['dia', 'inc', 'sem'].find(t => document.getElementById({ dia: 'viewDia', inc: 'viewInc', sem: 'viewSem' }[t]).style.display !== 'none') || ''; }
+function actualizarPlegar() {
+  const g = document.getElementById('plegarGrupo'); if (!g) return;
+  const v = vistaPlegable(); g.hidden = !v || (v === 'inc' && (vistaTabla() || !rows.length));
 }
-function toggleAll(){
-  const all = renderedOps.length && renderedOps.every(isCol);
-  renderedOps.forEach(o => collapsed[o] = !all ? true : false);
-  render();
+function plegarVista(v) {
+  const t = vistaPlegable();
+  if (t === 'dia') plegarTodo(v);
+  else if (t === 'sem') semZonasTodas(v);
+  else if (t === 'inc') { renderedOps.forEach(o => { collapsed[o] = v; }); render(); }
 }
 // ===== Mañana: visitas presenciales por técnico para preparar el día siguiente =====
 const CARGA_ALTA = 5, CARGA_MUY = 7;   // nº de visitas a partir del cual la barra se pone naranja / roja
@@ -844,9 +856,10 @@ function tecCard(op, items, max, sinEnvio){
     <div class="load"><i class="${cls}" style="width:${Math.round(n / max * 100)}%"></i></div>
     ${sortByHora(items).map(r => `<div class="vis" data-key="${esc(tkey(r))}">
       <span class="h">${esc(r.desdeHora || '--:--')}${r.hastaHora ? '–' + esc(r.hastaHora) : ''}</span>
-      <span class="t">${numHtml(r).replace('class="num mono"', 'class="num mono" style="color:var(--marca);font-weight:600;text-decoration:none"')}${segBadges(r)}${cadBadge(r)} · ${esc(r.descSede || '—')}</span>
+      <span class="t">${numHtml(r).replace('class="num mono"', 'class="num mono" style="color:var(--marca);font-weight:600;text-decoration:none"')}${segBadges(r)}${cadBadge(r)}${tcBadge(r)} · ${esc(r.descSede || '—')}</span>
       <span class="d">${esc(r.domicilio || '—')}</span>
       <span class="d">${esc([r.tipo, r.referencia && 'Ref ' + r.referencia, r.descCliente].filter(Boolean).join(' · '))}</span>
+      ${r.fVisita ? `<span class="d"><button class="vis-conf" onclick="event.stopPropagation();abrirConfirma('${jsq(tkey(r))}')">Confirmar a la tienda</button></span>` : ''}
     </div>`).join('')}
     ${n && !sinEnvio ? `<div class="acts" style="padding:8px 10px;border-top:1px solid var(--line)">
       <button class="btn wa" onclick="sendWhatsApp('${jsq(op)}')" title="${tel ? 'Enviar a ' + esc(tel) : 'Sin teléfono: WhatsApp te pedirá elegir el contacto ' + esc(op)}">WhatsApp${tel ? '' : ' · elegir contacto'}</button>
@@ -991,6 +1004,7 @@ function showTab(t){
   if (t==='sin') renderSin();
   if (t==='sem') renderSemana();
   if (t==='inc' && rows.length){ renderFilters(); render(); }
+  actualizarPlegar();
   window.scrollTo(0, 0);
 }
 

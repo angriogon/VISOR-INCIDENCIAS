@@ -93,6 +93,8 @@ La semana por técnico y día (cada zona se pliega pulsando su nombre; los icono
 
 ### Control (perfil COORD)
 
+Los botones de arriba abren los informes por cliente y proyecto, las tendencias (una foto por día, solo en ese equipo), los indicadores por técnico, el equilibrio de carga y el mapa nacional.
+
 Incluye semáforo y carga por DSP, antigüedad de lo abierto (pulsa una barra para filtrar), las listas **Caducarán** (72 h) y **Estancadas** (7 días sin movimiento en el hilo), y un informe diario opcional que se descarga solo a la hora elegida si Despacho está abierto (Ajustes › General).
 - **Cinco cifras** que se pueden pulsar: **Presencial** (con el total de abiertas debajo), **Sin asignar**, **Caducadas**, **Caducan hoy** (sin las de FUERA DE MANTENIMIENTO, que no tienen SLA) y **En ruta hoy** (hechas/total y retrasos).
 - **Filtros:** DSP, cliente, **proyecto** (los del cliente elegido, con cuántas incidencias tiene cada uno) y búsqueda.

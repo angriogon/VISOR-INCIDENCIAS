@@ -227,6 +227,20 @@ igual('orden visita: próximas primero; luego sin fecha; al final las pasadas',
   [vis('06/11/2026'), vis(''), vis('24/11/2026'), vis('19/10/2026'), vis('10/11/2026', '12:00'), vis('11/11/2026'), vis('10/11/2026', '08:00')].sort((a, b) => cov.ordenVisita(a, b, hoyOv)).map(x => (x.fVisita.slice(0, 5) || 'sin') + (x.desdeHora ? ' ' + x.desdeHora : '')),
   ['10/11 08:00', '10/11 12:00', '11/11', '24/11', 'sin', '06/11', '19/10']);
 
+// ---- Primera visita resuelta ----
+{
+  const an = leer('analisis.js'), m = vm.createContext({ hilos: {}, reincidencias: () => ({}), isoHoy: d => d.toISOString().slice(0, 10) });
+  vm.runInContext([extraer(an, 'function primeraVisitaOk('), extraer(an, 'function primeraVisitaResumen(')].join('\n'), m);
+  const ok = (c, idx) => vm.runInContext('primeraVisitaOk(' + JSON.stringify(c) + ',' + JSON.stringify(idx || {}) + ')', m);
+  igual('1ª visita: sin fecha de visita no cuenta', ok({ key: 'a' }), null);
+  igual('1ª visita: cerrada sin más, resuelta', ok({ key: 'a', fVisita: '01/11/2026', reg: 1 }), true);
+  igual('1ª visita: el mismo equipo volvió a abrirse', ok({ key: 'a', fVisita: '01/11/2026', reg: 10 }, { a: { otros: [{ ts: 20 }] } }), false);
+  igual('1ª visita: una anterior del mismo equipo no le resta', ok({ key: 'a', fVisita: '01/11/2026', reg: 10 }, { a: { otros: [{ ts: 5 }] } }), true);
+  m.hilos.a = { items: [{ ts: Date.UTC(2026, 10, 1, 10), t: 'El usuario X ha iniciado el ticket' }, { ts: Date.UTC(2026, 10, 3, 10), t: 'El usuario X ha iniciado el ticket' }] };
+  igual('1ª visita: iniciado en dos días distintos', ok({ key: 'a', fVisita: '01/11/2026' }), false);
+  igual('los informes de COORD están en el arranque de la caché', leer('sw.js').includes("./analisis.js") && leer('index.html').includes('analisis.js'), true);
+}
+
 // ---- Nueva incidencia ----
 {
   const altaSrc = leer('alta.js'), sync = leer('atgo-sync.js');

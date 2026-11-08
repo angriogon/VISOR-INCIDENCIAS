@@ -23,7 +23,7 @@
   const TIMEOUT_MS = 120000;
   // Versión de este script: Despacho la compara con la suya (SYNC_VERSION en app.js) y avisa si esta pestaña
   // sigue con una versión antigua (hay que recargarla). Súbela cuando cambie este archivo.
-  const SYNC_VERSION = '1.37.1';
+  const SYNC_VERSION = '1.38.0';
 
   if (location.hostname !== 'atgo.tier1.es') { alert('Abre primero https://atgo.tier1.es e inicia sesión.'); return; }
 
@@ -181,6 +181,7 @@
     try { const j = JSON.parse(t); if (typeof j === 'string') t = j; } catch (e) {}
     return t;
   }
+  function usuarioAtgo() { const c = String(localStorage.getItem('codigoOperario') || '').trim().toUpperCase(); return c && c !== 'UNDEFINED' ? c : null; }
   function sessionExpired() {
     const exp = Number(localStorage.getItem('expires'));
     return !token() || (exp && exp * 1000 < Date.now());
@@ -303,7 +304,7 @@
       if (stopped) return;
       try { await completarProyectos([...found.values(), ...pool.values()], viva); } catch (e) {}
       if (stopped || !viva()) return;
-      lastPayload = { type: 'atgo-data', partial: false, v: SYNC_VERSION, ops: OPERARIOS.slice(), rows: [...found.values()], at: Date.now(), seconds: Math.round((Date.now() - t0) / 1000), caps: ['hilo', 'estado', 'editar', 'asignar', 'pool', 'lote', 'alta'], estados: estadosAtgo || [], pool: poolOps ? [...pool.values()] : null, poolOps: poolOps || {} };
+      lastPayload = { type: 'atgo-data', partial: false, v: SYNC_VERSION, ops: OPERARIOS.slice(), rows: [...found.values()], at: Date.now(), seconds: Math.round((Date.now() - t0) / 1000), usuario: usuarioAtgo(), caps: ['hilo', 'estado', 'editar', 'asignar', 'pool', 'lote', 'alta'], estados: estadosAtgo || [], pool: poolOps ? [...pool.values()] : null, poolOps: poolOps || {} };
       send(lastPayload);
       const hora = new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
       setStatus(found.size + ' incidencias · ' + hora + ' (' + lastPayload.seconds + ' s) · próxima en ' + refrescoMin() + ' min');
@@ -590,7 +591,7 @@
       const est = d.estado !== '' && d.estado != null ? estados.find(x => altaIgual(x.estado, d.estado)) : estados[0];
       if (!est) throw new Error('estado no válido');
       // Quién crea el ticket: el código del usuario con la sesión abierta en esta pestaña (la web de ATGO lo guarda ahí)
-      const creador = (() => { const c = String(localStorage.getItem('codigoOperario') || '').trim().toUpperCase(); return c && c !== 'UNDEFINED' ? c : null; })();
+      const creador = usuarioAtgo();
       const lugar = [sede.domicilio, sede.poblacion].filter(Boolean).join(', ') + (sede.provincia ? ' (' + sede.provincia + ')' : '');
       const dto = { codDivision: ele && ele.codDivision || null, desDivision: ele && ele.desDivision || null, codCli: cli.codCli, desCli: cli.desCli, email: cli.email ?? null, cif: cli.cif ?? null,
         codSede: sede.codSede ?? d.codSede ?? null, idSede: d.idSede, sedeDescripcion: texto(d.sedeEtiqueta, 300, 'La sede'), direccion: sede.domicilio ?? null, domicilio: sede.domicilio ?? null, poblacion: sede.poblacion ?? null, provincia: sede.provincia ?? null, cp: sede.cp ?? null, localizacion: lugar, telefono: null,

@@ -478,7 +478,7 @@ function renderFicha() {
   let cuerpo;
   if (fichaTab === 'act' && r) {
     cuerpo = `<div class="dw-cols"><div class="dw-col">${edicionHtml(key, r) || '<div class="dw-empty">Este ticket no se puede editar desde Despacho.</div>'}</div>
-      <div class="dw-col">${sugerenciaHtml(r)}${waFichaHtml(r)}</div></div>`;
+      <div class="dw-col">${sugerenciaHtml(r)}${waFichaHtml(r)}${confirmaFichaHtml(r)}</div></div>`;
   } else if (fichaTab === 'his') {
     cuerpo = `<div class="dw-cols"><div class="dw-col">${hiloHtml(key, 'todo')}</div>
       <div class="dw-col">${historialSedeHtml(key, r || cz)}<div class="dw-sec"><div class="dw-h">Cambios vistos por Despacho</div>
@@ -746,6 +746,7 @@ function restoreBackup(file) {
       if (d.jornadas && typeof d.jornadas === 'object') { jornadas = { ...d.jornadas, ...jornadas }; lsSet(JORN_KEY, jornadas); }
       if (d.perfiles && d.perfiles.tecs && lsSet(PERFIL_KEY, { ...d.perfiles, activo: PERFIL, matriz1: true, conocidos: Array.isArray(d.perfiles.conocidos) ? d.perfiles.conocidos : BASE_OPS })) hechos.push('perfiles (se aplican al recargar)');   // matriz1: una copia antigua no vuelve a la lista matriz al recargar
       if (d.altaMemoria && typeof d.altaMemoria === 'object') lsSet(ALTA_MEM_KEY, { ...lsGet(ALTA_MEM_KEY, {}), ...d.altaMemoria });
+      if (d.histCoord && typeof d.histCoord === 'object') lsSet(HIST_COORD_KEY, { ...d.histCoord, ...lsGet(HIST_COORD_KEY, {}) });
       if (Array.isArray(d.filtros)) { filtrosGuardados = d.filtros; lsSet(FILTROS_KEY, d.filtros); }
       refreshVisible();
       toast('Restaurado: ' + (hechos.join(', ') || 'nada que restaurar'));

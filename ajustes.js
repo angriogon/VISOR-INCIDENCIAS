@@ -3,13 +3,13 @@
 // asistente de inicio, diagnóstico, resumen matinal, aviso de técnico sin actividad y exportar a Excel.
 // Usa utilidades de app.js, dia.js, herramientas.js, edicion.js y panel.js solo en tiempo de llamada.
 
-const APP_VERSION = '1.37.1';   // súbela a la vez que VERSION en sw.js
+const APP_VERSION = '1.38.0';   // súbela a la vez que VERSION en sw.js
 const NOVEDADES = [
+  { v: '1.38.0', f: '2026-11-08', l: ['Arriba, siempre a la vista: Nueva incidencia, Plegar secciones y Desplegar secciones. La tabla densa de Incidencias es más compacta y llega hasta el final de la pantalla.', 'Control: informes por cliente y proyecto, tendencias, indicadores por técnico, equilibrio de carga y mapa nacional. El informe diario admite dos horas y se guarda en OneDrive.', 'Primera visita resuelta, confirmar la visita a la tienda, aviso de visita tras caducar en Incidencias y Planificación, tablero en la Propuesta del día y más avisos en Qué hacer ahora. El perfil se elige solo según tu usuario de ATGO.'] },
   { v: '1.37.1', f: '2026-11-08', l: ['Nueva incidencia: Sede y Proyecto son listas con solo lo que está confirmado para ese cliente. Despacho lo aprende de las incidencias cargadas y de los tickets creados, y lo recuerda en este equipo.'] },
   { v: '1.37.0', f: '2026-11-08', l: ['La extensión 2.3 actualiza sola la sincronización con ATGO, con firma digital: esta es la última vez que hay que instalarla por ese motivo.', 'Nueva incidencia: las sedes de cada cliente aparecen según llegan, sin esperas largas, y se recuerdan en este equipo para que la próxima vez salgan al instante.'] },
   { v: '1.36.1', f: '2026-11-08', l: ['Nueva incidencia: al elegir cliente, la sede se elige entre las de ese cliente. Estado y Operario muestran todos los de ATGO, y la ventana y sus listas son más amplias.', 'Hay que instalar la extensión 2.2.1 desde Ajustes › General y recargar la pestaña de ATGO.'] },
-  { v: '1.36.0', f: '2026-11-08', l: ['«Nueva incidencia»: crea tickets en ATGO con los campos del alta rápida, desde Incidencias o desde «Más» en Mi día. Pide confirmación, comprueba el ticket creado y aparece en «Mis cambios».', 'Hay que instalar la extensión 2.2 desde Ajustes › General y recargar la pestaña de ATGO.'] },
-  { v: '1.35.2', f: '2026-11-08', l: ['El botón «Deshacer» del aviso tras asignar ya se lee bien.'] }
+  { v: '1.36.0', f: '2026-11-08', l: ['«Nueva incidencia»: crea tickets en ATGO con los campos del alta rápida, desde Incidencias o desde «Más» en Mi día. Pide confirmación, comprueba el ticket creado y aparece en «Mis cambios».', 'Hay que instalar la extensión 2.2 desde Ajustes › General y recargar la pestaña de ATGO.'] }
 ];
 // Resumen de lo más importante de las versiones anteriores a las 5 últimas (se ve en ⓘ › Anteriores)
 const ANTERIORES = [
@@ -65,7 +65,7 @@ function marcarNovedades() { const v = lsTexto(NOV_KEY), d = document.getElement
 function guardarPerfiles() { lsSet(PERFIL_KEY, perfilCfg); }
 // Al cambiar de perfil se reinicia la foto de seguimiento: así no salen como «nuevos» ni «salieron» los tickets del otro perfil
 function setPerfil(p) {
-  if (p === PERFIL) return; perfilCfg.activo = p; guardarPerfiles(); lsSet(SNAP_KEY, { start: 0, items: {} });
+  if (p === PERFIL) return; perfilCfg.activo = p; if (perfilCfg.usuario) perfilCfg.porUsuario = { ...(perfilCfg.porUsuario || {}), [perfilCfg.usuario]: p }; guardarPerfiles(); lsSet(SNAP_KEY, { start: 0, items: {} });
   ssPon('despacho_perfil_cambiado', p);   // muestra «Cargando DSPx…» hasta que lleguen sus datos
   location.reload();
 }
@@ -394,7 +394,8 @@ function renderCfg() {
       <div class="cfg-row"><label><input type="checkbox" ${tecCfg.resumenOn !== false ? 'checked' : ''} onchange="setPref('resumenOn',this.checked)"> Resumen matinal a las</label><input type="time" aria-label="Hora del resumen matinal" value="${esc(tecCfg.resumenHora || '08:00')}" onchange="setPref('resumenHora',this.value)"></div>
       <div class="cfg-row"><label><input type="checkbox" ${tecCfg.inactOn !== false ? 'checked' : ''} onchange="setPref('inactOn',this.checked)"> Avisar si un técnico no ha iniciado nada a las</label><input type="time" aria-label="Hora del aviso de técnico sin actividad" value="${esc(tecCfg.inactHora || '11:00')}" onchange="setPref('inactHora',this.value)"></div>
       <div class="cfg-row"><label><input type="checkbox" ${tecCfg.cierreOn !== false ? 'checked' : ''} onchange="setPref('cierreOn',this.checked)"> Avisar de visitas de hoy sin cerrar a las</label><input type="time" aria-label="Hora del aviso de visitas sin cerrar" value="${esc(horaCierre())}" onchange="setPref('cierreHora',this.value)"></div>
-      ${esCoord() ? `<div class="cfg-row"><label><input type="checkbox" ${tecCfg.informeOn ? 'checked' : ''} onchange="setPref('informeOn',this.checked)"> Descargar el informe de control cada día a las</label><input type="time" aria-label="Hora del informe de control" value="${esc(tecCfg.informeHora || '09:00')}" onchange="setPref('informeHora',this.value)"></div>` : ''}
+      ${esCoord() ? `<div class="cfg-row"><label><input type="checkbox" ${tecCfg.informeOn ? 'checked' : ''} onchange="setPref('informeOn',this.checked)"> Guardar el informe de control cada día a las</label><input type="time" aria-label="Primera hora del informe" value="${esc(tecCfg.informeHora || '09:00')}" onchange="setPref('informeHora',this.value)"><input type="time" aria-label="Segunda hora del informe (opcional)" value="${esc(tecCfg.informeHora2 || '')}" onchange="setPref('informeHora2',this.value)"></div><div class="cfg-t">Va a la carpeta de la copia en OneDrive si hay una elegida; si no, se descarga. La segunda hora es opcional.</div>` : ''}
+      <div class="cfg-row"><label><input type="checkbox" ${tecCfg.perfilAuto !== false ? 'checked' : ''} onchange="setPref('perfilAuto',this.checked)"> Elegir el perfil según mi usuario de ATGO${perfilCfg.usuario ? ' (' + esc(perfilCfg.usuario) + ')' : ''}</label></div>
       <div class="cfg-row"><label>Sin asignar de tu zona: avisar si llevan más de</label><span><input type="number" aria-label="Horas sin técnico para avisar" min="1" max="72" value="${horasOlvido()}" onchange="setPref('olvidoHoras',Math.max(1,Number(this.value)||4))" style="width:56px"> h</span></div>
 `;
   } else if (cfgTab === 'apa') {
@@ -434,6 +435,7 @@ function renderCfg() {
     h = `<div class="cfg-h">Plantillas de WhatsApp (desde la ficha › Actuar)</div>
       <div class="cfg-t">Campos: {nombre} {num} {sede} {fecha} {hora} {cliente} {direccion}</div>
       ${Object.keys(WA_PLANT_DEF).map(t => `<label class="cfg-ta"><span>${esc(WA_PLANT_LAB[t])}</span><textarea rows="2" onchange="tecCfg.waPlant={...(tecCfg.waPlant||{}),'${t}':this.value.trim()};saveTec()">${esc(waPlant(t))}</textarea></label>`).join('')}
+      <label class="cfg-ta"><span>Confirmar visita a la tienda · {tecnico} {fecha} {franja} {sede} {num} {cliente} {direccion}</span><textarea rows="5" onchange="tecCfg.confirmaTpl=this.value.trim();saveTec()">${esc(confirmaPlant())}</textarea></label>
       <div class="acts"><button class="btn sm ghost" onclick="tecCfg.waPlant={};saveTec();renderCfg()">Restaurar textos</button></div>
       <div class="cfg-t">El mensaje de la ruta se cambia en Planificación › día › «Técnicos y mensaje».</div>`;
   } else {

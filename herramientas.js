@@ -22,6 +22,8 @@ function registrarCerrada(e, estado) {
     dir: r.domicilio || '', estado, ts: e.ts || Date.now(), fVisita: e.f || r.fVisita || '', motivo: motivoTexto(k), url: r.url || ATGO_URL + k,
     elemento: r.elemento || '', ref: r.referencia || '', reg: (registro(r) || { getTime: () => 0 }).getTime() || 0   // para reincidencias por equipo
   };
+  // Para los informes de COORD: proyecto y caducidad que tenía al cerrarse
+  try { const b = { key: k, num: cerradas[k].num, operario: cerradas[k].op, estado }, p = proyDe(b), c = caducidad(b); if (p) cerradas[k].proy = p; if (c) cerradas[k].cad = c.ts; } catch (err) { diagLog('Datos de cerrada: ' + err.message); }
 }
 function podarCerradas() {
   Object.keys(cerradas).forEach(k => { if (Date.now() - cerradas[k].ts > CERRADAS_DIAS * 86400000) delete cerradas[k]; });
@@ -330,7 +332,7 @@ function guardarJornada() {
   rutaHoy().forEach(x => {
     const op = cleanInitials(x.op); if (!TECNICOS.includes(op)) return;
     const o = ops[op] = ops[op] || { tot: 0, d: 0, t: 0, c: 0, p: 0 };
-    o.tot++; o[x.st]++;
+    o.tot++; o[x.st]++; if (x.late) o.late = (o.late || 0) + 1;
   });
   const vencR = rows.filter(r => { const c = !esCierre(r.estado) && caducidad(r); return c && c.ts < Date.now(); });
   const prev = jornadas[isoHoy()] || {};
@@ -363,9 +365,11 @@ function datosInforme() {
   cerr.forEach(c => { const t = porOp[c.op] = porOp[c.op] || { tot: 0, d: 0, t: 0 }; t.cerr = (t.cerr || 0) + 1; });
   const ev = eventos.filter(e => enRango(e.ts));
   const venc = new Set(); Object.entries(jornadas).filter(([k]) => k >= a && k <= b).forEach(([, j]) => (j.venc || []).forEach(x => { if (deMiPerfil(j, x)) venc.add(x); }));
-  const filas = TECNICOS.filter(op => porOp[op]).map(op => ({ op, zona: zonaDe(op), ...porOp[op] }));
+  const idxFv = reincidencias(), fvOp = op => { const f = primeraVisitaResumen(cerr.filter(c => c.op === op), idxFv); return f.n ? Math.round(f.ok / f.n * 100) + '%' : '—'; };
+  const filas = TECNICOS.filter(op => porOp[op]).map(op => ({ op, zona: zonaDe(op), ...porOp[op], fv: fvOp(op) }));
+  const fvTot = primeraVisitaResumen(cerr.filter(c => TECNICOS.includes(c.op)), idxFv);
   const tot = filas.reduce((s, f) => ({ tot: s.tot + f.tot, d: s.d + f.d, t: s.t + f.t, cerr: s.cerr + (f.cerr || 0) }), { tot: 0, d: 0, t: 0, cerr: 0 });
-  return { ini, fin, diasCon: diasCon.sort(), filas, tot, nuevos: ev.filter(e => e.tipo === 'nuevo').length, escalados: ev.filter(e => norm(e.a) === norm('ESCALADO TIER1')).length, material: ev.filter(e => (e.tipo === 'estado' || e.tipo === 'nuevo') && esMaterial(e.a)).length, venc: venc.size };
+  return { ini, fin, diasCon: diasCon.sort(), filas, tot, fv: fvTot.n ? Math.round(fvTot.ok / fvTot.n * 100) + '%' : '—', nuevos: ev.filter(e => e.tipo === 'nuevo').length, escalados: ev.filter(e => norm(e.a) === norm('ESCALADO TIER1')).length, material: ev.filter(e => (e.tipo === 'estado' || e.tipo === 'nuevo') && esMaterial(e.a)).length, venc: venc.size };
 }
 function pct(a, b) { return b ? Math.round(a / b * 100) + '%' : '—'; }
 function informeTexto(d) {
@@ -373,8 +377,8 @@ function informeTexto(d) {
   const out = [`Informe semanal Despacho · ${PERFIL} · del ${f(d.ini)} al ${f(d.fin)}`, '',
     `Visitas enrutadas: ${d.tot.tot} · terminadas ${d.tot.d} (${pct(d.tot.d, d.tot.tot)}) · en trámite ${d.tot.t} · cerradas ${d.tot.cerr}`,
     `Tickets nuevos: ${d.nuevos} · escalados a TIER1: ${d.escalados} · a PTE. MOVER MATERIAL: ${d.material} · con caducidad vencida: ${d.venc}`, '',
-    'Técnico · zona · enrutadas · terminadas · en trámite · cumplimiento · cerradas'];
-  d.filas.forEach(x => out.push(`${x.op} · ${x.zona} · ${x.tot} · ${x.d} · ${x.t} · ${pct(x.d, x.tot)} · ${x.cerr || 0}`));
+    'Técnico · zona · enrutadas · terminadas · en trámite · cumplimiento · cerradas · 1ª visita'];
+  d.filas.forEach(x => out.push(`${x.op} · ${x.zona} · ${x.tot} · ${x.d} · ${x.t} · ${pct(x.d, x.tot)} · ${x.cerr || 0} · ${x.fv}`));
   return out.join('\n');
 }
 function informeHtml(d) {
@@ -383,8 +387,8 @@ function informeHtml(d) {
   return `<div style="font:11pt Calibri,Arial,sans-serif"><p><b>Informe semanal · ${esc(PERFIL)} · del ${f(d.ini)} al ${f(d.fin)}</b></p>
   <p>Visitas enrutadas: <b>${d.tot.tot}</b> · terminadas <b>${d.tot.d}</b> (${pct(d.tot.d, d.tot.tot)}) · en trámite <b>${d.tot.t}</b> · cerradas <b>${d.tot.cerr}</b><br>
   Tickets nuevos: ${d.nuevos} · escalados a TIER1: ${d.escalados} · a PTE. MOVER MATERIAL: ${d.material} · con caducidad vencida: ${d.venc}</p>
-  <table style="border-collapse:collapse"><tr><th ${th}>Técnico</th><th ${th}>Zona</th><th ${th}>Enrutadas</th><th ${th}>Terminadas</th><th ${th}>En trámite</th><th ${th}>Cumplimiento</th><th ${th}>Cerradas</th></tr>
-  ${d.filas.map(x => `<tr><td ${td}><b>${esc(x.op)}</b></td><td ${td}>${esc(x.zona)}</td><td ${tdr}>${x.tot}</td><td ${tdr}>${x.d}</td><td ${tdr}>${x.t}</td><td ${tdr}>${pct(x.d, x.tot)}</td><td ${tdr}>${x.cerr || 0}</td></tr>`).join('')}
+  <table style="border-collapse:collapse"><tr><th ${th}>Técnico</th><th ${th}>Zona</th><th ${th}>Enrutadas</th><th ${th}>Terminadas</th><th ${th}>En trámite</th><th ${th}>Cumplimiento</th><th ${th}>Cerradas</th><th ${th}>1ª visita</th></tr>
+  ${d.filas.map(x => `<tr><td ${td}><b>${esc(x.op)}</b></td><td ${td}>${esc(x.zona)}</td><td ${tdr}>${x.tot}</td><td ${tdr}>${x.d}</td><td ${tdr}>${x.t}</td><td ${tdr}>${pct(x.d, x.tot)}</td><td ${tdr}>${x.cerr || 0}</td><td ${tdr}>${x.fv}</td></tr>`).join('')}
   </table></div>`;
 }
 // Histórico de indicadores: últimas 8 semanas (cumplimiento de rutas y caducidades vencidas)
@@ -426,11 +430,12 @@ function abrirInforme() {
       <div class="kpi"><b style="color:var(--done-tx)">${d.tot.d}</b>terminadas · ${pct(d.tot.d, d.tot.tot)}</div>
       <div class="kpi"><b style="color:var(--tra-tx)">${d.tot.t}</b>en trámite</div>
       <div class="kpi"><b>${d.tot.cerr}</b>cerradas</div>
+      <div class="kpi"><b>${d.fv}</b>primera visita resuelta</div>
       <div class="kpi"><b${d.venc ? ' style="color:#d9614f"' : ''}>${d.venc}</b>con caducidad vencida</div>
     </div>
     <div class="dw-sub">Tickets nuevos: ${d.nuevos} · escalados a TIER1: ${d.escalados} · a PTE. MOVER MATERIAL: ${d.material}</div>
-    ${d.filas.length ? `<table class="inf"><thead><tr><th>Técnico</th><th>Zona</th><th>Enrutadas</th><th>Terminadas</th><th>En trámite</th><th>Cumplimiento</th><th>Cerradas</th></tr></thead><tbody>
-      ${d.filas.map(x => `<tr><td><b>${esc(x.op)}</b></td><td>${esc(x.zona)}</td><td>${x.tot}</td><td>${x.d}</td><td>${x.t}</td><td><span class="pbar mini"><i class="d" style="width:${x.tot ? Math.round(x.d / x.tot * 100) : 0}%"></i></span> ${pct(x.d, x.tot)}</td><td>${x.cerr || 0}</td></tr>`).join('')}
+    ${d.filas.length ? `<table class="inf"><thead><tr><th>Técnico</th><th>Zona</th><th>Enrutadas</th><th>Terminadas</th><th>En trámite</th><th>Cumplimiento</th><th>Cerradas</th><th title="Aproximada: no se reabrió el mismo equipo ni hizo falta volver">1ª visita</th></tr></thead><tbody>
+      ${d.filas.map(x => `<tr><td><b>${esc(x.op)}</b></td><td>${esc(x.zona)}</td><td>${x.tot}</td><td>${x.d}</td><td>${x.t}</td><td><span class="pbar mini"><i class="d" style="width:${x.tot ? Math.round(x.d / x.tot * 100) : 0}%"></i></span> ${pct(x.d, x.tot)}</td><td>${x.cerr || 0}</td><td>${x.fv}</td></tr>`).join('')}
     </tbody></table>` : '<div class="dempty">Aún no hay datos de esta semana. Despacho guarda la foto de cada día mientras está abierto con ATGO sincronizando.</div>'}
     <div class="acts"><button class="btn pri" onclick="copiarInforme()">Copiar para el correo</button><button class="btn" onclick="correoInforme()">Abrir en Outlook</button></div>
   </div>`;
@@ -461,7 +466,7 @@ const IDB = {
 };
 let odHandle = null, odEstado = 'off', odUltima = lsGet('dispatcher_od_ultima', 0);
 function datosCopia() {
-  return { altaMemoria: lsGet(ALTA_MEM_KEY, {}), app: 'panel-despacho', version: 4, fecha: new Date().toISOString(), tecnicos: tecCfg, notas, avisos: { ...avisos, on: false }, cerradas, jornadas, perfiles: perfilCfg, filtros: filtrosGuardados };
+  return { altaMemoria: lsGet(ALTA_MEM_KEY, {}), histCoord: lsGet(HIST_COORD_KEY, {}), app: 'panel-despacho', version: 4, fecha: new Date().toISOString(), tecnicos: tecCfg, notas, avisos: { ...avisos, on: false }, cerradas, jornadas, perfiles: perfilCfg, filtros: filtrosGuardados };
 }
 async function odElegir() {
   if (!window.showDirectoryPicker) { toast('Este navegador no permite elegir carpetas: usa Edge o Chrome'); return; }
