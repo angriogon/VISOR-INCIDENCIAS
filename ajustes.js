@@ -3,13 +3,13 @@
 // asistente de inicio, diagnóstico, resumen matinal, aviso de técnico sin actividad y exportar a Excel.
 // Usa utilidades de app.js, dia.js, herramientas.js, edicion.js y panel.js solo en tiempo de llamada.
 
-const APP_VERSION = '1.36.0';   // súbela a la vez que VERSION en sw.js
+const APP_VERSION = '1.36.1';   // súbela a la vez que VERSION en sw.js
 const NOVEDADES = [
+  { v: '1.36.1', f: '2026-11-08', l: ['Nueva incidencia: al elegir cliente, la sede se elige entre las de ese cliente. Estado y Operario muestran todos los de ATGO, y la ventana y sus listas son más amplias.', 'Hay que instalar la extensión 2.2.1 desde Ajustes › General y recargar la pestaña de ATGO.'] },
   { v: '1.36.0', f: '2026-11-08', l: ['«Nueva incidencia»: crea tickets en ATGO con los campos del alta rápida, desde Incidencias o desde «Más» en Mi día. Pide confirmación, comprueba el ticket creado y aparece en «Mis cambios».', 'Hay que instalar la extensión 2.2 desde Ajustes › General y recargar la pestaña de ATGO.'] },
   { v: '1.35.2', f: '2026-11-08', l: ['El botón «Deshacer» del aviso tras asignar ya se lee bien.'] },
   { v: '1.35.1', f: '2026-11-08', l: ['El aviso «Asignación guardada» con el botón «Deshacer» se cierra solo a los 10 segundos.'] },
-  { v: '1.35.0', f: '2026-11-08', l: ['Mi día: «Qué hacer ahora» ordena por riesgo lo que hay que atender. En «Más»: «Propuesta del día» (reparte lo pendiente de asignar para que lo revises) y «Mañana listo» (lo que falta por dejar resuelto).', 'Aviso cuando la visita es posterior a la caducidad: en la ficha y al planificar.', 'Técnicos: habilidades y ausencias de media jornada; se tienen en cuenta al recomendar.', 'Control: semáforo y carga por DSP, antigüedad, listas «Caducarán» y «Estancadas», e informe diario automático.', 'Incidencias: vista de tabla densa.', 'Mejor contraste y letra mínima de 11 px, iconos propios y ventana con el título «Despacho».', 'Corregido: la fecha del seguimiento de las notas y el recuerdo del proyecto en los perfiles DSP.', 'Extensión 2.1: ya no descarga la sincronización de internet, no cierra la sesión antes de tiempo y no recarga una pestaña de ATGO abierta a mano. Hay que instalarla de nuevo.'] },
-  { v: '1.34.0', f: '2026-11-08', l: ['«Revisión de la mañana» (botón en Mi día y en Control): incidencias sin cerrar con fecha de visita de los últimos 7 días, por día y con lo que hizo el técnico. En cada DSP, las de sus técnicos; en COORD, todas, asignadas o no.', 'Desde ahí: abrir la ficha, marcar como revisada (vuelve mañana si sigue abierta), replanificar en bloque y recordar por WhatsApp. COORD filtra por DSP y exporta a Excel.'] }
+  { v: '1.35.0', f: '2026-11-08', l: ['Mi día: «Qué hacer ahora» ordena por riesgo lo que hay que atender. En «Más»: «Propuesta del día» (reparte lo pendiente de asignar para que lo revises) y «Mañana listo» (lo que falta por dejar resuelto).', 'Aviso cuando la visita es posterior a la caducidad: en la ficha y al planificar.', 'Técnicos: habilidades y ausencias de media jornada; se tienen en cuenta al recomendar.', 'Control: semáforo y carga por DSP, antigüedad, listas «Caducarán» y «Estancadas», e informe diario automático.', 'Incidencias: vista de tabla densa.', 'Mejor contraste y letra mínima de 11 px, iconos propios y ventana con el título «Despacho».', 'Corregido: la fecha del seguimiento de las notas y el recuerdo del proyecto en los perfiles DSP.', 'Extensión 2.1: ya no descarga la sincronización de internet, no cierra la sesión antes de tiempo y no recarga una pestaña de ATGO abierta a mano. Hay que instalarla de nuevo.'] }
 ];
 // Resumen de lo más importante de las versiones anteriores a las 5 últimas (se ve en ⓘ › Anteriores)
 const ANTERIORES = [
@@ -41,9 +41,10 @@ const ANTERIORES = [
   'Filtro por proyecto en Control',
   'Proyecto en la ficha y orden por columnas en Control',
   'Extensión: guardián de la pestaña de ATGO e inicio de sesión automático',
-  'Conflictos sede-técnicos en Mi día'
+  'Conflictos sede-técnicos en Mi día',
+  'Revisión de la mañana'
 ];
-const NOV_VISIBLES = 5, ANTERIORES_HASTA = '1.33';   // al añadir una versión, quita la más antigua de NOVEDADES y resúmela aquí si importa
+const NOV_VISIBLES = 5, ANTERIORES_HASTA = '1.34';   // al añadir una versión, quita la más antigua de NOVEDADES y resúmela aquí si importa
 const NOV_KEY = 'dispatcher_version_vista_v1', DIAG_KEY = 'dispatcher_diag_v1', BIENV_KEY = 'dispatcher_bienvenida_v1', DATOS_VER_KEY = 'dispatcher_datos_version_v1';
 
 // ---- Novedades de la versión ----

@@ -76,7 +76,7 @@ Visitas en PRESENCIAL que siguen en un operario comodín «PENDIENTE ASIGNAR». 
 
 El botón de tabla, junto a la leyenda, cambia a una vista densa con una fila por incidencia y columnas ordenables.
 
-**Nueva incidencia** crea un ticket en ATGO con los campos del alta rápida (también en «Más», en Mi día). Pide confirmación, comprueba el ticket creado y no se reintenta sola. Un ticket creado por error no se anula: se cierra en ATGO. Necesita la extensión 2.2.
+**Nueva incidencia** crea un ticket en ATGO con los campos del alta rápida (también en «Más», en Mi día). Pide confirmación, comprueba el ticket creado y no se reintenta sola. Un ticket creado por error no se anula: se cierra en ATGO. Necesita la extensión 2.2.1.
 Un bloque por técnico, agrupados por zona:
 - **Barra de progreso de su ruta de hoy:** terminada, en trámite, en curso o pendiente, con retrasos.
 - Dentro, las incidencias van **agrupadas por estado**, cada línea con el color de su estado. En cada estado, de la visita más próxima a la más lejana; debajo, las que no tienen fecha y, al final, las de fechas pasadas. Justo detrás del Nº salen **VISITA** y **CADUCA**: naranja si quedan menos de 3 días; rojo si quedan menos de 24 h o ya caducó.

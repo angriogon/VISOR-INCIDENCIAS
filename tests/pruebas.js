@@ -242,6 +242,8 @@ igual('orden visita: próximas primero; luego sin fecha; al final las pasadas',
   igual('Alta: el formulario no tiene Actuación', /al-act|codAct|>Actuaci/.test(altaSrc), false);
   igual('Alta: un mismo envío nunca crea dos tickets', /altasUsadas\.has\(m\.id\)\) return;/.test(sync), true);
   igual('Alta: una sola llamada de creación', sync.split("/incidencias/alta'").length - 1, 1);
+  igual('Alta: Estado muestra todos los estados, no solo los iniciales', /rutaEstados = \(\) => '\/estados'/.test(sync), true);
+  igual('Alta: las sedes por cliente comprueban que ATGO aplica el filtro', /filtraCliente/.test(sync) && /__SIN_CLIENTE__/.test(sync), true);
   igual('Alta: la sincronización anuncia la capacidad', /caps: \[[^\]]*'alta'/.test(sync), true);
 }
 

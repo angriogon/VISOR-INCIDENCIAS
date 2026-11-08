@@ -994,7 +994,7 @@ button.sg-zona .pl-chev{font-size:13px;width:14px;color:var(--ink-dim)}
 .pd-fila a{color:var(--marca);font-weight:600}
 
 /* Nueva incidencia */
-.md-alta{width:min(720px,100%)}
+.md-alta{width:min(1040px,100%)}
 .al-f{display:grid;grid-template-columns:120px minmax(0,1fr);gap:8px 12px;align-items:center;font-size:13px}
 .al-f label{color:var(--ink-dim)}
 .al-f label.ob::after{content:" *";color:var(--rojo)}
@@ -1004,10 +1004,11 @@ button.sg-zona .pl-chev{font-size:13px;width:14px;color:var(--ink-dim)}
 .al-visita{display:grid;grid-template-columns:minmax(0,1fr) 110px 110px;gap:8px}
 .al-cont{grid-column:2;justify-self:end;margin-top:-5px;font-size:11px;color:var(--ink-faint)}
 .al-bus{position:relative}
-.al-res{position:absolute;z-index:5;left:0;right:0;top:calc(100% + 2px);max-height:220px;overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:0 10px 30px rgba(0,0,0,.2)}
-.al-res button{display:block;width:100%;text-align:left;padding:6px 10px;border:0;background:transparent;color:var(--ink);font:inherit;font-size:13px;cursor:pointer}
+.al-res{position:absolute;z-index:5;left:0;right:0;top:calc(100% + 2px);max-height:360px;overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:0 10px 30px rgba(0,0,0,.2)}
+.al-res button{display:block;width:100%;text-align:left;padding:9px 12px;border:0;background:transparent;color:var(--ink);font:inherit;font-size:14px;line-height:1.35;cursor:pointer}
 .al-res button:hover, .al-res button:focus{background:var(--acento-suave);outline:none}
-.al-vacio{padding:6px 10px;color:var(--ink-dim)}
+.al-res button.al-otras{position:sticky;bottom:0;background:var(--panel2);border-top:1px solid var(--line);color:var(--marca);font-weight:600}
+.al-vacio{padding:9px 12px;font-size:14px;color:var(--ink-dim)}
 .al-pie{justify-content:flex-end}
 .al-pie .ghost{margin-right:auto}
 .al-num{margin:0;font-size:15px}

@@ -5,7 +5,7 @@ const ALTA_ESPERA_MS = 60000, ALTA_DEBOUNCE_MS = 300, ALTA_MIN_BUSCA = 2, ALTA_D
 const ALTA_MAX = { ref: 50, recepcion: 2000, descripcion: 4000 };
 const ALTA_BUSCADORES = { cliente: 'Cliente', sede: 'Sede', elemento: 'Elemento', proyecto: 'Proyecto' };
 function altaVacia() {
-  return { cliente: null, sede: null, elemento: null, proyecto: null, textos: {}, severidades: [], estados: [], severidad: '', estado: '', operario: '', fecha: '', desde: '', hasta: '', ref: '', recepcion: '', descripcion: '', error: '', incierto: false, enviando: false, idEnvio: '', resultado: null };
+  return { cliente: null, sede: null, elemento: null, proyecto: null, textos: {}, severidades: [], estados: [], operarios: [], sedesCli: null, todasSedes: false, severidad: '', estado: '', operario: '', fecha: '', desde: '', hasta: '', ref: '', recepcion: '', descripcion: '', error: '', incierto: false, enviando: false, idEnvio: '', resultado: null };
 }
 let altaEst = altaVacia(), altaRes = {}, altaUltima = {}, altaT = {}, altaEsperaT = null, altaRecientes = [];
 const altaId = () => 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -13,16 +13,21 @@ function altaOcupada() { return altaEst.enviando; }
 
 function abrirAlta() {
   if (!hiloFuente()) { toast('Conecta ATGO (Ajustes › General) y repítelo'); return; }
-  if (!atgoCaps.includes('alta')) { confirmar('<b>Falta actualizar la extensión</b><p>Para crear incidencias, instala la extensión 2.2 desde Ajustes › General y recarga la pestaña de ATGO.</p>', 'Entendido'); return; }
+  if (!atgoCaps.includes('alta')) { confirmar('<b>Falta actualizar la extensión</b><p>Para crear incidencias, instala la extensión 2.2.1 desde Ajustes › General y recarga la pestaña de ATGO.</p>', 'Entendido'); return; }
   if (altaEst.resultado) altaEst = altaVacia();
   const m = document.getElementById('modal');
   m.innerHTML = '<div class="md-box md-alta" id="altaBox"></div>'; m.hidden = false;
   renderAlta(); altaCargarListas();
 }
+function altaDependeCliente(que) { return que === 'sede' || que === 'proyecto'; }
+function altaPista(que) {
+  if (altaDependeCliente(que) && !altaEst.cliente) return 'Elige primero el cliente';
+  return que === 'sede' && !altaEst.todasSedes ? 'Pulsa para ver sus sedes o escribe para filtrar' : 'Escribe para buscar…';
+}
 function altaCampoBusca(que) {
-  const bloqueado = que === 'proyecto' && !altaEst.cliente;
+  const bloqueado = altaDependeCliente(que) && !altaEst.cliente;
   return `<label for="al-${que}"${que === 'cliente' || que === 'sede' ? ' class="ob"' : ''}>${ALTA_BUSCADORES[que]}</label>
-    <div class="al-bus"><input id="al-${que}" autocomplete="off" value="${esc(altaEst.textos[que] || '')}"${bloqueado ? ' disabled' : ''} placeholder="Escribe para buscar…" oninput="altaBuscar('${que}',this.value)" onkeydown="altaTecla(event,'${que}')">
+    <div class="al-bus"><input id="al-${que}" autocomplete="off" value="${esc(altaEst.textos[que] || '')}"${bloqueado ? ' disabled' : ''} placeholder="${altaPista(que)}"${que === 'sede' ? ' onfocus="altaFocoSede()"' : ''} oninput="altaBuscar('${que}',this.value)" onkeydown="altaTecla(event,'${que}')">
       <div class="al-res" id="alRes-${que}" hidden></div></div>`;
 }
 function altaCampoTexto(id, titulo, ob, filas) {
@@ -47,7 +52,7 @@ function renderAlta() {
       <label for="al-serie">Serie</label><input id="al-serie" value="00" disabled>
       ${altaCampoBusca('cliente')}${altaCampoBusca('sede')}${altaCampoBusca('proyecto')}
       <label for="al-fecha">Fecha visita</label><div class="al-visita"><input type="date" id="al-fecha" value="${esc(a.fecha)}" onchange="altaEst.fecha=this.value"><input type="time" id="al-desde" aria-label="Hora de inicio" value="${esc(a.desde)}" onchange="altaEst.desde=this.value"><input type="time" id="al-hasta" aria-label="Hora de fin" value="${esc(a.hasta)}" onchange="altaEst.hasta=this.value"></div>
-      <label for="al-op">Operario</label><select id="al-op" onchange="altaEst.operario=this.value">${opcionesTecnico([], a.operario, 'Sin asignar')}</select>
+      <label for="al-op">Operario</label><select id="al-op" onchange="altaEst.operario=this.value"></select>
       <label for="al-estado">Estado</label><select id="al-estado" onchange="altaEst.estado=this.value"></select>
       <label for="al-severidad" class="ob">Severidad</label><select id="al-severidad" onchange="altaEst.severidad=this.value"></select>
       ${altaCampoBusca('elemento')}
@@ -68,16 +73,29 @@ function altaPedir(que, q) {
   try { src.postMessage({ type: 'despacho-alta-lista', id, que, q: q || '', codCli: altaEst.cliente ? altaEst.cliente.v : '' }, ATGO_ORIGIN); } catch (e) { return null; }
   return id;
 }
-function altaCargarListas() { altaPedir('severidad'); altaPedir('estado'); }
+function altaCargarListas() {
+  altaPedir('severidad');
+  if (!altaEst.estados.length) altaPedir('estado');
+  if (!altaEst.operarios.length) altaPedir('operario');
+  if (altaEst.cliente && altaEst.sedesCli === null) altaPedir('sedes-cliente');
+}
 function altaPintarListas() {
-  const a = altaEst, sev = document.getElementById('al-severidad'), est = document.getElementById('al-estado'); if (!sev || !est) return;
+  const a = altaEst, sev = document.getElementById('al-severidad'), est = document.getElementById('al-estado'), op = document.getElementById('al-op'); if (!sev || !est || !op) return;
+  op.innerHTML = '<option value="">Sin asignar</option>' + a.operarios.map(x => `<option value="${esc(x.v)}"${x.v === a.operario ? ' selected' : ''}>${esc(x.l)}</option>`).join('');
   sev.innerHTML = `<option value="">Elige severidad…</option>` + a.severidades.map(x => `<option value="${esc(x.v)}"${String(x.v) === a.severidad ? ' selected' : ''}>${esc(x.l)}</option>`).join('');
   est.innerHTML = a.estados.map(x => `<option value="${esc(x.v)}"${String(x.v) === a.estado ? ' selected' : ''}>${esc(x.l)}</option>`).join('');
 }
 function recibirAltaLista(m) {
   if (m.id !== altaUltima[m.que]) return;   // respuesta de una búsqueda anterior
-  if (m.que === 'severidad' || m.que === 'estado') {
+  if (m.que === 'sedes-cliente') {
+    altaEst.sedesCli = m.ok ? m.items : []; altaEst.sedesError = m.ok ? '' : errorAtgo(m.error);
+    const inp = document.getElementById('al-sede');
+    if (inp && document.activeElement === inp && !altaEst.sede && !altaEst.todasSedes) altaPintarSedes();
+    return;
+  }
+  if (m.que === 'severidad' || m.que === 'estado' || m.que === 'operario') {
     if (!m.ok) { altaEst.error = 'No se pudo cargar la lista de ' + m.que + ': ' + errorAtgo(m.error); renderAlta(); return; }
+    if (m.que === 'operario') { altaEst.operarios = m.items; altaPintarListas(); return; }
     if (m.que === 'severidad') { altaEst.severidades = m.items; if (!m.items.some(x => String(x.v) === altaEst.severidad)) altaEst.severidad = ''; }
     else { altaEst.estados = m.items; if (!m.items.some(x => String(x.v) === altaEst.estado)) { const c = m.items.find(x => /CREADO/i.test(x.l)) || m.items[0]; altaEst.estado = c ? String(c.v) : ''; } }
     altaPintarListas(); return;
@@ -93,24 +111,51 @@ function altaBuscar(que, txt) {
   altaEst.textos[que] = txt;
   if (altaEst[que]) altaSoltar(que);
   clearTimeout(altaT[que]);
+  if (que === 'sede' && altaEst.cliente && !altaEst.todasSedes) { altaPintarSedes(); return; }
   const res = document.getElementById('alRes-' + que), q = txt.trim();
   if (q.length < ALTA_MIN_BUSCA) { altaUltima[que] = ''; if (res) res.hidden = true; return; }
   altaT[que] = setTimeout(() => altaPedir(que, q), ALTA_DEBOUNCE_MS);
 }
 function altaSoltar(que) {
   altaEst[que] = null;
-  if (que === 'cliente') { altaEst.proyecto = null; altaEst.textos.proyecto = ''; altaBloqueoProyecto(); altaCargarListas(); }
+  if (que === 'cliente') { altaReiniciarCliente(); altaCargarListas(); }
 }
-function altaBloqueoProyecto() {
-  const p = document.getElementById('al-proyecto'); if (!p) return;
-  p.disabled = !altaEst.cliente; if (!altaEst.cliente) p.value = '';
+// Al cambiar de cliente, la sede y el proyecto elegidos dejan de valer
+function altaReiniciarCliente() {
+  const a = altaEst;
+  a.sede = null; a.proyecto = null; a.sedesCli = null; a.todasSedes = false; a.textos.sede = ''; a.textos.proyecto = '';
+  ['sede', 'proyecto'].forEach(q => {
+    const inp = document.getElementById('al-' + q), res = document.getElementById('alRes-' + q);
+    if (inp) { inp.value = ''; inp.disabled = !a.cliente; inp.placeholder = altaPista(q); }
+    if (res) res.hidden = true;
+  });
+}
+// Sedes del cliente elegido: se ven al entrar en el campo y se filtran al escribir, sin preguntar a ATGO cada vez
+function altaFocoSede() { if (altaEst.cliente && !altaEst.sede && !altaEst.todasSedes) altaPintarSedes(); }
+function altaPintarSedes() {
+  const a = altaEst, res = document.getElementById('alRes-sede'); if (!res) return;
+  res.hidden = false;
+  if (a.sedesCli === null) { res.innerHTML = '<div class="al-vacio">Cargando las sedes de este cliente…</div>'; return; }
+  const t = norm(a.textos.sede || '').trim();
+  altaRes.sede = a.sedesCli.filter(x => !t || norm(x.l).includes(t)).slice(0, 300);
+  const vacio = a.sedesError ? esc(a.sedesError) : a.sedesCli.length ? 'Ninguna sede coincide' : 'ATGO no indica sedes para este cliente';
+  res.innerHTML = (altaRes.sede.length ? altaRes.sede.map((x, i) => `<button type="button" onclick="altaElegir('sede',${i})" onkeydown="altaTecla(event,'sede')">${esc(x.l)}</button>`).join('') : `<div class="al-vacio">${vacio}</div>`)
+    + '<button type="button" class="al-otras" onclick="altaBuscarEnTodas()" onkeydown="altaTecla(event,\'sede\')">¿No está? Buscar en todas las sedes</button>';
+}
+function altaBuscarEnTodas() {
+  setTimeout(() => {   // después del clic: la lista se sustituye y no debe contarse como clic fuera
+    const a = altaEst, inp = document.getElementById('al-sede'), res = document.getElementById('alRes-sede'), q = (a.textos.sede || '').trim(); if (!inp || !res) return;
+    a.todasSedes = true; inp.placeholder = altaPista('sede'); inp.focus();
+    if (q.length >= ALTA_MIN_BUSCA) { altaPedir('sede', q); return; }
+    res.innerHTML = '<div class="al-vacio">Escribe al menos 2 letras para buscar en todas las sedes</div>'; res.hidden = false;
+  }, 0);
 }
 function altaElegir(que, i) {
   const x = (altaRes[que] || [])[i]; if (!x) return;
   altaEst[que] = x; altaEst.textos[que] = x.l;
   const inp = document.getElementById('al-' + que), res = document.getElementById('alRes-' + que);
   if (inp) { inp.value = x.l; inp.focus(); } if (res) res.hidden = true;
-  if (que === 'cliente') { altaBloqueoProyecto(); altaCargarListas(); }
+  if (que === 'cliente') { altaReiniciarCliente(); altaEst.textos.cliente = x.l; altaCargarListas(); }
 }
 function altaTecla(ev, que) {
   const res = document.getElementById('alRes-' + que); if (!res || res.hidden) return;
