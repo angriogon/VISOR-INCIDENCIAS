@@ -10,7 +10,7 @@
   if (prev && viva) { viva.style.display = ''; return; }
   if (prev) { try { if (typeof prev.salir === 'function') prev.salir(); } catch (e) { /* versión anterior: se sustituye igualmente */ } delete window.__despachoMovil; }
 }
-const MOVIL_VERSION = '1.2.0';
+const MOVIL_VERSION = '1.2.1';
 const EN_APP = /DespachoApp\//.test(navigator.userAgent);   // dentro de la app Android «Despacho»
 const CLAVE = 'despachoMovil_v1', PARALELO = 6, TIEMPO_MS = 40000, CADUCA_MS = 7 * 86400000, REFRESCO_MS = 10 * 60000, AL_VOLVER_MS = 2 * 60000;
 const ESTADOS_ATGO = [10, 20, 30, 40, 80, 100, 110];
@@ -456,16 +456,23 @@ async function pruebaActividad() {
   const lst = j => Array.isArray(j) ? j : (j && j.content) || [], seg = t => ((performance.now() - t) / 1000).toFixed(1) + ' s', h2 = n => new Date(n).getHours();
   const op = x => cleanInitials(x.codOpe || ''), dia = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
   const hilo = async id => lst(await leer('/hilo/' + encodeURIComponent(id.periodo) + '/' + encodeURIComponent(id.codSerie) + '/' + encodeURIComponent(id.codInc))).map(x => ({ ts: isoTs(x.hiloIncidenciaId && x.hiloIncidenciaId.fechaRegistro), u: String(x.usuario || '').trim().toUpperCase(), t: String(x.descripcion || '').trim() }));
-  const paral = async (l, fn) => { let i = 0; await Promise.all(Array.from({ length: PARALELO }, async () => { while (i < l.length) { const x = l[i++]; try { await fn(x); } catch (e) { /* se cuenta lo que se pueda */ } } })); };
+  let fallos = 0, agotados = 0;
+  const paral = async (l, fn) => { let i = 0; await Promise.all(Array.from({ length: 3 }, async () => { while (i < l.length) { const x = l[i++]; try { await fn(x); } catch (e) { if (e.sesion) throw e; if (e.name === 'AbortError') agotados++; else fallos++; } } })); };
   const pinta = x => { const e = $('pa'); if (e) e.textContent = L.concat(x ? [x] : []).join('\n'); };
   f.innerHTML = '<header><button class="ib" data-a="cerrarf" aria-label="Volver">‹</button><h1 style="font-size:16px">Prueba Actividad</h1></header><div class="cb"><pre id="pa" style="white-space:pre-wrap;overflow-wrap:anywhere;font:13px monospace;margin:0 0 12px"></pre><div id="pab"></div></div>';
   f.hidden = false; f.dataset.k = 'prueba'; history.pushState({ despachoMovil: 1 }, ''); pinta('Leyendo cierres de los últimos 7 días…');
   try {
-    let t0 = performance.now(), F = [], tot = null, err = '', mas = false;
-    for (let n = 0; n < 3; n++) {
-      let j; try { j = await leer('/incidencias/listado?page=' + n + '&size=100&sort=fechaRegistro,desc&q=fechaCierre.greaterOrEqualThan=' + dia(desde)); } catch (e) { if (e.sesion) throw e; err = e.name === 'AbortError' ? 'tiempo agotado' : e.message; break; }
-      if (tot === null) tot = j.totalElements; F = F.concat(lst(j)); mas = j.last === false; if (j.last !== false || !lst(j).length) break; pinta('Leyendo cierres… ' + F.length);
-    }
+    // Con Despacho cargando, ATGO va mucho más lento: se espera a que termine
+    if (cargando) { pinta('Esperando a que termine la carga de Despacho…'); while (cargando) await new Promise(r => setTimeout(r, 1000)); }
+    // Cierres técnico a técnico: la consulta de toda la empresa no responde a tiempo
+    let t0 = performance.now(), F = [], tot = 0, err = '', mas = false, hechos = 0; const ops = [...mias];
+    await paral(ops, async o => {
+      const j = await leer('/incidencias/listado?page=0&size=50&sort=fechaRegistro,desc&q=codOpe.equals=' + encodeURIComponent(o) + ',fechaCierre.greaterOrEqualThan=' + dia(desde));
+      tot += j.totalElements || 0; F = F.concat(lst(j)); if (j.last === false) mas = true; hechos++; pinta('Leyendo cierres… ' + hechos + '/' + ops.length);
+    });
+    if (hechos < ops.length) err = (ops.length - hechos) + ' de ' + ops.length + ' técnicos sin respuesta (' + agotados + ' por tiempo)';
+    const fallosCierres = fallos + agotados; fallos = 0; agotados = 0;
+    L.push('', 'Consultas de cierres: ' + hechos + ' de ' + ops.length + ' técnicos' + (fallosCierres ? ' · ' + fallosCierres + ' fallidas' : ''));
     const conF = F.filter(x => x.fechaCierre), enR = conF.filter(x => isoTs(x.fechaCierre) >= desde.getTime()), conH = enR.filter(x => { const m = /T(\d{2}:\d{2})/.exec(String(x.fechaCierre)); return m && m[1] !== '00:00'; });
     L.push('', 'CIERRES (7 días)', 'Filtro por fecha: ' + (err ? 'ERROR ' + err : 'funciona'), 'Total que indica ATGO: ' + tot + ' · leídas: ' + F.length + (mas ? ' (hay más)' : ''), 'Con fecha de cierre: ' + conF.length + ' · dentro de los 7 días: ' + enR.length, 'Con hora real: ' + conH.length, 'Entre 14:00 y 16:00: ' + enR.filter(x => { const g = h2(isoTs(x.fechaCierre)); return g >= 14 && g < 16; }).length, 'De tu perfil (' + E.perfil + '): ' + enR.filter(x => mias.has(op(x))).length, 'Tiempo: ' + seg(t0));
     pinta('Leyendo hilos de cerradas…');
@@ -475,11 +482,12 @@ async function pruebaActividad() {
       h.filter(y => CAMB.test(y.t)).forEach(y => { const pl = plantilla(y.t); M[pl] = (M[pl] || 0) + 1; });
       if (k.length) { cM++; if (k[0].u) { cA++; if (k[0].u === op(x)) cT++; } } else if (h.some(y => Math.abs(y.ts - c) < 600000)) cH++;
     });
-    L.push('', 'QUIÉN CIERRA (' + cN + ' cerradas leídas)', 'Con mensaje de cierre a esa hora: ' + cM, 'De ellas, con autor: ' + cA, 'El autor es el técnico asignado: ' + cT, 'Sin ese mensaje pero con actividad a esa hora: ' + cH, 'Tiempo: ' + seg(t1));
+    L.push('', 'QUIÉN CIERRA (' + cN + ' cerradas leídas' + (fallos + agotados ? ', ' + (fallos + agotados) + ' hilos sin leer' : '') + ')', 'Con mensaje de cierre a esa hora: ' + cM, 'De ellas, con autor: ' + cA, 'El autor es el técnico asignado: ' + cT, 'Sin ese mensaje pero con actividad a esa hora: ' + cH, 'Tiempo: ' + seg(t1));
     pinta('Leyendo cambios de estado…');
-    const t2 = performance.now(), ab = filas().slice().sort((a, b) => String(b.fRegistroISO).localeCompare(String(a.fRegistroISO))).slice(0, 60); let ev = 0, evA = 0, evF = 0, tk = 0;
+    fallos = 0; agotados = 0;
+    const t2 = performance.now(), ab = filas().slice().sort((a, b) => String(b.fRegistroISO).localeCompare(String(a.fRegistroISO))).slice(0, 30); let ev = 0, evA = 0, evF = 0, tk = 0;
     await paral(ab, async r => { const [pe, se, co] = r.key.split('/'), h = await hilo({ periodo: pe, codSerie: se, codInc: co }); tk++; h.forEach(y => { if (!CAMB.test(y.t)) return; const pl = plantilla(y.t); M[pl] = (M[pl] || 0) + 1; if (y.ts >= desde.getTime()) { ev++; if (y.u) evA++; const g = h2(y.ts); if (g >= 14 && g < 16) evF++; } }); });
-    L.push('', 'CAMBIOS DE ESTADO (' + tk + ' abiertas leídas)', 'Mensajes de cambio en 7 días: ' + ev, 'Con autor: ' + evA, 'Entre 14:00 y 16:00: ' + evF, 'Tiempo: ' + seg(t2), '', 'FORMATOS DE MENSAJE');
+    L.push('', 'CAMBIOS DE ESTADO (' + tk + ' de ' + ab.length + ' abiertas leídas' + (agotados ? ', ' + agotados + ' por tiempo' : '') + (fallos ? ', ' + fallos + ' con error' : '') + ')', 'Mensajes de cambio en 7 días: ' + ev, 'Con autor: ' + evA, 'Entre 14:00 y 16:00: ' + evF, 'Tiempo: ' + seg(t2), '', 'FORMATOS DE MENSAJE');
     Object.entries(M).sort((a, b) => b[1] - a[1]).slice(0, 10).forEach(([k, v]) => L.push(v + ' × ' + k));
     if (!Object.keys(M).length) L.push('(ninguno encontrado)');
     L.push('', 'Fin. Pulsa Copiar y pégamelo.'); pinta();
