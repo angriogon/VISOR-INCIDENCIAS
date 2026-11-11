@@ -10,7 +10,8 @@
   if (prev && viva) { viva.style.display = ''; return; }
   if (prev) { try { if (typeof prev.salir === 'function') prev.salir(); } catch (e) { /* versión anterior: se sustituye igualmente */ } delete window.__despachoMovil; }
 }
-const MOVIL_VERSION = '1.1.1';
+const MOVIL_VERSION = '1.2.0';
+const EN_APP = /DespachoApp\//.test(navigator.userAgent);   // dentro de la app Android «Despacho»
 const CLAVE = 'despachoMovil_v1', PARALELO = 6, TIEMPO_MS = 40000, CADUCA_MS = 7 * 86400000, REFRESCO_MS = 10 * 60000, AL_VOLVER_MS = 2 * 60000;
 const ESTADOS_ATGO = [10, 20, 30, 40, 80, 100, 110];
 const ESTADOS_SIN_SLA = ['FUERA DE MANTENIMIENTO'];
@@ -331,7 +332,7 @@ select,input{font:inherit;color:var(--ink);background:var(--panel);border:1px so
 .perf button{height:44px;border:1px solid var(--line);border-radius:10px}.perf button.on{border-color:var(--marca);color:var(--marca);font-weight:700}
 .cb{flex:1;overflow:auto;padding:12px;overscroll-behavior:contain}
 .acc{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:10px 0}
-.acc a{display:flex;align-items:center;justify-content:center;height:46px;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--marca);font-weight:600;text-decoration:none;padding:0 6px;text-align:center}
+.acc a,.acc button{display:flex;align-items:center;justify-content:center;height:46px;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--marca);font-weight:600;text-decoration:none;padding:0 6px;text-align:center}
 dl{margin:0;display:grid;grid-template-columns:96px minmax(0,1fr);gap:6px 10px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px}
 dt{color:var(--dim);font-size:13px}dd{margin:0;overflow-wrap:anywhere}
 .h{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:6px;font-size:14px;white-space:pre-wrap;overflow-wrap:anywhere}
@@ -438,7 +439,7 @@ async function abrirFicha(k, sinHistorial) {
   f.innerHTML = `<header><button class="ib" data-a="cerrarf" aria-label="Volver">‹</button><h1 style="font-family:monospace;font-size:16px">${esc(r.num)}</h1><div id="est2"></div></header><div class="cb">
     <span class="p" style="--e:${estadoColor(r.estado)}">${esc(r.estado)}</span>
     <div class="s" style="font-size:17px;margin:8px 0 2px">${esc(r.descSede || '—')}</div><div class="m">${esc(r.descCliente || '')}</div>
-    <div class="acc">${tel.length >= 6 ? `<a href="tel:${esc(tel)}">Llamar a la tienda</a>` : ''}${r.domicilio ? `<a href="${esc(mapa)}" target="_blank" rel="noopener">Ver en Maps</a>` : ''}${mail ? `<a href="mailto:${esc(mail)}">Correo</a>` : ''}<a href="${esc(wa)}" target="_blank" rel="noopener">WhatsApp</a><a href="${esc(r.url)}" target="_blank" rel="noopener">Abrir en ATGO</a></div>
+    <div class="acc">${tel.length >= 6 ? `<a href="tel:${esc(tel)}">Llamar a la tienda</a>` : ''}${r.domicilio ? `<a href="${esc(mapa)}" target="_blank" rel="noopener">Ver en Maps</a>` : ''}${mail ? `<a href="mailto:${esc(mail)}">Correo</a>` : ''}<a href="${esc(wa)}" target="_blank" rel="noopener">WhatsApp</a>${EN_APP ? `<button type="button" data-a="atgo" data-k="${esc(k)}">Abrir en ATGO</button>` : `<a href="${esc(r.url)}" target="_blank" rel="noopener">Abrir en ATGO</a>`}</div>
     <dl>${fila('Técnico', /^XXX/i.test(r.operario) ? 'Sin asignar · ' + zonaPool(r) : [r.operario, r.desOperario].filter(Boolean).join(' · '))}${fila('Visita', r.fVisita ? r.fVisita + (r.desdeHora ? ' · ' + r.desdeHora + (r.hastaHora ? '–' + r.hastaHora : '') : '') : 'Sin fecha')}${fila('Caducidad', c ? cadTexto(c) : '')}${fila('Dirección', r.domicilio)}${fila('Provincia', r.provincia)}${fila('Teléfono', r.telefono)}${fila('Equipo', [r.tipo, r.elemento].filter(Boolean).join(' · '))}${fila('Referencia', r.referencia)}${fila('Proyecto', proy)}${fila('Registro', r.fRegistro)}${fila('Motivo', d.mot)}</dl>
     <h2>Hilo</h2><div id="hi"><div class="vac">Cargando el hilo…</div></div></div>`;
   f.hidden = false; f.dataset.k = k;
@@ -508,6 +509,7 @@ function acciones(b) {
   else if (a === 'plg') { if (v) abiertosInc = {}; else filas().forEach(r => { abiertosInc[r.operario] = true; }); pintar(); $('v').scrollTop = 0; }
   else if (a === 'perfil') { $('me').hidden = true; if (v !== E.perfil) { E = { ...E, perfil: v, tecs: {}, pool: {}, der: {}, salidas: {}, at: 0 }; zonaInc = ''; guardar(); cargar(); } }
   else if (a === 'salir') salir();
+  else if (a === 'atgo') { const r = ticket(b.dataset.k); cerrarFicha(); host.style.display = 'none'; if (r) location.hash = '#/mistickets/' + r.key; }   // en la app: el botón «Despacho» vuelve aquí
   else if (a === 'pruebaact') { $('me').hidden = true; pruebaActividad(); }
   else if (a === 'copiarprueba') navigator.clipboard.writeText($('pa').textContent).then(() => alert('Copiado'), () => alert('No se pudo copiar: haz capturas'));
   else if (a === 'borrar') { if (confirm('¿Borrar los datos guardados en este móvil?')) { try { localStorage.removeItem(CLAVE); } catch (e) { /* nada que borrar */ } salir(); } }

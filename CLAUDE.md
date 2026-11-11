@@ -63,6 +63,7 @@ Publicada en GitHub Pages: https://angriogon.github.io/VISOR-INCIDENCIAS/
 | `alta.js` | Ventana «Nueva incidencia» (`abrirAlta`): buscadores, confirmación y resultado. El alta la hace `altaCrear` en `atgo-sync.js` |
 | `analisis.js` | COORD: informes por cliente y proyecto, tendencias (`coordFotoHoy`), indicadores por técnico, equilibrio, mapa nacional. También `primeraVisitaResumen` (informe semanal) |
 | `movil.js` + `movil.firma.json` | Despacho móvil: vista de solo lectura que se abre dentro de la página de ATGO con un favorito que comprueba la firma. Lleva copias literales de funciones de la PWA (las pruebas exigen que coincidan: si cambias el original, copia también aquí). No forma parte de la PWA ni de `SHELL` |
+| `android/` | App Android «Despacho»: ATGO en una ventana que inyecta `assets/cargador.js` (abre Despacho móvil firmado). Se genera con `sh tools/construir-app.sh` (Docker); la clave de la app está en `%USERPROFILE%\.despacho`. Solo se reinstala si cambia la propia app (sube `versionCode`/`versionName`) |
 | `tests/pruebas.js` | Pruebas sin dependencias (duración, caducidad, coherencia de listas y versiones). GitHub Actions las ejecuta |
 | `atgo-sync.js` | Sincronización dentro de ATGO (lista `OPERARIOS`, códigos de `ESTADOS`, `REFRESCO_MIN`, edición) |
 | `sw.js` | Service worker: `VERSION` y lista `SHELL` de archivos cacheados |

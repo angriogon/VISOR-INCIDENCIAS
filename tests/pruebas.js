@@ -241,6 +241,8 @@ igual('orden visita: próximas primero; luego sin fecha; al final las pasadas',
   const bloque = (s, c) => { const i = s.indexOf(c), m = /[\]}];(?=[ \t]*(\/\/[^\n]*)?\n)/.exec(s.slice(i)); return s.slice(i, i + m.index + 2); };
   [['app.js', 'const ZONAS_BASE ='], ['app.js', 'const ESTADO_COLOR ='], ['app.js', 'const ESTADOS ='], ['app.js', 'const PALETTE ='], ['panel.js', 'const POOL_ZONA ='], ['dia.js', 'const HILO_SISTEMA ='], ['dia.js', 'const ESTADOS_CIERRE =']].forEach(([a, c]) => igual('móvil igual que ' + a + ': ' + c, bloque(mov, c) === bloque(sinCr(leer(a)), c), true));
   ['const PROV_ZONA =', 'const PROV_RE =', 'const CAD_RE =', 'const MESES ='].forEach(c => igual('móvil igual que herramientas.js: ' + c, extraer(mov, c) === extraer(sinCr(leer('herramientas.js')), c), true));
+  igual('la app Android usa la misma clave pública', /CLAVE = \{[^}]+\}/.exec(leer('android/assets/cargador.js'))[0].replace(/^CLAVE = /, '').replace(/\s/g, '') === /CLAVE_SYNC = (\{[^}]+\})/.exec(bg)[1].replace(/\s/g, ''), true);
+  igual('la app Android solo deja dentro ATGO', /"atgo\.tier1\.es"\.equals\(u\.getHost\(\)\)/.test(leer('android/java/es/despacho/movil/MainActivity.java')) && !/addJavascriptInterface/.test(leer('android/java/es/despacho/movil/MainActivity.java')), true);
   igual('móvil excluye los cerrados en Incidencias', /esCerrado = e => \/cerrad\/i/.test(mov) && /!esCerrado\(r\.estado\)/.test(mov), true);
   igual('móvil usa los mismos estados que la sincronización', /const ESTADOS_ATGO = (\[[^\]]+\])/.exec(mov)[1], /const ESTADOS = (\[[^\]]+\])/.exec(sinCr(leer('atgo-sync.js')))[1]);
 }
