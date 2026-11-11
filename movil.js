@@ -4,8 +4,13 @@
 // El bloque «Copias» viene de la PWA y de atgo-sync.js: las pruebas exigen que siga idéntico a su original.
 (function () {
 'use strict';
-if (window.__despachoMovil) { window.__despachoMovil.mostrar(); return; }
-const MOVIL_VERSION = '1.1.0';
+{
+  // Ya abierta en esta pestaña: se enseña. Si su ventana desapareció de la página (ATGO la rehízo), se cierra lo anterior y se abre de nuevo
+  const prev = window.__despachoMovil, viva = document.getElementById('despacho-movil');
+  if (prev && viva) { viva.style.display = ''; return; }
+  if (prev) { try { if (typeof prev.salir === 'function') prev.salir(); } catch (e) { /* versión anterior: se sustituye igualmente */ } delete window.__despachoMovil; }
+}
+const MOVIL_VERSION = '1.1.1';
 const CLAVE = 'despachoMovil_v1', PARALELO = 6, TIEMPO_MS = 40000, CADUCA_MS = 7 * 86400000, REFRESCO_MS = 10 * 60000, AL_VOLVER_MS = 2 * 60000;
 const ESTADOS_ATGO = [10, 20, 30, 40, 80, 100, 110];
 const ESTADOS_SIN_SLA = ['FUERA DE MANTENIMIENTO'];
@@ -443,10 +448,47 @@ async function abrirFicha(k, sinHistorial) {
     $('hi').innerHTML = items.slice().sort((a, b) => b.ts - a.ts).map(i => { const t = i.t.replace(/\s+$/, ''), sis = HILO_SISTEMA.some(re => re.test(t.trim())); return `<div class="h${sis ? ' sis' : ''}"><small>${esc([i.ts ? new Date(i.ts).toLocaleString('es-ES', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '', i.n || i.u].filter(Boolean).join(' · '))}</small>${esc(t)}</div>`; }).join('') || '<div class="vac">Sin mensajes.</div>';
   } catch (e) { if (e.sesion) { sesionMala = true; pintarEstado(); } const h = $('hi'); if (h && f.dataset.k === k) h.innerHTML = '<div class="vac">No se ha podido cargar el hilo.</div>'; }
 }
+// ---- Prueba temporal: ¿se puede saber quién cierra o cambia de estado y cuándo? Solo cuenta; no enseña tickets ----
+async function pruebaActividad() {
+  const f = $('fi'), L = ['Prueba Actividad · Despacho móvil ' + MOVIL_VERSION], desde = new Date(Date.now() - 7 * 86400000), mias = new Set(opsDe(E.perfil)), M = {};
+  const CAMB = /cambiado del estado|(cambiado|modificado) el estado|ha (cerrado|reabierto)/i, plantilla = s => s.replace(/el usuario \S+/i, 'El usuario U').replace(/\d+/g, '0').slice(0, 90);
+  const lst = j => Array.isArray(j) ? j : (j && j.content) || [], seg = t => ((performance.now() - t) / 1000).toFixed(1) + ' s', h2 = n => new Date(n).getHours();
+  const op = x => cleanInitials(x.codOpe || ''), dia = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  const hilo = async id => lst(await leer('/hilo/' + encodeURIComponent(id.periodo) + '/' + encodeURIComponent(id.codSerie) + '/' + encodeURIComponent(id.codInc))).map(x => ({ ts: isoTs(x.hiloIncidenciaId && x.hiloIncidenciaId.fechaRegistro), u: String(x.usuario || '').trim().toUpperCase(), t: String(x.descripcion || '').trim() }));
+  const paral = async (l, fn) => { let i = 0; await Promise.all(Array.from({ length: PARALELO }, async () => { while (i < l.length) { const x = l[i++]; try { await fn(x); } catch (e) { /* se cuenta lo que se pueda */ } } })); };
+  const pinta = x => { const e = $('pa'); if (e) e.textContent = L.concat(x ? [x] : []).join('\n'); };
+  f.innerHTML = '<header><button class="ib" data-a="cerrarf" aria-label="Volver">‹</button><h1 style="font-size:16px">Prueba Actividad</h1></header><div class="cb"><pre id="pa" style="white-space:pre-wrap;overflow-wrap:anywhere;font:13px monospace;margin:0 0 12px"></pre><div id="pab"></div></div>';
+  f.hidden = false; f.dataset.k = 'prueba'; history.pushState({ despachoMovil: 1 }, ''); pinta('Leyendo cierres de los últimos 7 días…');
+  try {
+    let t0 = performance.now(), F = [], tot = null, err = '', mas = false;
+    for (let n = 0; n < 3; n++) {
+      let j; try { j = await leer('/incidencias/listado?page=' + n + '&size=100&sort=fechaRegistro,desc&q=fechaCierre.greaterOrEqualThan=' + dia(desde)); } catch (e) { if (e.sesion) throw e; err = e.name === 'AbortError' ? 'tiempo agotado' : e.message; break; }
+      if (tot === null) tot = j.totalElements; F = F.concat(lst(j)); mas = j.last === false; if (j.last !== false || !lst(j).length) break; pinta('Leyendo cierres… ' + F.length);
+    }
+    const conF = F.filter(x => x.fechaCierre), enR = conF.filter(x => isoTs(x.fechaCierre) >= desde.getTime()), conH = enR.filter(x => { const m = /T(\d{2}:\d{2})/.exec(String(x.fechaCierre)); return m && m[1] !== '00:00'; });
+    L.push('', 'CIERRES (7 días)', 'Filtro por fecha: ' + (err ? 'ERROR ' + err : 'funciona'), 'Total que indica ATGO: ' + tot + ' · leídas: ' + F.length + (mas ? ' (hay más)' : ''), 'Con fecha de cierre: ' + conF.length + ' · dentro de los 7 días: ' + enR.length, 'Con hora real: ' + conH.length, 'Entre 14:00 y 16:00: ' + enR.filter(x => { const g = h2(isoTs(x.fechaCierre)); return g >= 14 && g < 16; }).length, 'De tu perfil (' + E.perfil + '): ' + enR.filter(x => mias.has(op(x))).length, 'Tiempo: ' + seg(t0));
+    pinta('Leyendo hilos de cerradas…');
+    const m1 = enR.filter(x => mias.has(op(x))).sort((a, b) => isoTs(b.fechaCierre) - isoTs(a.fechaCierre)).slice(0, 40); let cN = 0, cM = 0, cA = 0, cT = 0, cH = 0; const t1 = performance.now();
+    await paral(m1, async x => {
+      const h = await hilo(x.incidenciaId), c = isoTs(x.fechaCierre), k = h.filter(y => Math.abs(y.ts - c) < 600000 && CAMB.test(y.t)); cN++;
+      h.filter(y => CAMB.test(y.t)).forEach(y => { const pl = plantilla(y.t); M[pl] = (M[pl] || 0) + 1; });
+      if (k.length) { cM++; if (k[0].u) { cA++; if (k[0].u === op(x)) cT++; } } else if (h.some(y => Math.abs(y.ts - c) < 600000)) cH++;
+    });
+    L.push('', 'QUIÉN CIERRA (' + cN + ' cerradas leídas)', 'Con mensaje de cierre a esa hora: ' + cM, 'De ellas, con autor: ' + cA, 'El autor es el técnico asignado: ' + cT, 'Sin ese mensaje pero con actividad a esa hora: ' + cH, 'Tiempo: ' + seg(t1));
+    pinta('Leyendo cambios de estado…');
+    const t2 = performance.now(), ab = filas().slice().sort((a, b) => String(b.fRegistroISO).localeCompare(String(a.fRegistroISO))).slice(0, 60); let ev = 0, evA = 0, evF = 0, tk = 0;
+    await paral(ab, async r => { const [pe, se, co] = r.key.split('/'), h = await hilo({ periodo: pe, codSerie: se, codInc: co }); tk++; h.forEach(y => { if (!CAMB.test(y.t)) return; const pl = plantilla(y.t); M[pl] = (M[pl] || 0) + 1; if (y.ts >= desde.getTime()) { ev++; if (y.u) evA++; const g = h2(y.ts); if (g >= 14 && g < 16) evF++; } }); });
+    L.push('', 'CAMBIOS DE ESTADO (' + tk + ' abiertas leídas)', 'Mensajes de cambio en 7 días: ' + ev, 'Con autor: ' + evA, 'Entre 14:00 y 16:00: ' + evF, 'Tiempo: ' + seg(t2), '', 'FORMATOS DE MENSAJE');
+    Object.entries(M).sort((a, b) => b[1] - a[1]).slice(0, 10).forEach(([k, v]) => L.push(v + ' × ' + k));
+    if (!Object.keys(M).length) L.push('(ninguno encontrado)');
+    L.push('', 'Fin. Pulsa Copiar y pégamelo.'); pinta();
+    const b = $('pab'); if (b) b.innerHTML = '<button class="mini" data-a="copiarprueba">Copiar resultado</button>';
+  } catch (e) { L.push('', 'ERROR: ' + (e.sesion ? 'sesión de ATGO caducada' : e.name === 'AbortError' ? 'tiempo agotado' : e.message)); pinta(); }
+}
 function cerrarFicha() { const f = $('fi'); f.hidden = true; f.dataset.k = ''; f.innerHTML = ''; }
 function abrirMenu() {
   const m = $('me');
-  m.innerHTML = `<div class="hoja" role="dialog" aria-label="Opciones"><h3>Perfil</h3><div class="perf">${PERFILES.map(p => `<button class="${E.perfil === p ? 'on' : ''}" data-a="perfil" data-v="${p}">${p}</button>`).join('')}</div><button class="fila" data-a="salir">Volver a ATGO</button><button class="fila" data-a="borrar">Borrar los datos de este móvil</button><button class="fila" data-a="cmenu">Cerrar</button><div class="m" style="text-align:center">Despacho móvil ${MOVIL_VERSION} · solo consulta</div></div>`;
+  m.innerHTML = `<div class="hoja" role="dialog" aria-label="Opciones"><h3>Perfil</h3><div class="perf">${PERFILES.map(p => `<button class="${E.perfil === p ? 'on' : ''}" data-a="perfil" data-v="${p}">${p}</button>`).join('')}</div><button class="fila" data-a="pruebaact">Probar Actividad (temporal)</button><button class="fila" data-a="salir">Volver a ATGO</button><button class="fila" data-a="borrar">Borrar los datos de este móvil</button><button class="fila" data-a="cmenu">Cerrar</button><div class="m" style="text-align:center">Despacho móvil ${MOVIL_VERSION} · solo consulta</div></div>`;
   m.hidden = false;
 }
 function salir() { clearInterval(reloj); window.removeEventListener('popstate', atras, true); document.removeEventListener('visibilitychange', alVolver); host.remove(); document.documentElement.style.overflow = ''; delete window.__despachoMovil; }
@@ -466,6 +508,8 @@ function acciones(b) {
   else if (a === 'plg') { if (v) abiertosInc = {}; else filas().forEach(r => { abiertosInc[r.operario] = true; }); pintar(); $('v').scrollTop = 0; }
   else if (a === 'perfil') { $('me').hidden = true; if (v !== E.perfil) { E = { ...E, perfil: v, tecs: {}, pool: {}, der: {}, salidas: {}, at: 0 }; zonaInc = ''; guardar(); cargar(); } }
   else if (a === 'salir') salir();
+  else if (a === 'pruebaact') { $('me').hidden = true; pruebaActividad(); }
+  else if (a === 'copiarprueba') navigator.clipboard.writeText($('pa').textContent).then(() => alert('Copiado'), () => alert('No se pudo copiar: haz capturas'));
   else if (a === 'borrar') { if (confirm('¿Borrar los datos guardados en este móvil?')) { try { localStorage.removeItem(CLAVE); } catch (e) { /* nada que borrar */ } salir(); } }
 }
 raiz.addEventListener('click', e => { const b = e.target.closest('[data-a]'); if (b) { if (b.tagName === 'A') return; e.preventDefault(); acciones(b); } else if (e.target === $('me')) $('me').hidden = true; });
@@ -480,7 +524,7 @@ const reloj = setInterval(() => { if (!document.hidden && Date.now() - E.at > RE
 recuperar();
 document.documentElement.style.overflow = 'hidden';
 (document.body || document.documentElement).appendChild(host);
-window.__despachoMovil = { mostrar() { host.style.display = ''; } };
+window.__despachoMovil = { mostrar() { host.style.display = ''; }, salir };
 pintar();
 if (Date.now() - E.at > AL_VOLVER_MS) cargar();
 })();
