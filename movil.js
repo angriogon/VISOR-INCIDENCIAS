@@ -10,7 +10,7 @@
   if (prev && viva) { viva.style.display = ''; return; }
   if (prev) { try { if (typeof prev.salir === 'function') prev.salir(); } catch (e) { /* versión anterior: se sustituye igualmente */ } delete window.__despachoMovil; }
 }
-const MOVIL_VERSION = '1.2.1';
+const MOVIL_VERSION = '1.3.1';
 const EN_APP = /DespachoApp\//.test(navigator.userAgent);   // dentro de la app Android «Despacho»
 const CLAVE = 'despachoMovil_v1', PARALELO = 6, TIEMPO_MS = 40000, CADUCA_MS = 7 * 86400000, REFRESCO_MS = 10 * 60000, AL_VOLVER_MS = 2 * 60000;
 const ESTADOS_ATGO = [10, 20, 30, 40, 80, 100, 110];
@@ -193,7 +193,7 @@ async function leer(ruta) {
 }
 
 // ---- Estado ----
-let E = { perfil: null, at: 0, tecs: {}, pool: {}, poolDesc: {}, der: {}, salidas: {}, salidasDia: '' };   // tecs/pool: por operario. der: lo deducido del hilo
+let E = { perfil: null, at: 0, tecs: {}, pool: {}, poolDesc: {}, der: {}, salidas: {}, salidasDia: '', cierres: null };   // cierres: los del día elegido en Actividad   // tecs/pool: por operario. der: lo deducido del hilo
 let cargando = false, fin = 0, total = 0, fallos = 0, sesionMala = false, aviso = '', pintaT = null;
 let tab = 'hoy', filtroInc = '', estadoInc = '', zonaInc = '', verMi = true, abiertos = {}, abiertosInc = {}, textoBus = '';
 function guardar() {
@@ -212,7 +212,7 @@ function recuperar() {
 const filas = () => Object.values(E.tecs).flat();
 const pendientes = () => Object.values(E.pool).flat();
 const todas = () => [...filas(), ...pendientes()];
-const ticket = k => todas().find(r => r.key === k) || E.salidas[k] || null;
+const ticket = k => todas().find(r => r.key === k) || E.salidas[k] || ((E.cierres && E.cierres.items) || []).find(r => r.key === k) || null;
 const cad = r => { const d = E.der[r.key]; return d && d.cad && !sinSla(r) ? d.cad : null; };
 const zonaPool = r => {
   const op = cleanInitials(r.operario), d = String(E.poolDesc[op] || r.desOperario || '').replace(/^PENDIENTE( DE)? ASIGNAR\s*/i, '');
@@ -230,18 +230,91 @@ async function lista(op, estados) {
   }
   return out;
 }
+// «El ticket ha cambiado del estado X al estado Y»: así lo escribe ATGO en el hilo, con autor y hora
+const CAMBIO_RE = /^el ticket ha cambiado del estado (.+?) (?:al estado|a) (.+?)\.?$/i, ACT_DIAS = 8;
+function cambioDe(t) { const m = CAMBIO_RE.exec(String(t || '').replace(/\s+/g, ' ').trim()); return m ? { de: m[1].trim(), a: m[2].trim() } : null; }
+function cambiosDe(items, desde) { return items.filter(i => i.ts >= desde).map(i => { const c = cambioDe(i.t); return c ? { ts: i.ts, u: cleanInitials(i.u), de: c.de, a: c.a } : null; }).filter(Boolean).slice(-40); }
 function deducir(r, items) {
   const orden = items.slice().sort((a, b) => a.ts - b.ts), hoy = iso(), tec = cleanInitials(r.operario);
   let prog = null;
   orden.forEach(i => { if (!i.ts || iso(new Date(i.ts)) !== hoy) return; const m = /el usuario (\S+) ha (finalizado|iniciado) el ticket/i.exec(i.t || ''); if (m && cleanInitials(m[1]) === tec) prog = /^fin/i.test(m[2]) ? 'd' : 'c'; });
   const mot = orden.map(i => i.t.replace(/\s+/g, ' ').trim()).find(t => t && !HILO_SISTEMA.some(re => re.test(t))) || '';
   const c = caducidadHiloCalc({ items: orden });
-  return { cad: c ? { ts: c.ts, conHora: c.conHora } : null, prog, mot: mot.slice(0, 500) };
+  return { cad: c ? { ts: c.ts, conHora: c.conHora } : null, prog, mot: mot.slice(0, 500), camb: cambiosDe(orden, Date.now() - ACT_DIAS * 86400000) };
 }
 async function leerHilo(k) {
   const [p, s, c] = k.split('/');
   const d = await leer('/hilo/' + encodeURIComponent(p) + '/' + encodeURIComponent(s) + '/' + encodeURIComponent(c));
   return (Array.isArray(d) ? d : []).map(x => ({ ts: isoTs(x.hiloIncidenciaId && x.hiloIncidenciaId.fechaRegistro), u: x.usuario || '', n: x.nombre || '', t: String(x.descripcion || '').trim() }));
+}
+// ---- Actividad: cierres (técnico a técnico, solo al usar la pestaña) y cambios de estado, por día y franja ----
+const PREF_ACT = 'despachoMovilActividad_v1';
+let PA = { franjas: [['14:00', '16:00'], ['18:00', '19:00']], franja: 0, dia: 0, tipo: '', silencio: {}, tec: '' };
+try { PA = { ...PA, ...(JSON.parse(localStorage.getItem(PREF_ACT)) || {}) }; } catch (e) { /* preferencias por defecto */ }
+function guardarPA() { try { localStorage.setItem(PREF_ACT, JSON.stringify(PA)); } catch (e) { /* se usan en esta sesión */ } }
+let cierresCargando = false, cierresFin = 0, cierresTot = 0;
+const diaAct = () => iso(new Date(Date.now() - PA.dia * 86400000));
+const cierresAlDia = () => E.cierres && E.cierres.perfil === E.perfil && E.cierres.desde <= diaAct() && (PA.dia > 0 || Date.now() - E.cierres.at < 5 * 60000);
+async function enParalelo(lista, fn) {
+  let i = 0, fallidos = 0;
+  await Promise.all(Array.from({ length: 3 }, async () => { while (i < lista.length && !sesionMala) { const x = lista[i++]; try { await fn(x); } catch (e) { if (e.sesion) sesionMala = true; else fallidos++; } } }));
+  return fallidos;
+}
+async function cargarCierres() {
+  if (cierresCargando || sesionMala) return;
+  cierresCargando = true; cierresFin = 0; pintar();
+  while (cargando) await new Promise(r => setTimeout(r, 1000));   // con Despacho cargando, ATGO va mucho más lento
+  const desde = diaAct(), perfil = E.perfil, ops = opsDe(perfil), items = {}; cierresTot = ops.length;
+  const fallidos = await enParalelo(ops, async op => {
+    for (let p = 0; p < 5; p++) {
+      const d = await leer('/incidencias/listado?page=' + p + '&size=100&sort=fechaRegistro,desc&q=codOpe.equals=' + encodeURIComponent(op) + ',fechaCierre.greaterOrEqualThan=' + desde), c = Array.isArray(d && d.content) ? d.content : [];
+      c.forEach(t => { const r = mapTicket(t); r.fCierre = isoTs(t.fechaCierre); if (r.fCierre) items[r.key] = r; });
+      if (d.last !== false || !c.length) break;
+    }
+    cierresFin++; pintarPronto();
+  });
+  const lista = Object.values(items), ini = new Date(desde + 'T00:00').getTime();
+  await enParalelo(lista, async r => { r.camb = cambiosDe(await leerHilo(r.key), ini); });
+  if (!sesionMala && perfil === E.perfil) { E.cierres = { perfil, desde, at: Date.now(), items: lista, fallos: fallidos }; guardar(); }
+  cierresCargando = false; pintar();
+}
+function eventosAct() {
+  const d0 = new Date(); d0.setHours(0, 0, 0, 0);
+  const ini = d0.getTime() - PA.dia * 86400000, f = PA.franja < PA.franjas.length ? PA.franjas[PA.franja] : null;
+  const a = f ? ini + horaMin(f[0]) * 60000 : ini, b = f ? ini + horaMin(f[1]) * 60000 : ini + 86400000;
+  const ops = new Set(opsDe(E.perfil)), vistos = new Set(), out = [];
+  const pon = (r, c) => { const k = r.key + '|' + c.ts + '|' + c.a; if (vistos.has(k) || c.ts < a || c.ts >= b) return; vistos.add(k); out.push({ r, ...c, cierre: c.cierre || esCerrado(c.a) }); };
+  filas().forEach(r => { if (ops.has(cleanInitials(r.operario))) ((E.der[r.key] || {}).camb || []).forEach(c => pon(r, c)); });
+  ((E.cierres && E.cierres.perfil === E.perfil && E.cierres.items) || []).forEach(r => {
+    if (!ops.has(cleanInitials(r.operario))) return;
+    const cs = r.camb || []; cs.forEach(c => pon(r, c));
+    if (!cs.some(c => esCerrado(c.a))) pon(r, { ts: r.fCierre, u: '', de: '', a: r.estado || 'CERRADO', cierre: true, sinAutor: true });   // cerrada sin mensaje en el hilo
+  });
+  return out.sort((x, y) => y.ts - x.ts);
+}
+const ICO_ON = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>';
+const ICO_OFF = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.7 3A6 6 0 0 1 18 8a21.3 21.3 0 0 0 .6 5M17 17H3s3-2 3-9a4.67 4.67 0 0 1 .3-1.7M10.3 21a1.94 1.94 0 0 0 3.4 0M2 2l20 20"/></svg>';
+const ICO_EDIT = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
+function vistaAct() {
+  const ev = eventosAct(), sil = PA.silencio, porTec = {}, ops = opsDe(E.perfil);
+  ev.forEach(e => { const o = cleanInitials(e.r.operario), t = porTec[o] = porTec[o] || { c: 0, m: 0 }; if (e.cierre) t.c++; else t.m++; });
+  const vis = ev.filter(e => { const o = cleanInitials(e.r.operario); return !sil[o] && (!PA.tec || o === PA.tec) && (!PA.tipo || (PA.tipo === 'c') === e.cierre); });
+  const dias = Array.from({ length: ACT_DIAS }, (_, i) => { const d = new Date(Date.now() - i * 86400000); return [i, i === 0 ? 'Hoy' : i === 1 ? 'Ayer' : DIAS[d.getDay()].slice(0, 3) + ' ' + d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' })]; });
+  const franjas = PA.franjas.map((f, i) => [i, f[0] + '–' + f[1]]).concat([[PA.franjas.length, 'Todo el día']]);
+  const nC = vis.filter(e => e.cierre).length, tecs = ops.filter(o => porTec[o] || sil[o]).sort((x, y) => ((porTec[y] || {}).c || 0) + ((porTec[y] || {}).m || 0) - ((porTec[x] || {}).c || 0) - ((porTec[x] || {}).m || 0) || x.localeCompare(y));
+  const estado = cierresCargando ? `<div class="m">Cargando cierres ${cierresFin}/${cierresTot}…</div>` : E.cierres && E.cierres.fallos ? `<div class="m">${plural(E.cierres.fallos, 'técnico')} sin responder: pulsa ⟳</div>` : !E.cierres ? '<div class="m">Pulsa ⟳ para cargar los cierres</div>' : '';
+  const linea = e => { const o = cleanInitials(e.r.operario), por = e.u && e.u !== o ? ' · por ' + e.u : '';
+    return `<button class="ev" data-a="ficha" data-k="${esc(e.r.key)}" style="--e:${e.cierre ? 'var(--ok)' : estadoColor(e.a)}"><span class="evh">${hora(e.ts)}</span><span class="evc"><b>${esc(o)}</b> · <span class="n">${esc(String(e.r.num).slice(-6))}</span> · ${esc(e.r.descSede || '')}<small>${e.de ? esc(e.de) + ' → ' : ''}${esc(e.a)}${esc(por)}${e.sinAutor ? ' · autor no indicado' : ''}</small></span></button>`; };
+  return `<div class="tres"><select data-c="dia" aria-label="Día">${dias.map(([v, t]) => `<option value="${v}"${PA.dia === v ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select><select data-c="franja" aria-label="Franja">${franjas.map(([v, t]) => `<option value="${v}"${PA.franja === v ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select><button class="bell" data-a="franjas" aria-label="Editar franjas">${ICO_EDIT}</button></div>
+    <div class="seg">${[['', 'Todo'], ['c', 'Cierres'], ['m', 'Cambios']].map(([v, t]) => `<button class="ch${PA.tipo === v ? ' on' : ''}" data-a="tipoact" data-v="${v}" aria-pressed="${PA.tipo === v}">${t}</button>`).join('')}</div>
+    ${estado}<div class="res2"><b>${nC}</b> ${nC === 1 ? 'cierre' : 'cierres'} · <b>${vis.length - nC}</b> ${vis.length - nC === 1 ? 'cambio' : 'cambios'}${PA.tec ? ` de ${esc(PA.tec)} <button class="mini" data-a="tecact" data-v="">Ver todos</button>` : ''}</div>
+    ${tecs.length ? '<h2>Técnicos</h2>' + tecs.map(o => { const t = porTec[o] || { c: 0, m: 0 }, on = !sil[o]; return `<div class="at"><button class="bell" data-a="campana" data-v="${esc(o)}" aria-pressed="${on}" aria-label="${on ? 'Dejar de seguir a ' : 'Seguir a '}${esc(o)}">${on ? ICO_ON : ICO_OFF}</button><button class="atn${PA.tec === o ? ' on' : ''}${on ? '' : ' off'}" data-a="tecact" data-v="${esc(o)}"><b>${esc(o)} <small>${esc(zonaDe(o))}</small></b><span>${plural(t.c, 'cierre')} · ${plural(t.m, 'cambio')}${on ? '' : ' · no lo sigues'}</span></button></div>`; }).join('') : ''}
+    <h2>Actividad</h2>${vis.map(linea).join('') || `<div class="vac">${cierresCargando ? 'Cargando…' : 'Nada en esta franja.'}</div>`}`;
+}
+function abrirFranjas() {
+  const m = $('me');
+  m.innerHTML = `<div class="hoja" role="dialog" aria-label="Franjas"><h3>Franjas de Actividad</h3>${PA.franjas.map((f, i) => `<div class="dos"><input type="time" data-f="${i}-0" value="${esc(f[0])}" aria-label="Desde, franja ${i + 1}"><input type="time" data-f="${i}-1" value="${esc(f[1])}" aria-label="Hasta, franja ${i + 1}"></div>`).join('')}<button class="fila" data-a="guardafr">Guardar</button><button class="fila" data-a="cmenu">Cancelar</button></div>`;
+  m.hidden = false;
 }
 async function cargar() {
   if (cargando) return;
@@ -294,8 +367,8 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
 #bar{flex:none;height:3px;background:var(--marca);width:0;transition:width .3s}
 #av{flex:none;padding:10px 12px;background:var(--p2);font-size:14px;border-bottom:1px solid var(--line)}
 #v{flex:1;overflow:auto;padding:12px;overscroll-behavior:contain}
-nav{flex:none;display:grid;grid-template-columns:repeat(4,1fr);background:var(--panel);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0)}
-nav button{height:56px;font-size:13px;color:var(--dim);position:relative}
+nav{flex:none;display:grid;grid-template-columns:repeat(5,1fr);background:var(--panel);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0)}
+nav button{height:56px;font-size:12px;line-height:1.15;padding:0 2px;color:var(--dim);position:relative}
 nav button.on{color:var(--marca);font-weight:700;box-shadow:inset 0 3px 0 var(--marca)}
 nav i{font-style:normal;font-size:11px;margin-left:3px}
 .res{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
@@ -337,14 +410,25 @@ dl{margin:0;display:grid;grid-template-columns:96px minmax(0,1fr);gap:6px 10px;b
 dt{color:var(--dim);font-size:13px}dd{margin:0;overflow-wrap:anywhere}
 .h{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:6px;font-size:14px;white-space:pre-wrap;overflow-wrap:anywhere}
 .h small{display:block;color:var(--dim);font-size:12px;margin-bottom:3px}.h.sis{background:none;color:var(--dim);font-size:13px}
+.tres{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) 48px;gap:8px;margin-bottom:8px}.tres select{min-width:0;width:100%;padding-left:8px;padding-right:2px;font-size:14px}
+.seg{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-bottom:6px}.seg .ch{padding:0 4px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.res2{margin:4px 2px 8px;font-size:14px;display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px}
+.at{display:flex;gap:8px;align-items:stretch;margin-bottom:6px}
+.bell{flex:none;width:48px;min-height:48px;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--marca);display:grid;place-items:center}
+.bell[aria-pressed=false]{color:var(--dim)}
+.atn{flex:1;min-width:0;min-height:48px;text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:6px 10px;display:grid}
+.atn.on{border-color:var(--marca);box-shadow:inset 0 0 0 1px var(--marca)}.atn.off{opacity:.6}
+.atn small{color:var(--dim);font-weight:400}.atn span{font-size:12px;color:var(--dim)}
+.ev{display:grid;grid-template-columns:48px minmax(0,1fr);gap:8px;width:100%;text-align:left;background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--e);border-radius:10px;padding:8px 10px;margin-bottom:6px;min-height:52px}
+.evh{font-family:monospace;font-weight:700}.evc{min-width:0;overflow-wrap:anywhere}.evc small{display:block;color:var(--dim);font-size:12px;margin-top:2px}
 [hidden]{display:none!important}
 </style>
 <div id="r"><header><h1 id="ti"></h1><div id="est" role="status"></div><button class="ib" data-a="cargar" aria-label="Actualizar">⟳</button><button class="ib" data-a="menu" aria-label="Más opciones">⋮</button></header>
 <div id="bar"></div><div id="av" hidden></div><main id="v"></main>
-<nav aria-label="Secciones"><button data-a="tab" data-v="hoy">Hoy</button><button data-a="tab" data-v="sin">Sin asignar<i id="nSin"></i></button><button data-a="tab" data-v="inc">Incidencias</button><button data-a="tab" data-v="bus">Buscar</button></nav>
+<nav aria-label="Secciones"><button data-a="tab" data-v="hoy">Hoy</button><button data-a="tab" data-v="sin">Sin asignar<i id="nSin"></i></button><button data-a="tab" data-v="inc">Incidencias</button><button data-a="tab" data-v="act">Actividad</button><button data-a="tab" data-v="bus">Buscar</button></nav>
 <div id="fi" hidden></div><div id="me" hidden></div></div>`;
 const $ = id => raiz.getElementById(id);
-const TITULOS = { hoy: 'Hoy', sin: 'Sin asignar', inc: 'Incidencias', bus: 'Buscar' };
+const TITULOS = { hoy: 'Hoy', sin: 'Sin asignar', inc: 'Incidencias', act: 'Actividad', bus: 'Buscar' };
 
 function tarjeta(r, extra) {
   const c = cad(r), nv = c ? cadNivel(c) : '';
@@ -425,7 +509,7 @@ function pintar() {
   if (tab === 'bus') {
     if (!$('q')) v.innerHTML = '<input id="q" type="search" placeholder="Buscar…" aria-label="Buscar" autocomplete="off" value="' + esc(textoBus) + '"><div id="br"></div>';
     $('br').innerHTML = resultadosBus();
-  } else { v.innerHTML = tab === 'hoy' ? vistaHoy() : tab === 'sin' ? vistaSin() : vistaInc(); v.scrollTop = y; }
+  } else { v.innerHTML = tab === 'hoy' ? vistaHoy() : tab === 'sin' ? vistaSin() : tab === 'act' ? vistaAct() : vistaInc(); v.scrollTop = y; }
 }
 function pintarPronto() { pintarEstado(); clearTimeout(pintaT); pintaT = setTimeout(pintar, 600); }
 
@@ -449,63 +533,27 @@ async function abrirFicha(k, sinHistorial) {
     $('hi').innerHTML = items.slice().sort((a, b) => b.ts - a.ts).map(i => { const t = i.t.replace(/\s+$/, ''), sis = HILO_SISTEMA.some(re => re.test(t.trim())); return `<div class="h${sis ? ' sis' : ''}"><small>${esc([i.ts ? new Date(i.ts).toLocaleString('es-ES', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '', i.n || i.u].filter(Boolean).join(' · '))}</small>${esc(t)}</div>`; }).join('') || '<div class="vac">Sin mensajes.</div>';
   } catch (e) { if (e.sesion) { sesionMala = true; pintarEstado(); } const h = $('hi'); if (h && f.dataset.k === k) h.innerHTML = '<div class="vac">No se ha podido cargar el hilo.</div>'; }
 }
-// ---- Prueba temporal: ¿se puede saber quién cierra o cambia de estado y cuándo? Solo cuenta; no enseña tickets ----
-async function pruebaActividad() {
-  const f = $('fi'), L = ['Prueba Actividad · Despacho móvil ' + MOVIL_VERSION], desde = new Date(Date.now() - 7 * 86400000), mias = new Set(opsDe(E.perfil)), M = {};
-  const CAMB = /cambiado del estado|(cambiado|modificado) el estado|ha (cerrado|reabierto)/i, plantilla = s => s.replace(/el usuario \S+/i, 'El usuario U').replace(/\d+/g, '0').slice(0, 90);
-  const lst = j => Array.isArray(j) ? j : (j && j.content) || [], seg = t => ((performance.now() - t) / 1000).toFixed(1) + ' s', h2 = n => new Date(n).getHours();
-  const op = x => cleanInitials(x.codOpe || ''), dia = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-  const hilo = async id => lst(await leer('/hilo/' + encodeURIComponent(id.periodo) + '/' + encodeURIComponent(id.codSerie) + '/' + encodeURIComponent(id.codInc))).map(x => ({ ts: isoTs(x.hiloIncidenciaId && x.hiloIncidenciaId.fechaRegistro), u: String(x.usuario || '').trim().toUpperCase(), t: String(x.descripcion || '').trim() }));
-  let fallos = 0, agotados = 0;
-  const paral = async (l, fn) => { let i = 0; await Promise.all(Array.from({ length: 3 }, async () => { while (i < l.length) { const x = l[i++]; try { await fn(x); } catch (e) { if (e.sesion) throw e; if (e.name === 'AbortError') agotados++; else fallos++; } } })); };
-  const pinta = x => { const e = $('pa'); if (e) e.textContent = L.concat(x ? [x] : []).join('\n'); };
-  f.innerHTML = '<header><button class="ib" data-a="cerrarf" aria-label="Volver">‹</button><h1 style="font-size:16px">Prueba Actividad</h1></header><div class="cb"><pre id="pa" style="white-space:pre-wrap;overflow-wrap:anywhere;font:13px monospace;margin:0 0 12px"></pre><div id="pab"></div></div>';
-  f.hidden = false; f.dataset.k = 'prueba'; history.pushState({ despachoMovil: 1 }, ''); pinta('Leyendo cierres de los últimos 7 días…');
-  try {
-    // Con Despacho cargando, ATGO va mucho más lento: se espera a que termine
-    if (cargando) { pinta('Esperando a que termine la carga de Despacho…'); while (cargando) await new Promise(r => setTimeout(r, 1000)); }
-    // Cierres técnico a técnico: la consulta de toda la empresa no responde a tiempo
-    let t0 = performance.now(), F = [], tot = 0, err = '', mas = false, hechos = 0; const ops = [...mias];
-    await paral(ops, async o => {
-      const j = await leer('/incidencias/listado?page=0&size=50&sort=fechaRegistro,desc&q=codOpe.equals=' + encodeURIComponent(o) + ',fechaCierre.greaterOrEqualThan=' + dia(desde));
-      tot += j.totalElements || 0; F = F.concat(lst(j)); if (j.last === false) mas = true; hechos++; pinta('Leyendo cierres… ' + hechos + '/' + ops.length);
-    });
-    if (hechos < ops.length) err = (ops.length - hechos) + ' de ' + ops.length + ' técnicos sin respuesta (' + agotados + ' por tiempo)';
-    const fallosCierres = fallos + agotados; fallos = 0; agotados = 0;
-    L.push('', 'Consultas de cierres: ' + hechos + ' de ' + ops.length + ' técnicos' + (fallosCierres ? ' · ' + fallosCierres + ' fallidas' : ''));
-    const conF = F.filter(x => x.fechaCierre), enR = conF.filter(x => isoTs(x.fechaCierre) >= desde.getTime()), conH = enR.filter(x => { const m = /T(\d{2}:\d{2})/.exec(String(x.fechaCierre)); return m && m[1] !== '00:00'; });
-    L.push('', 'CIERRES (7 días)', 'Filtro por fecha: ' + (err ? 'ERROR ' + err : 'funciona'), 'Total que indica ATGO: ' + tot + ' · leídas: ' + F.length + (mas ? ' (hay más)' : ''), 'Con fecha de cierre: ' + conF.length + ' · dentro de los 7 días: ' + enR.length, 'Con hora real: ' + conH.length, 'Entre 14:00 y 16:00: ' + enR.filter(x => { const g = h2(isoTs(x.fechaCierre)); return g >= 14 && g < 16; }).length, 'De tu perfil (' + E.perfil + '): ' + enR.filter(x => mias.has(op(x))).length, 'Tiempo: ' + seg(t0));
-    pinta('Leyendo hilos de cerradas…');
-    const m1 = enR.filter(x => mias.has(op(x))).sort((a, b) => isoTs(b.fechaCierre) - isoTs(a.fechaCierre)).slice(0, 40); let cN = 0, cM = 0, cA = 0, cT = 0, cH = 0; const t1 = performance.now();
-    await paral(m1, async x => {
-      const h = await hilo(x.incidenciaId), c = isoTs(x.fechaCierre), k = h.filter(y => Math.abs(y.ts - c) < 600000 && CAMB.test(y.t)); cN++;
-      h.filter(y => CAMB.test(y.t)).forEach(y => { const pl = plantilla(y.t); M[pl] = (M[pl] || 0) + 1; });
-      if (k.length) { cM++; if (k[0].u) { cA++; if (k[0].u === op(x)) cT++; } } else if (h.some(y => Math.abs(y.ts - c) < 600000)) cH++;
-    });
-    L.push('', 'QUIÉN CIERRA (' + cN + ' cerradas leídas' + (fallos + agotados ? ', ' + (fallos + agotados) + ' hilos sin leer' : '') + ')', 'Con mensaje de cierre a esa hora: ' + cM, 'De ellas, con autor: ' + cA, 'El autor es el técnico asignado: ' + cT, 'Sin ese mensaje pero con actividad a esa hora: ' + cH, 'Tiempo: ' + seg(t1));
-    pinta('Leyendo cambios de estado…');
-    fallos = 0; agotados = 0;
-    const t2 = performance.now(), ab = filas().slice().sort((a, b) => String(b.fRegistroISO).localeCompare(String(a.fRegistroISO))).slice(0, 30); let ev = 0, evA = 0, evF = 0, tk = 0;
-    await paral(ab, async r => { const [pe, se, co] = r.key.split('/'), h = await hilo({ periodo: pe, codSerie: se, codInc: co }); tk++; h.forEach(y => { if (!CAMB.test(y.t)) return; const pl = plantilla(y.t); M[pl] = (M[pl] || 0) + 1; if (y.ts >= desde.getTime()) { ev++; if (y.u) evA++; const g = h2(y.ts); if (g >= 14 && g < 16) evF++; } }); });
-    L.push('', 'CAMBIOS DE ESTADO (' + tk + ' de ' + ab.length + ' abiertas leídas' + (agotados ? ', ' + agotados + ' por tiempo' : '') + (fallos ? ', ' + fallos + ' con error' : '') + ')', 'Mensajes de cambio en 7 días: ' + ev, 'Con autor: ' + evA, 'Entre 14:00 y 16:00: ' + evF, 'Tiempo: ' + seg(t2), '', 'FORMATOS DE MENSAJE');
-    Object.entries(M).sort((a, b) => b[1] - a[1]).slice(0, 10).forEach(([k, v]) => L.push(v + ' × ' + k));
-    if (!Object.keys(M).length) L.push('(ninguno encontrado)');
-    L.push('', 'Fin. Pulsa Copiar y pégamelo.'); pinta();
-    const b = $('pab'); if (b) b.innerHTML = '<button class="mini" data-a="copiarprueba">Copiar resultado</button>';
-  } catch (e) { L.push('', 'ERROR: ' + (e.sesion ? 'sesión de ATGO caducada' : e.name === 'AbortError' ? 'tiempo agotado' : e.message)); pinta(); }
-}
 function cerrarFicha() { const f = $('fi'); f.hidden = true; f.dataset.k = ''; f.innerHTML = ''; }
 function abrirMenu() {
   const m = $('me');
-  m.innerHTML = `<div class="hoja" role="dialog" aria-label="Opciones"><h3>Perfil</h3><div class="perf">${PERFILES.map(p => `<button class="${E.perfil === p ? 'on' : ''}" data-a="perfil" data-v="${p}">${p}</button>`).join('')}</div><button class="fila" data-a="pruebaact">Probar Actividad (temporal)</button><button class="fila" data-a="salir">Volver a ATGO</button><button class="fila" data-a="borrar">Borrar los datos de este móvil</button><button class="fila" data-a="cmenu">Cerrar</button><div class="m" style="text-align:center">Despacho móvil ${MOVIL_VERSION} · solo consulta</div></div>`;
+  m.innerHTML = `<div class="hoja" role="dialog" aria-label="Opciones"><h3>Perfil</h3><div class="perf">${PERFILES.map(p => `<button class="${E.perfil === p ? 'on' : ''}" data-a="perfil" data-v="${p}">${p}</button>`).join('')}</div><button class="fila" data-a="salir">Volver a ATGO</button><button class="fila" data-a="borrar">Borrar los datos de este móvil</button><button class="fila" data-a="cmenu">Cerrar</button><div class="m" style="text-align:center">Despacho móvil ${MOVIL_VERSION} · solo consulta</div></div>`;
   m.hidden = false;
 }
 function salir() { clearInterval(reloj); window.removeEventListener('popstate', atras, true); document.removeEventListener('visibilitychange', alVolver); host.remove(); document.documentElement.style.overflow = ''; delete window.__despachoMovil; }
 function acciones(b) {
   const a = b.dataset.a, v = b.dataset.v;
-  if (a === 'tab') { tab = v; $('v').scrollTop = 0; $('v').innerHTML = ''; pintar(); }
+  if (a === 'tab') { tab = v; $('v').scrollTop = 0; $('v').innerHTML = ''; pintar(); if (v === 'act' && !cierresAlDia()) cargarCierres(); }
   else if (a === 'tabf') { tab = 'inc'; filtroInc = v; estadoInc = ''; zonaInc = ''; $('v').innerHTML = ''; $('v').scrollTop = 0; pintar(); }
-  else if (a === 'cargar') cargar();
+  else if (a === 'cargar') { cargar(); if (tab === 'act') cargarCierres(); }
+  else if (a === 'tipoact') { PA.tipo = v; guardarPA(); pintar(); }
+  else if (a === 'tecact') { PA.tec = PA.tec === v ? '' : v; pintar(); }
+  else if (a === 'campana') { if (PA.silencio[v]) delete PA.silencio[v]; else PA.silencio[v] = true; guardarPA(); pintar(); }
+  else if (a === 'franjas') abrirFranjas();
+  else if (a === 'guardafr') {
+    const f = PA.franjas.map((x, i) => [raiz.querySelector('[data-f="' + i + '-0"]').value, raiz.querySelector('[data-f="' + i + '-1"]').value]);
+    if (f.some(([d, h]) => !/^\d{2}:\d{2}$/.test(d) || !/^\d{2}:\d{2}$/.test(h) || horaMin(h) <= horaMin(d))) { alert('Revisa las horas: la de fin debe ser posterior a la de inicio.'); return; }
+    PA.franjas = f; guardarPA(); $('me').hidden = true; pintar();
+  }
   else if (a === 'menu') abrirMenu();
   else if (a === 'cmenu') $('me').hidden = true;
   else if (a === 'ficha') abrirFicha(b.dataset.k);
@@ -515,15 +563,13 @@ function acciones(b) {
   else if (a === 'fil') { filtroInc = v; pintar(); $('v').scrollTop = 0; }
   else if (a === 'tecinc') { abiertosInc[v] = !abiertosInc[v]; pintar(); }
   else if (a === 'plg') { if (v) abiertosInc = {}; else filas().forEach(r => { abiertosInc[r.operario] = true; }); pintar(); $('v').scrollTop = 0; }
-  else if (a === 'perfil') { $('me').hidden = true; if (v !== E.perfil) { E = { ...E, perfil: v, tecs: {}, pool: {}, der: {}, salidas: {}, at: 0 }; zonaInc = ''; guardar(); cargar(); } }
+  else if (a === 'perfil') { $('me').hidden = true; if (v !== E.perfil) { E = { ...E, perfil: v, tecs: {}, pool: {}, der: {}, salidas: {}, at: 0, cierres: null }; zonaInc = ''; guardar(); cargar(); } }
   else if (a === 'salir') salir();
   else if (a === 'atgo') { const r = ticket(b.dataset.k); cerrarFicha(); host.style.display = 'none'; if (r) location.hash = '#/mistickets/' + r.key; }   // en la app: el botón «Despacho» vuelve aquí
-  else if (a === 'pruebaact') { $('me').hidden = true; pruebaActividad(); }
-  else if (a === 'copiarprueba') navigator.clipboard.writeText($('pa').textContent).then(() => alert('Copiado'), () => alert('No se pudo copiar: haz capturas'));
   else if (a === 'borrar') { if (confirm('¿Borrar los datos guardados en este móvil?')) { try { localStorage.removeItem(CLAVE); } catch (e) { /* nada que borrar */ } salir(); } }
 }
 raiz.addEventListener('click', e => { const b = e.target.closest('[data-a]'); if (b) { if (b.tagName === 'A') return; e.preventDefault(); acciones(b); } else if (e.target === $('me')) $('me').hidden = true; });
-raiz.addEventListener('change', e => { const c = e.target.dataset.c; if (c === 'estado') { estadoInc = e.target.value; pintar(); } else if (c === 'zona') { zonaInc = e.target.value; pintar(); } });
+raiz.addEventListener('change', e => { const c = e.target.dataset.c; if (c === 'estado') { estadoInc = e.target.value; pintar(); } else if (c === 'zona') { zonaInc = e.target.value; pintar(); } else if (c === 'franja') { PA.franja = +e.target.value; guardarPA(); pintar(); } else if (c === 'dia') { PA.dia = +e.target.value; guardarPA(); pintar(); if (!cierresAlDia()) cargarCierres(); } });
 raiz.addEventListener('input', e => { if (e.target.id === 'q') { textoBus = e.target.value; $('br').innerHTML = resultadosBus(); } });
 function atras(e) { if (!$('fi').hidden) { e.stopImmediatePropagation(); cerrarFicha(); } }
 window.addEventListener('popstate', atras, true);

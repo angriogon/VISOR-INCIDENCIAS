@@ -243,6 +243,13 @@ igual('orden visita: próximas primero; luego sin fecha; al final las pasadas',
   ['const PROV_ZONA =', 'const PROV_RE =', 'const CAD_RE =', 'const MESES ='].forEach(c => igual('móvil igual que herramientas.js: ' + c, extraer(mov, c) === extraer(sinCr(leer('herramientas.js')), c), true));
   igual('la app Android usa la misma clave pública', /CLAVE = \{[^}]+\}/.exec(leer('android/assets/cargador.js'))[0].replace(/^CLAVE = /, '').replace(/\s/g, '') === /CLAVE_SYNC = (\{[^}]+\})/.exec(bg)[1].replace(/\s/g, ''), true);
   igual('la app Android solo deja dentro ATGO', /"atgo\.tier1\.es"\.equals\(u\.getHost\(\)\)/.test(leer('android/java/es/despacho/movil/MainActivity.java')) && !/addJavascriptInterface/.test(leer('android/java/es/despacho/movil/MainActivity.java')), true);
+  {
+    const cx = vm.createContext({}); vm.runInContext(extraer(mov, 'const CAMBIO_RE =') + '\n' + extraer(mov, 'function cambioDe('), cx);
+    const de = s => JSON.stringify(vm.runInContext('cambioDe(' + JSON.stringify(s) + ')', cx));
+    igual('Actividad: lee el cambio de estado del hilo', de('El ticket ha cambiado del estado PRESENCIAL al estado CERRADO PTE. PRESUPUESTO'), JSON.stringify({ de: 'PRESENCIAL', a: 'CERRADO PTE. PRESUPUESTO' }));
+    igual('Actividad: ignora los demás mensajes', de('El usuario ACAB ha finalizado el ticket'), 'null');
+    igual('Actividad: la prueba temporal ya no está', /pruebaActividad|Probar Actividad/.test(mov), false);
+  }
   igual('móvil excluye los cerrados en Incidencias', /esCerrado = e => \/cerrad\/i/.test(mov) && /!esCerrado\(r\.estado\)/.test(mov), true);
   igual('móvil usa los mismos estados que la sincronización', /const ESTADOS_ATGO = (\[[^\]]+\])/.exec(mov)[1], /const ESTADOS = (\[[^\]]+\])/.exec(sinCr(leer('atgo-sync.js')))[1]);
 }
