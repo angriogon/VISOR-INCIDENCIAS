@@ -1,0 +1,8 @@
+{
+  "private": true,
+  "type": "module",
+  "description": "Simuladores de Despacho móvil contra un ATGO simulado",
+  "dependencies": {
+    "playwright": "1.65.0"
+  }
+}

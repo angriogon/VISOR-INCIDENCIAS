@@ -1,0 +1,635 @@
+// ===== Despacho móvil: vista de consulta dentro de la página de ATGO (Android, sin PC ni servidor) =====
+// Lee con leer() (siempre GET). La única escritura es guardarFicha(): asignar técnico y fecha de visita, con la misma
+// réplica del guardado de ATGO que usa el PC, confirmación previa y comprobación posterior (lo comprueba tests/pruebas.js).
+// El token no sale de esta página. Lo guardado (última carga) se borra solo tras 7 días sin uso.
+// El bloque «Copias» viene de la PWA y de atgo-sync.js: las pruebas exigen que siga idéntico a su original.
+(function () {
+'use strict';
+{
+  // Ya abierta en esta pestaña: se enseña. Si su ventana desapareció de la página (ATGO la rehízo), se cierra lo anterior y se abre de nuevo
+  const prev = window.__despachoMovil, viva = document.getElementById('despacho-movil');
+  if (prev && viva) { viva.style.display = ''; return; }
+  if (prev) { try { if (typeof prev.salir === 'function') prev.salir(); } catch (e) { /* versión anterior: se sustituye igualmente */ } delete window.__despachoMovil; }
+}
+const MOVIL_VERSION = '1.4.0';
+const EN_APP = /DespachoApp\//.test(navigator.userAgent);   // dentro de la app Android «Despacho»
+const CLAVE = 'despachoMovil_v1', PARALELO = 6, TIEMPO_MS = 40000, CADUCA_MS = 7 * 86400000, REFRESCO_MS = 10 * 60000, AL_VOLVER_MS = 2 * 60000;
+const ESTADOS_ATGO = /*@b atgo-sync.js const ESTADOS =*/;
+const ESTADOS_SIN_SLA = ['FUERA DE MANTENIMIENTO'];
+const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+
+// ---- Copias (no editar aquí) ----
+/*@b app.js const ZONAS_BASE =*/
+/*@b app.js const ESTADO_COLOR =*/
+/*@b app.js const ESTADOS =*/
+/*@b app.js const PALETTE =*/
+/*@b panel.js const POOL_ZONA =*/
+/*@b dia.js const HILO_SISTEMA =*/
+/*@b dia.js const ESTADOS_CIERRE =*/
+/*@b herramientas.js const MESES =*/
+/*@l herramientas.js const CAD_RE =*/
+/*@l herramientas.js const PROV_ZONA =*/
+/*@l herramientas.js const PROV_RE =*/
+/*@f app.js function norm(*/
+/*@f app.js function cleanInitials(*/
+/*@f app.js function horaMin(*/
+/*@f app.js function esPresencial(*/
+/*@f app.js function colorFor(*/
+/*@f app.js function ordenVisita(*/
+/*@f app.js function ordenEstado(*/
+/*@f dia.js function parseEs(*/
+/*@f dia.js function esCierre(*/
+/*@f herramientas.js function fechasEnTexto(*/
+/*@f herramientas.js function caducidadHiloCalc(*/
+/*@f herramientas.js function cadNivel(*/
+/*@f herramientas.js function zonaDeTexto(*/
+/*@l atgo-sync.js const ymdToEs =*/
+/*@l atgo-sync.js const hhmm =*/
+/*@f atgo-sync.js function proyectoDe(*/
+/*@f atgo-sync.js function mapTicket(*/
+/*@l atgo-sync.js const isoTs =*/
+/*@f atgo-sync.js function urlGuardado(*/
+/*@l atgo-sync.js const CAMPOS_SISTEMA =*/
+/*@f atgo-sync.js function compararFichas(*/
+// ---- Fin de las copias ----
+
+const iso = d => { const x = d || new Date(); return x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); };
+const hoyEs = () => { const x = new Date(); return String(x.getDate()).padStart(2, '0') + '/' + String(x.getMonth() + 1).padStart(2, '0') + '/' + x.getFullYear(); };
+const hora = ts => new Date(ts).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const plural = (n, s) => n + ' ' + s + (n === 1 ? '' : 's');
+const estadoColor = e => ESTADO_COLOR[norm(e)] || (/cerrad|operativo/.test(norm(e)) ? '#5f8f6a' : '#7d8790');
+const esCerrado = e => /cerrad/i.test(e || '');   // en Incidencias salen todos los estados de ATGO menos los cerrados
+const sinSla = r => ESTADOS_SIN_SLA.some(e => norm(e) === norm(r.estado));
+const dspZona = z => z.dsp || 'DSP1';
+const PERFILES = ['DSP1', 'DSP2', 'DSP3', 'DSP4', 'DSP5', 'COORD'];
+const zonaDe = op => { const c = cleanInitials(op), z = ZONAS_BASE.find(x => x.ops.includes(c)); return z ? z.nombre : ''; };
+const zonasDe = p => ZONAS_BASE.filter(z => p === 'COORD' || dspZona(z) === p);
+const opsDe = p => [...new Set(zonasDe(p).flatMap(z => z.ops))];
+function perfilInicial() {
+  const c = cleanInitials(localStorage.getItem('codigoOperario') || ''), z = ZONAS_BASE.find(x => x.ops.includes(c));
+  return z ? dspZona(z) : 'DSP1';
+}
+function token() {
+  let t = localStorage.getItem('token');
+  try { const j = JSON.parse(t); if (typeof j === 'string') t = j; } catch (e) { /* ya es texto */ }
+  return t;
+}
+function sesionCaducada() { const exp = Number(localStorage.getItem('expires')); return !token() || (!!exp && exp * 1000 < Date.now()); }
+// Única salida hacia ATGO: siempre lectura
+async function leer(ruta) {
+  const c = new AbortController(), t = setTimeout(() => c.abort(), TIEMPO_MS);
+  try {
+    const r = await fetch('/api/v1/atgo' + ruta, { headers: { Authorization: 'Bearer ' + token(), Accept: 'application/json' }, signal: c.signal });
+    if (r.status === 401 || r.status === 403) throw Object.assign(new Error('sesion'), { sesion: true });
+    if (!r.ok) throw new Error('ATGO respondió ' + r.status);
+    return await r.json();
+  } finally { clearTimeout(t); }
+}
+
+// Única escritura: guardar la ficha completa al asignar (como la web de ATGO). Solo a una ficha de incidencia.
+async function guardarFicha(url) {
+  if (!/^\/api\/v1\/atgo\/incidencias\/\d+\/[^/?]+\/\d+\?/.test(url)) throw new Error('destino no permitido');
+  const c = new AbortController(), t = setTimeout(() => c.abort(), TIEMPO_MS);
+  try {
+    const r = await fetch(url, { method: 'PUT', headers: { Authorization: 'Bearer ' + token() }, signal: c.signal });
+    if (r.status === 401 || r.status === 403) throw Object.assign(new Error('sesion'), { sesion: true });
+    if (!r.ok) throw new Error('ATGO respondió ' + r.status);
+  } finally { clearTimeout(t); }
+}
+const TECNICOS = () => [...new Set(ZONAS_BASE.flatMap(z => z.ops))];
+let asignando = false;
+// Lee la ficha, guarda solo lo pedido, la vuelve a leer y compara campo a campo; si cambió algo más, la deja como estaba
+async function asignar(k, camb) {
+  if (asignando) return { ok: false, error: 'Ya hay una asignación en curso.' };
+  asignando = true;
+  try {
+    if (!/^\d+\/[^/]+\/\d+$/.test(k || '')) throw new Error('Incidencia no válida.');
+    if (camb.codOpe != null && !TECNICOS().includes(camb.codOpe)) throw new Error('Técnico no válido.');
+    if (camb.fechaVisita != null && !/^\d{4}-\d{2}-\d{2}$/.test(camb.fechaVisita)) throw new Error('Fecha no válida.');
+    ['horaInicioVisita', 'horaFinVisita'].forEach(h => { if (camb[h] != null && !/^\d{2}:\d{2}$/.test(camb[h])) throw new Error('Hora no válida.'); });
+    const [pe, se, co] = k.split('/').map(encodeURIComponent), ruta = '/incidencias/' + pe + '/' + se + '/' + co;
+    const antes = await leer(ruta);
+    let fallo = null;
+    try { await guardarFicha(urlGuardado(antes, camb)); } catch (e) { if (e.sesion) throw e; fallo = e; }
+    const despues = await leer(ruta), dif = compararFichas(antes, despues);
+    const esperados = new Set(['codOpe', 'desOpe', 'fechaVisita', 'horaInicioVisita', 'horaFinVisita']);
+    const inesperados = Object.keys(dif).filter(x => !esperados.has(x));
+    const pedidos = Object.keys(camb).filter(x => x === 'fechaVisita' ? String(despues.fechaVisita || '').slice(0, 10) !== camb.fechaVisita : String(despues[x] || '').trim().slice(0, x === 'codOpe' ? 99 : 5).toUpperCase() !== String(camb[x] || '').toUpperCase());
+    if (inesperados.length) {
+      let bien = false;
+      try { await guardarFicha(urlGuardado(antes, {})); bien = !Object.keys(compararFichas(antes, await leer(ruta))).length; } catch (e) { /* se avisa abajo */ }
+      return { ok: false, error: 'ATGO cambió también ' + inesperados.join(', ') + (bien ? '. Se ha dejado la ficha como estaba.' : '. NO se pudo dejar como estaba: revísala en ATGO.') };
+    }
+    if (pedidos.length) return { ok: false, error: fallo ? (fallo.name === 'AbortError' ? 'ATGO no respondió' : fallo.message) + '. La ficha sigue como estaba.' : 'ATGO no aplicó: ' + pedidos.join(', ') + '.' };
+    return { ok: true, despues };
+  } catch (e) {
+    if (e.sesion) sesionMala = true;
+    return { ok: false, error: e.sesion ? 'La sesión de ATGO ha caducado.' : e.name === 'AbortError' ? 'ATGO no responde. Mira la ficha antes de repetir.' : e.message };
+  } finally { asignando = false; }
+}
+
+// ---- Estado ----
+let E = { perfil: null, at: 0, tecs: {}, pool: {}, poolDesc: {}, der: {}, salidas: {}, salidasDia: '', cierres: null, atTecs: 0, rapida: false };   // cierres: los del día elegido en Actividad   // tecs/pool: por operario. der: lo deducido del hilo
+let cargando = false, fin = 0, total = 0, fallos = 0, sesionMala = false, aviso = '', pintaT = null;
+let tab = 'hoy', filtroInc = '', estadoInc = '', zonaInc = '', verMi = true, abiertos = {}, abiertosInc = {}, textoBus = '';
+function guardar() {
+  try {
+    localStorage.setItem(CLAVE, JSON.stringify({ ...E, ultimoUso: Date.now() }));
+  } catch (e) { aviso = 'No se han podido guardar los datos en este móvil'; }
+}
+function recuperar() {
+  try {
+    const g = JSON.parse(localStorage.getItem(CLAVE));
+    if (g && Date.now() - (g.ultimoUso || g.at || 0) < CADUCA_MS) { E = { ...E, ...g }; } else localStorage.removeItem(CLAVE);
+  } catch (e) { /* sin datos guardados */ }
+  if (!E.perfil) E.perfil = perfilInicial();
+  if (E.salidasDia !== iso()) { E.salidas = {}; E.salidasDia = iso(); }
+}
+const filas = () => Object.values(E.tecs).flat();
+const pendientes = () => Object.values(E.pool).flat();
+const todas = () => [...filas(), ...pendientes()];
+const ticket = k => todas().find(r => r.key === k) || E.salidas[k] || ((E.cierres && E.cierres.items) || []).find(r => r.key === k) || null;
+const cad = r => { const d = E.der[r.key]; return d && d.cad && !sinSla(r) ? d.cad : null; };
+const zonaPool = r => {
+  const op = cleanInitials(r.operario), d = String(E.poolDesc[op] || r.desOperario || '').replace(/^PENDIENTE( DE)? ASIGNAR\s*/i, '');
+  return POOL_ZONA[op] || zonaDeTexto(d) || zonaDeTexto(r.provincia) || zonaDeTexto(r.poblacion) || (d.replace(/[()]/g, '').trim().toUpperCase() || 'OTRA ZONA');
+};
+const cadTexto = c => { const d = new Date(c.ts), h = c.conHora ? ' ' + hora(c.ts) : ''; return iso(d) === iso() ? 'hoy' + h : iso(d) === iso(new Date(Date.now() + 86400000)) ? 'mañana' + h : DIAS[d.getDay()].slice(0, 3) + ' ' + d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' }) + h; };
+
+// ---- Carga: primero se ve lo guardado y cada técnico se sustituye al llegar ----
+async function lista(op, estados) {
+  const q = 'estado.in=' + estados.join('-') + ',codOpe.equals=' + encodeURIComponent(op), out = [];
+  for (let p = 0; p < 20; p++) {
+    const d = await leer('/incidencias/listado?page=' + p + '&size=100&sort=fechaRegistro,asc&q=' + q), c = Array.isArray(d && d.content) ? d.content : [];
+    c.forEach(t => out.push(mapTicket(t)));
+    if (d.last !== false || !c.length) break;
+  }
+  return out;
+}
+// «El ticket ha cambiado del estado X al estado Y»: así lo escribe ATGO en el hilo, con autor y hora
+const CAMBIO_RE = /^el ticket ha cambiado del estado (.+?) (?:al estado|a) (.+?)\.?$/i, ACT_DIAS = 8;
+function cambioDe(t) { const m = CAMBIO_RE.exec(String(t || '').replace(/\s+/g, ' ').trim()); return m ? { de: m[1].trim(), a: m[2].trim() } : null; }
+function cambiosDe(items, desde) { return items.filter(i => i.ts >= desde).map(i => { const c = cambioDe(i.t); return c ? { ts: i.ts, u: cleanInitials(i.u), de: c.de, a: c.a } : null; }).filter(Boolean).slice(-40); }
+function deducir(r, items) {
+  const orden = items.slice().sort((a, b) => a.ts - b.ts), hoy = iso(), tec = cleanInitials(r.operario);
+  let prog = null;
+  orden.forEach(i => { if (!i.ts || iso(new Date(i.ts)) !== hoy) return; const m = /el usuario (\S+) ha (finalizado|iniciado) el ticket/i.exec(i.t || ''); if (m && cleanInitials(m[1]) === tec) prog = /^fin/i.test(m[2]) ? 'd' : 'c'; });
+  const mot = orden.map(i => i.t.replace(/\s+/g, ' ').trim()).find(t => t && !HILO_SISTEMA.some(re => re.test(t))) || '';
+  const c = caducidadHiloCalc({ items: orden });
+  return { cad: c ? { ts: c.ts, conHora: c.conHora } : null, prog, mot: mot.slice(0, 500), camb: cambiosDe(orden, Date.now() - ACT_DIAS * 86400000) };
+}
+async function leerHilo(k) {
+  const [p, s, c] = k.split('/');
+  const d = await leer('/hilo/' + encodeURIComponent(p) + '/' + encodeURIComponent(s) + '/' + encodeURIComponent(c));
+  return (Array.isArray(d) ? d : []).map(x => ({ ts: isoTs(x.hiloIncidenciaId && x.hiloIncidenciaId.fechaRegistro), u: x.usuario || '', n: x.nombre || '', t: String(x.descripcion || '').trim() }));
+}
+// ---- Actividad: cierres (técnico a técnico, solo al usar la pestaña) y cambios de estado, por día y franja ----
+const PREF_ACT = 'despachoMovilActividad_v1';
+let PA = { franjas: [['14:00', '16:00'], ['18:00', '19:00']], franja: 0, dia: 0, tipo: '', silencio: {}, tec: '', modo: 'auto', jornada: ['08:00', '14:00'], vistoAct: 0, vistoSin: null };
+try { PA = { ...PA, ...(JSON.parse(localStorage.getItem(PREF_ACT)) || {}) }; } catch (e) { /* preferencias por defecto */ }
+function guardarPA() { try { localStorage.setItem(PREF_ACT, JSON.stringify(PA)); } catch (e) { /* se usan en esta sesión */ } }
+if (!PA.vistoAct) { PA.vistoAct = Date.now(); guardarPA(); }
+let actPrev = PA.vistoAct, sinPrev = PA.vistoSin ? new Set(PA.vistoSin) : null;
+// Lo que había al entrar en la pestaña queda como visto al salir de ella
+function marcarVisto() {
+  if (tab === 'act') PA.vistoAct = Date.now();
+  else if (tab === 'sin' && E.at) PA.vistoSin = pendientes().map(r => r.key);
+  else return;
+  guardarPA();
+}
+// Carga rápida: fuera de la jornada (o siempre, si se elige) solo Sin asignar, cierres y cambios de estado
+function esRapida() {
+  if (PA.modo === 'rapida') return true;
+  if (PA.modo === 'completa') return false;
+  const d = new Date(), m = d.getHours() * 60 + d.getMinutes();
+  return d.getDay() === 0 || d.getDay() === 6 || m < horaMin(PA.jornada[0]) || m >= horaMin(PA.jornada[1]);
+}
+let cierresCargando = false, cierresFin = 0, cierresTot = 0;
+const diaAct = () => iso(new Date(Date.now() - PA.dia * 86400000));
+const cierresAlDia = () => E.cierres && E.cierres.perfil === E.perfil && E.cierres.desde <= diaAct() && (PA.dia > 0 || Date.now() - E.cierres.at < 5 * 60000);
+async function enParalelo(lista, fn) {
+  let i = 0, fallidos = 0;
+  await Promise.all(Array.from({ length: 3 }, async () => { while (i < lista.length && !sesionMala) { const x = lista[i++]; try { await fn(x); } catch (e) { if (e.sesion) sesionMala = true; else fallidos++; } } }));
+  return fallidos;
+}
+async function cargarCierres() {
+  if (cierresCargando || sesionMala) return;
+  cierresCargando = true; cierresFin = 0; pintar();
+  while (cargando) await new Promise(r => setTimeout(r, 1000));   // con Despacho cargando, ATGO va mucho más lento
+  const desde = diaAct(), perfil = E.perfil, ops = opsDe(perfil), items = {}; cierresTot = ops.length;
+  const fallidos = await enParalelo(ops, async op => {
+    for (let p = 0; p < 5; p++) {
+      const d = await leer('/incidencias/listado?page=' + p + '&size=100&sort=fechaRegistro,desc&q=codOpe.equals=' + encodeURIComponent(op) + ',fechaCierre.greaterOrEqualThan=' + desde), c = Array.isArray(d && d.content) ? d.content : [];
+      c.forEach(t => { const r = mapTicket(t); r.fCierre = isoTs(t.fechaCierre); if (r.fCierre) items[r.key] = r; });
+      if (d.last !== false || !c.length) break;
+    }
+    cierresFin++; pintarPronto();
+  });
+  const lista = Object.values(items), ini = new Date(desde + 'T00:00').getTime();
+  await enParalelo(lista, async r => { r.camb = cambiosDe(await leerHilo(r.key), ini); });
+  if (!sesionMala && perfil === E.perfil) { E.cierres = { perfil, desde, at: Date.now(), items: lista, fallos: fallidos }; guardar(); }
+  cierresCargando = false; pintar();
+}
+function eventosAct() {
+  const d0 = new Date(); d0.setHours(0, 0, 0, 0);
+  const ini = d0.getTime() - PA.dia * 86400000, f = PA.franja < PA.franjas.length ? PA.franjas[PA.franja] : null;
+  return eventosRango(f ? ini + horaMin(f[0]) * 60000 : ini, f ? ini + horaMin(f[1]) * 60000 : ini + 86400000);
+}
+function eventosRango(a, b) {
+  const ops = new Set(opsDe(E.perfil)), vistos = new Set(), out = [];
+  const pon = (r, c) => { const k = r.key + '|' + c.ts + '|' + c.a; if (vistos.has(k) || c.ts < a || c.ts >= b) return; vistos.add(k); out.push({ r, ...c, cierre: c.cierre || esCerrado(c.a) }); };
+  filas().forEach(r => { if (ops.has(cleanInitials(r.operario))) ((E.der[r.key] || {}).camb || []).forEach(c => pon(r, c)); });
+  ((E.cierres && E.cierres.perfil === E.perfil && E.cierres.items) || []).forEach(r => {
+    if (!ops.has(cleanInitials(r.operario))) return;
+    const cs = r.camb || []; cs.forEach(c => pon(r, c));
+    if (!cs.some(c => esCerrado(c.a))) pon(r, { ts: r.fCierre, u: '', de: '', a: r.estado || 'CERRADO', cierre: true, sinAutor: true });   // cerrada sin mensaje en el hilo
+  });
+  return out.sort((x, y) => y.ts - x.ts);
+}
+// Novedades de hoy desde la última vez que se miró Actividad (de los técnicos que sigues, sin contar las tuyas)
+function nuevosAct(desde) {
+  const d0 = new Date(); d0.setHours(0, 0, 0, 0);
+  const yo = cleanInitials(localStorage.getItem('codigoOperario') || '');
+  return eventosRango(Math.max(d0.getTime(), desde == null ? PA.vistoAct || 0 : desde) + 1, Date.now() + 3600000).filter(e => !PA.silencio[cleanInitials(e.r.operario)] && e.u !== yo).length;
+}
+const ICO_ON = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>';
+const ICO_OFF = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.7 3A6 6 0 0 1 18 8a21.3 21.3 0 0 0 .6 5M17 17H3s3-2 3-9a4.67 4.67 0 0 1 .3-1.7M10.3 21a1.94 1.94 0 0 0 3.4 0M2 2l20 20"/></svg>';
+const ICO_EDIT = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
+function vistaAct() {
+  const ev = eventosAct(), sil = PA.silencio, porTec = {}, ops = opsDe(E.perfil);
+  ev.forEach(e => { const o = cleanInitials(e.r.operario), t = porTec[o] = porTec[o] || { c: 0, m: 0 }; if (e.cierre) t.c++; else t.m++; });
+  const vis = ev.filter(e => { const o = cleanInitials(e.r.operario); return !sil[o] && (!PA.tec || o === PA.tec) && (!PA.tipo || (PA.tipo === 'c') === e.cierre); });
+  const dias = Array.from({ length: ACT_DIAS }, (_, i) => { const d = new Date(Date.now() - i * 86400000); return [i, i === 0 ? 'Hoy' : i === 1 ? 'Ayer' : DIAS[d.getDay()].slice(0, 3) + ' ' + d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' })]; });
+  const franjas = PA.franjas.map((f, i) => [i, f[0] + '–' + f[1]]).concat([[PA.franjas.length, 'Todo el día']]);
+  const nC = vis.filter(e => e.cierre).length, tecs = ops.filter(o => porTec[o] || sil[o]).sort((x, y) => ((porTec[y] || {}).c || 0) + ((porTec[y] || {}).m || 0) - ((porTec[x] || {}).c || 0) - ((porTec[x] || {}).m || 0) || x.localeCompare(y));
+  const estado = cierresCargando ? `<div class="m">Cargando cierres ${cierresFin}/${cierresTot}…</div>` : E.cierres && E.cierres.fallos ? `<div class="m">${plural(E.cierres.fallos, 'técnico')} sin responder: pulsa ⟳</div>` : !E.cierres ? '<div class="m">Pulsa ⟳ para cargar los cierres</div>' : '';
+  const linea = e => { const o = cleanInitials(e.r.operario), por = e.u && e.u !== o ? ' · por ' + e.u : '';
+    return `<button class="ev" data-a="ficha" data-k="${esc(e.r.key)}" style="--e:${e.cierre ? 'var(--ok)' : estadoColor(e.a)}"><span class="evh">${hora(e.ts)}</span><span class="evc">${e.ts > actPrev ? '<span class="nv">Nuevo</span> ' : ''}<b>${esc(o)}</b> · <span class="n">${esc(String(e.r.num).slice(-6))}</span> · ${esc(e.r.descSede || '')}<small>${e.de ? esc(e.de) + ' → ' : ''}${esc(e.a)}${esc(por)}${e.sinAutor ? ' · autor no indicado' : ''}</small></span></button>`; };
+  return `<div class="tres"><select data-c="dia" aria-label="Día">${dias.map(([v, t]) => `<option value="${v}"${PA.dia === v ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select><select data-c="franja" aria-label="Franja">${franjas.map(([v, t]) => `<option value="${v}"${PA.franja === v ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select><button class="bell" data-a="franjas" aria-label="Editar franjas">${ICO_EDIT}</button></div>
+    <div class="seg">${[['', 'Todo'], ['c', 'Cierres'], ['m', 'Cambios']].map(([v, t]) => `<button class="ch${PA.tipo === v ? ' on' : ''}" data-a="tipoact" data-v="${v}" aria-pressed="${PA.tipo === v}">${t}</button>`).join('')}</div>
+    ${PA.dia === 0 && nuevosAct(actPrev) > vis.filter(e => e.ts > actPrev).length ? `<div class="nota"><span>Hay novedades de hoy fuera de esta franja</span><button class="mini" data-a="vertodo">Ver todo el día</button></div>` : ''}${estado}<div class="res2"><b>${nC}</b> ${nC === 1 ? 'cierre' : 'cierres'} · <b>${vis.length - nC}</b> ${vis.length - nC === 1 ? 'cambio' : 'cambios'}${PA.tec ? ` de ${esc(PA.tec)} <button class="mini" data-a="tecact" data-v="">Ver todos</button>` : ''}</div>
+    ${tecs.length ? '<h2>Técnicos</h2>' + tecs.map(o => { const t = porTec[o] || { c: 0, m: 0 }, on = !sil[o]; return `<div class="at"><button class="bell" data-a="campana" data-v="${esc(o)}" aria-pressed="${on}" aria-label="${on ? 'Dejar de seguir a ' : 'Seguir a '}${esc(o)}">${on ? ICO_ON : ICO_OFF}</button><button class="atn${PA.tec === o ? ' on' : ''}${on ? '' : ' off'}" data-a="tecact" data-v="${esc(o)}"><b>${esc(o)} <small>${esc(zonaDe(o))}</small></b><span>${plural(t.c, 'cierre')} · ${plural(t.m, 'cambio')}${on ? '' : ' · no lo sigues'}</span></button></div>`; }).join('') : ''}
+    <h2>Actividad</h2>${vis.map(linea).join('') || `<div class="vac">${cierresCargando ? 'Cargando…' : 'Nada en esta franja.'}</div>`}`;
+}
+function abrirFranjas() {
+  const m = $('me');
+  m.innerHTML = `<div class="hoja" role="dialog" aria-label="Franjas"><h3>Franjas de Actividad</h3>${PA.franjas.map((f, i) => `<div class="dos"><input type="time" data-f="${i}-0" value="${esc(f[0])}" aria-label="Desde, franja ${i + 1}"><input type="time" data-f="${i}-1" value="${esc(f[1])}" aria-label="Hasta, franja ${i + 1}"></div>`).join('')}<button class="fila" data-a="guardafr">Guardar</button><button class="fila" data-a="cmenu">Cancelar</button></div>`;
+  m.hidden = false;
+}
+async function cargar(completa) {
+  if (cargando) return;
+  const rapida = !completa && esRapida() && E.atTecs > 0 && filas().length > 0;   // la primera vez siempre completa
+  if (sesionCaducada()) { sesionMala = true; pintar(); return; }
+  cargando = true; fin = 0; fallos = 0; sesionMala = false; aviso = ''; pintar();
+  const antes = filas(), hoy = hoyEs(), ops = opsDe(E.perfil), perfil = E.perfil;
+  try {
+    const d = await leer('/operario?q=codOpe.contains=XXX'), lp = (Array.isArray(d) ? d : (d && d.content) || []).filter(o => o && /^XXX/i.test(o.codOpe || ''));
+    const comodines = [...new Set(lp.map(o => cleanInitials(o.codOpe)))]; lp.forEach(o => { E.poolDesc[cleanInitials(o.codOpe)] = o.desOpe || ''; });
+    let abiertos2 = ESTADOS_ATGO;
+    try { const le = await leer('/estados'), l = (Array.isArray(le) ? le : []).filter(x => x && x.estado != null && !esCerrado(x.desEstado)).map(x => x.estado); if (l.length) abiertos2 = l; } catch (e) { if (e.sesion) throw e; }
+    // Rápida: los técnicos se quedan de la última carga completa
+    const cola = [...(rapida ? [] : ops.map(op => [op, false])), ...comodines.map(op => [op, true])]; total = cola.length; const ok = new Set();
+    await Promise.all(Array.from({ length: PARALELO }, async () => {
+      while (cola.length && !sesionMala) {
+        const [op, esPool] = cola.shift();
+        try { const l = await lista(op, esPool ? [10] : abiertos2); if (esPool) E.pool[op] = l; else { E.tecs[op] = l; ok.add(op); } }
+        catch (e) { if (e.sesion) sesionMala = true; else fallos++; }
+        fin++; pintarPronto();
+      }
+    }));
+    if (!sesionMala && perfil === E.perfil) {
+      // Las visitas de hoy que han salido de la lista se dan por resueltas (ATGO ya no las devuelve)
+      const vivas = new Set(filas().map(r => r.key));
+      antes.forEach(r => { if (r.fVisita === hoy && esPresencial(r) && ok.has(cleanInitials(r.operario)) && !vivas.has(r.key)) E.salidas[r.key] = r; });
+      const claves = [...todas().map(r => r), ...Object.values(E.salidas)], cola2 = claves.slice();
+      await Promise.all(Array.from({ length: PARALELO }, async () => {
+        while (cola2.length && !sesionMala) { const r = cola2.shift(); try { E.der[r.key] = deducir(r, await leerHilo(r.key)); } catch (e) { if (e.sesion) sesionMala = true; } }
+      }));
+      const k = new Set(claves.map(r => r.key)); Object.keys(E.der).forEach(x => { if (!k.has(x)) delete E.der[x]; });
+      if (!sesionMala) { E.at = Date.now(); E.rapida = rapida; if (!rapida) E.atTecs = E.at; guardar(); if (!PA.vistoSin) { PA.vistoSin = pendientes().map(r => r.key); sinPrev = new Set(PA.vistoSin); guardarPA(); } }
+    }
+  } catch (e) { if (e.sesion) sesionMala = true; else aviso = e.name === 'AbortError' ? 'ATGO no responde' : 'No se pudieron cargar los datos'; }
+  cargando = false; pintar();
+  if (rapida && PA.dia === 0 && !sesionMala && !cierresAlDia()) cargarCierres();   // fuera de jornada interesan los cierres de hoy
+}
+
+// ---- Interfaz: todo dentro de su propio espacio, sin mezclarse con la página de ATGO ----
+const host = document.createElement('div'); host.id = 'despacho-movil';
+host.style.cssText = 'position:fixed;inset:0;z-index:2147483647';
+const raiz = host.attachShadow({ mode: 'open' });
+raiz.innerHTML = `<style>
+:host{--bg:rgb(247,245,240);--panel:rgb(255,255,255);--p2:rgb(241,239,233);--line:rgb(226,222,212);--ink:rgb(31,35,40);--dim:rgb(90,96,103);--marca:rgb(133,86,18);--rojo:rgb(181,67,47);--aviso:rgb(143,94,20);--ok:rgb(29,126,96)}
+@media (prefers-color-scheme:dark){:host{--bg:rgb(20,24,28);--panel:rgb(27,33,38);--p2:rgb(32,39,45);--line:rgb(44,53,60);--ink:rgb(232,236,239);--dim:rgb(164,175,185);--marca:rgb(224,162,74);--rojo:rgb(240,150,135);--aviso:rgb(224,162,74);--ok:rgb(94,194,143)}}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+#r{position:absolute;inset:0;display:flex;flex-direction:column;background:var(--bg);color:var(--ink);font:15px/1.35 system-ui,sans-serif}
+header{flex:none;display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--panel);border-bottom:1px solid var(--line)}
+header h1{font-size:18px;margin:0;flex:none}
+#est{flex:1;min-width:0;font-size:12px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+.ib{width:44px;height:44px;border-radius:10px;font-size:20px;flex:none}
+#bar{flex:none;height:3px;background:var(--marca);width:0;transition:width .3s}
+#av{flex:none;padding:10px 12px;background:var(--p2);font-size:14px;border-bottom:1px solid var(--line)}
+#v{flex:1;overflow:auto;padding:12px;overscroll-behavior:contain}
+nav{flex:none;display:grid;grid-template-columns:repeat(5,1fr);background:var(--panel);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0)}
+nav button{height:56px;font-size:12px;line-height:1.15;padding:0 2px;color:var(--dim);position:relative}
+nav button.on{color:var(--marca);font-weight:700;box-shadow:inset 0 3px 0 var(--marca)}
+nav i{font-style:normal;font-size:11px;margin-left:3px}
+.res{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.res button{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px;text-align:left;min-height:64px}
+.res b{display:block;font-size:22px}.res span{font-size:12px;color:var(--dim)}.res .mal b{color:var(--rojo)}
+h2{font-size:13px;margin:14px 2px 6px;color:var(--dim);text-transform:uppercase;letter-spacing:.3px}
+.c{display:block;width:100%;text-align:left;background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--e,var(--line));border-radius:10px;padding:10px 12px;margin-bottom:8px}
+.l1{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.n{font-family:monospace;font-weight:700;color:var(--marca)}
+.s{font-weight:600;margin-top:3px;overflow-wrap:anywhere}.m{font-size:13px;color:var(--dim);overflow-wrap:anywhere}
+.p{display:inline-block;font-size:11px;font-weight:700;padding:1px 7px;border-radius:999px;color:var(--ink);background:color-mix(in srgb,var(--e) 22%,transparent)}
+.cad{font-size:12px;font-weight:600;color:var(--dim)}.cad.venc{color:var(--rojo)}.cad.urg{color:var(--aviso)}
+.t{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;width:100%;text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:6px;min-height:52px}
+.t b{font-family:monospace}.t em{font-style:normal;font-weight:700}.t small{color:var(--dim);font-size:12px}.t .ret{color:var(--rojo);font-weight:600}
+.pb{grid-column:1/-1;height:5px;border-radius:3px;background:var(--p2);overflow:hidden}.pb i{display:block;height:100%;background:var(--ok)}
+.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:8px}
+.ch{flex:none;min-height:40px;padding:0 14px;border-radius:20px;border:1px solid var(--line);background:var(--panel);font-size:14px}
+.ch.on{border-color:var(--marca);color:var(--marca);font-weight:700}
+select,input{font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:10px;height:44px;padding:0 10px;width:100%;margin-bottom:8px}
+.dos{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.vac{padding:30px 10px;text-align:center;color:var(--dim)}
+.plg{display:flex;align-items:center;gap:8px;margin:2px 2px 6px;font-size:13px;color:var(--dim)}.plg span{flex:1}
+.mini{min-height:40px;padding:0 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--marca);font-weight:600;font-size:13px}
+.zh{margin:14px 2px 6px;font-size:13px}.zh b{text-transform:uppercase;letter-spacing:.3px}.zh span{color:var(--dim)}
+.tg{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:8px 10px;margin-bottom:6px;min-height:58px}
+.av{flex:none;min-width:44px;height:40px;padding:0 5px;border-radius:20px;display:grid;place-items:center;font:700 12px monospace;color:var(--ink);background:color-mix(in srgb,var(--e) 30%,transparent);border:1px solid var(--e)}
+.tn{flex:1;min-width:0;display:grid}.tn b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.tn small{color:var(--dim);font-size:12px}.tn .ret{color:var(--rojo);font-weight:600}
+.tg em{font-style:normal;font-weight:700}.cv{color:var(--dim);flex:none}
+.sub{margin:8px 2px 6px;font-size:12px;font-weight:700;color:var(--dim)}
+.eg{display:flex;justify-content:space-between;align-items:center;margin:8px 2px 5px;padding-left:8px;border-left:3px solid var(--e);font-size:12px;font-weight:700}.eg small{color:var(--dim)}
+#fi,#me{position:absolute;inset:0;background:var(--bg);display:flex;flex-direction:column}
+#me{background:rgba(0,0,0,.45);justify-content:flex-end}
+.hoja{background:var(--panel);border-radius:16px 16px 0 0;padding:14px;display:grid;gap:8px}
+.hoja h3{margin:0;font-size:16px}.hoja .fila{height:48px;border:1px solid var(--line);border-radius:10px;width:100%}.hoja .perf{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.perf button{height:44px;border:1px solid var(--line);border-radius:10px}.perf button.on{border-color:var(--marca);color:var(--marca);font-weight:700}
+.cb{flex:1;overflow:auto;padding:12px;overscroll-behavior:contain}
+.acc{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:10px 0}
+.acc a,.acc button{display:flex;align-items:center;justify-content:center;height:46px;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--marca);font-weight:600;text-decoration:none;padding:0 6px;text-align:center}
+dl{margin:0;display:grid;grid-template-columns:96px minmax(0,1fr);gap:6px 10px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px}
+dt{color:var(--dim);font-size:13px}dd{margin:0;overflow-wrap:anywhere}
+.h{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:6px;font-size:14px;white-space:pre-wrap;overflow-wrap:anywhere}
+.h small{display:block;color:var(--dim);font-size:12px;margin-bottom:3px}.h.sis{background:none;color:var(--dim);font-size:13px}
+.tres{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) 48px;gap:8px;margin-bottom:8px}.tres select{min-width:0;width:100%;padding-left:8px;padding-right:2px;font-size:14px}
+.seg{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-bottom:6px}.seg .ch{padding:0 4px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.res2{margin:4px 2px 8px;font-size:14px;display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px}
+.at{display:flex;gap:8px;align-items:stretch;margin-bottom:6px}
+.bell{flex:none;width:48px;min-height:48px;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--marca);display:grid;place-items:center}
+.bell[aria-pressed=false]{color:var(--dim)}
+.atn{flex:1;min-width:0;min-height:48px;text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:6px 10px;display:grid}
+.atn.on{border-color:var(--marca);box-shadow:inset 0 0 0 1px var(--marca)}.atn.off{opacity:.6}
+.atn small{color:var(--dim);font-weight:400}.atn span{font-size:12px;color:var(--dim)}
+.ev{display:grid;grid-template-columns:48px minmax(0,1fr);gap:8px;width:100%;text-align:left;background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--e);border-radius:10px;padding:8px 10px;margin-bottom:6px;min-height:52px}
+.evh{font-family:monospace;font-weight:700}.evc{min-width:0;overflow-wrap:anywhere}.evc small{display:block;color:var(--dim);font-size:12px;margin-top:2px}
+.bd{position:absolute;top:4px;right:4px;min-width:18px;height:18px;padding:0 4px;border-radius:9px;background:var(--rojo);color:var(--panel);font:700 11px/18px system-ui,sans-serif}
+.nv{display:inline-block;font-size:11px;font-weight:700;padding:1px 7px;border-radius:999px;background:var(--rojo);color:var(--panel);vertical-align:1px}
+h2.hu{color:var(--rojo)}
+.cw{position:relative}.cw .c{padding-right:100px}
+.asg{position:absolute;top:8px;right:8px;height:44px;padding:0 12px;border:1px solid var(--marca);border-radius:10px;background:var(--panel);color:var(--marca);font-weight:700}
+.acc .prim{grid-column:1/-1}
+.hoja .prim{background:var(--marca);color:var(--panel);border-color:var(--marca);font-weight:700}
+.hoja{max-height:92%;overflow:auto}.lista{display:grid;gap:6px}
+.lb{display:grid;gap:3px;font-size:13px;color:var(--dim)}.lb input{margin:0;color:var(--ink)}
+.nota{display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:8px 10px;border-radius:10px;background:var(--p2);font-size:13px}.nota span{flex:1}
+.okm{color:var(--ok);font-weight:600}.errm{color:var(--rojo);font-weight:600}
+button:disabled{opacity:.5}
+[hidden]{display:none!important}
+</style>
+<div id="r"><header><h1 id="ti"></h1><div id="est" role="status"></div><button class="ib" data-a="cargar" aria-label="Actualizar">⟳</button><button class="ib" data-a="menu" aria-label="Más opciones">⋮</button></header>
+<div id="bar"></div><div id="av" hidden></div><main id="v"></main>
+<nav aria-label="Secciones"><button data-a="tab" data-v="hoy">Hoy</button><button data-a="tab" data-v="sin">Sin asignar<i id="nSin"></i><b class="bd" id="bSin" hidden></b></button><button data-a="tab" data-v="inc">Incidencias</button><button data-a="tab" data-v="act">Actividad<b class="bd" id="bAct" hidden></b></button><button data-a="tab" data-v="bus">Buscar</button></nav>
+<div id="fi" hidden></div><div id="me" hidden></div></div>`;
+const $ = id => raiz.getElementById(id);
+const TITULOS = { hoy: 'Hoy', sin: 'Sin asignar', inc: 'Incidencias', act: 'Actividad', bus: 'Buscar' };
+
+function tarjeta(r, extra, nueva) {
+  const c = cad(r), nv = c ? cadNivel(c) : '';
+  return `<button class="c" data-a="ficha" data-k="${esc(r.key)}" style="--e:${estadoColor(r.estado)}"><span class="l1">${nueva ? '<span class="nv">Nueva</span>' : ''}<span class="n">${esc(String(r.num).slice(-6))}</span><span class="p" style="--e:${estadoColor(r.estado)}">${esc(r.estado)}</span>${c ? `<span class="cad ${nv}">${nv === 'venc' ? 'Caducó' : 'Caduca'} ${esc(cadTexto(c))}</span>` : ''}</span>
+    <div class="s">${esc(r.descSede || r.domicilio || '—')}</div><div class="m">${esc(r.descCliente || '')}</div><div class="m">${esc([extra, /^XXX/i.test(r.operario) ? '' : r.operario, r.fVisita ? r.fVisita + (r.desdeHora ? ' ' + r.desdeHora : '') : 'Sin fecha'].filter(Boolean).join(' · '))}</div></button>`;
+}
+const porCad = (a, b) => { const x = cad(a), y = cad(b); return (x ? x.ts : 9e15) - (y ? y.ts : 9e15); };
+function resumenHoy() {
+  const hoy = hoyEs(), ahoraMin = new Date().getHours() * 60 + new Date().getMinutes(), porOp = {};
+  filas().filter(r => r.fVisita === hoy && esPresencial(r)).forEach(r => {
+    const d = E.der[r.key], st = d && d.prog || 'p', lim = horaMin(r.hastaHora || r.desdeHora), late = st === 'p' && lim < 9999 && ahoraMin > lim;
+    (porOp[r.operario] = porOp[r.operario] || []).push({ r, st, late });
+  });
+  Object.values(E.salidas).forEach(r => { (porOp[r.operario] = porOp[r.operario] || []).push({ r, st: 'd', late: false, salio: true }); });
+  return porOp;
+}
+const notaRapida = () => E.rapida && E.atTecs ? `<div class="nota"><span>Visitas e incidencias de las ${hora(E.atTecs)}${iso(new Date(E.atTecs)) === iso() ? '' : ' del ' + new Date(E.atTecs).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' })} (carga rápida)</span><button class="mini" data-a="completa">Cargar todo</button></div>` : '';
+function vistaHoy() {
+  const po = resumenHoy(), ops = Object.keys(po).sort((a, b) => zonaDe(a).localeCompare(zonaDe(b)) || a.localeCompare(b)), todo = Object.values(po).flat(), abiertas = filas().filter(r => !esCierre(r.estado));
+  const hechas = todo.filter(x => x.st === 'd').length, retrasos = todo.filter(x => x.late).length, ahora = Date.now(), hoyI = iso();
+  const cadu = abiertas.filter(r => { const c = cad(r); return c && c.ts < ahora; }), hoy = abiertas.filter(r => { const c = cad(r); return c && c.ts >= ahora && iso(new Date(c.ts)) === hoyI; });
+  if (!E.at && !filas().length) return `<div class="vac">${cargando ? 'Cargando los datos de ATGO…' : 'Sin datos todavía. Pulsa ⟳.'}</div>`;
+  return `${notaRapida()}<div class="res"><button data-a="tabf" data-v="" aria-label="Visitas de hoy"><b>${hechas}/${todo.length}</b><span>Visitas hechas</span></button><button class="${retrasos ? 'mal' : ''}" data-a="tabf" data-v=""><b>${retrasos}</b><span>Con retraso</span></button><button class="${cadu.length ? 'mal' : ''}" data-a="tabf" data-v="cad"><b>${cadu.length}</b><span>Caducadas</span></button></div>
+    ${hoy.length ? `<h2>Caducan hoy · ${hoy.length}</h2>${hoy.sort(porCad).map(r => tarjeta(r)).join('')}` : ''}
+    <h2>Técnicos con visitas hoy · ${ops.length}</h2>${ops.map(op => { const l = po[op], d = l.filter(x => x.st === 'd').length, c = l.filter(x => x.st === 'c').length, ret = l.filter(x => x.late).length, ab = abiertos[op];
+      return `<button class="t" data-a="tec" data-v="${esc(op)}" aria-expanded="${!!ab}"><span><b>${esc(op)}</b> <small>${esc(zonaDe(op))}</small></span><em>${d}/${l.length}</em><small>${c ? c + ' en curso' : ''}${c && ret ? ' · ' : ''}${ret ? `<span class="ret">${plural(ret, 'retraso')}</span>` : ''}</small><span></span><span class="pb"><i style="width:${Math.round(d / l.length * 100)}%"></i></span></button>${ab ? l.sort((a, b) => horaMin(a.r.desdeHora) - horaMin(b.r.desdeHora)).map(x => tarjeta(x.r, x.salio ? 'Ya no está en la lista' : x.st === 'd' ? 'Finalizada' : x.st === 'c' ? 'En curso' : x.late ? 'Con retraso' : 'Pendiente')).join('') : ''}`; }).join('') || '<div class="vac">Nadie tiene visitas hoy.</div>'}`;
+}
+// Urgentes (caducadas o que caducan en menos de 24 h) arriba, con su zona; el resto por zona
+const itemSin = (r, extra) => `<div class="cw">${tarjeta(r, extra, sinPrev && !sinPrev.has(r.key))}<button class="asg" data-a="asignar" data-k="${esc(r.key)}">Asignar</button></div>`;
+function vistaSin() {
+  const mis = new Set(zonasDe(E.perfil).map(z => z.nombre)), todos = pendientes(), mias = todos.filter(r => mis.has(zonaPool(r))), l = verMi ? mias : todos, g = {};
+  const urg = l.filter(r => { const c = cad(r); return c && ['venc', 'urg'].includes(cadNivel(c)); }).sort(porCad), ku = new Set(urg.map(r => r.key));
+  l.filter(r => !ku.has(r.key)).sort(porCad).forEach(r => { (g[zonaPool(r)] = g[zonaPool(r)] || []).push(r); });
+  return `<div class="chips"><button class="ch${verMi ? ' on' : ''}" data-a="mi" data-v="1">Mis zonas · ${mias.length}</button><button class="ch${verMi ? '' : ' on'}" data-a="mi" data-v="">Todas · ${todos.length}</button></div>${urg.length ? `<h2 class="hu">Urgentes · ${urg.length}</h2><div class="m" style="margin:-2px 2px 6px">Caducadas o caducan en menos de 24 h</div>${urg.map(r => itemSin(r, zonaPool(r))).join('')}` : ''}${Object.keys(g).sort().map(z => `<h2>${esc(z)} · ${g[z].length}</h2>${g[z].map(r => itemSin(r)).join('')}`).join('') || (urg.length ? '' : '<div class="vac">Nada sin asignar.</div>')}`;
+}
+function listaInc() {
+  const ahora = Date.now(), hoyI = iso(), hoy = hoyEs();
+  return filas().filter(r => !esCerrado(r.estado) && (!estadoInc || r.estado === estadoInc) && (!zonaInc || zonaDe(r.operario) === zonaInc) && (!filtroInc || (filtroInc === 'cad' ? cad(r) && cad(r).ts < ahora : filtroInc === 'caduhoy' ? cad(r) && cad(r).ts >= ahora && iso(new Date(cad(r).ts)) === hoyI : filtroInc === 'hoy' ? r.fVisita === hoy : !r.fVisita))).sort(porCad);
+}
+// Por zona y técnico, como Incidencias en el ordenador: primero lo de hoy y después el resto por estado y fecha de visita
+function porTecnico(l) {
+  const por = {}; l.forEach(r => { (por[r.operario] = por[r.operario] || []).push(r); });
+  const po = resumenHoy(), hoy = hoyEs(), hoyT = parseEs(hoy).getTime();
+  return zonasDe(E.perfil).map(z => {
+    const ops = z.ops.filter(op => por[op]); if (!ops.length) return '';
+    const ruta = ops.flatMap(op => po[op] || []), h = z.dispatcher ? plural(ops.reduce((s, op) => s + por[op].length, 0), 'incidencia') + ' a tu nombre' : ruta.length ? ruta.filter(x => x.st === 'd').length + '/' + plural(ruta.length, 'visita') + ' hechas hoy' : 'sin visitas hoy';
+    return `<div class="zh"><b>${esc(z.nombre)}</b> <span>${h}</span></div>` + ops.map(op => {
+      const it = por[op], ru = po[op] || [], ab = abiertosInc[op], hechas = ru.filter(x => x.st === 'd').length, late = ru.filter(x => x.late).length, esc1 = it.filter(r => norm(r.estado) === norm('ESCALADO TIER1')).length, sinF = it.filter(r => esPresencial(r) && !r.fVisita).length;
+      const dehoy = it.filter(r => r.fVisita === hoy && esPresencial(r)).sort((a, b) => horaMin(a.desdeHora) - horaMin(b.desdeHora)), k = new Set(dehoy.map(r => r.key)), resto = it.filter(r => !k.has(r.key)).sort((a, b) => ordenEstado(a.estado) - ordenEstado(b.estado) || ordenVisita(a, b, hoyT));
+      let cuerpo = '';
+      if (ab) {
+        if (dehoy.length) cuerpo += '<div class="sub">Hoy</div>' + dehoy.map(r => tarjeta(r, (ru.find(x => x.r.key === r.key) || {}).late ? 'Con retraso' : '')).join('');
+        if (resto.length) { if (dehoy.length) cuerpo += '<div class="sub">Resto de incidencias</div>'; let ant = null; resto.forEach(r => { const e = norm(r.estado); if (e !== ant) { ant = e; cuerpo += `<div class="eg" style="--e:${estadoColor(r.estado)}"><span>${esc(r.estado || '—')}</span><small>${resto.filter(x => norm(x.estado) === e).length}</small></div>`; } cuerpo += tarjeta(r); }); }
+      }
+      return `<button class="tg" data-a="tecinc" data-v="${esc(op)}" aria-expanded="${!!ab}"><span class="av" style="--e:${colorFor(cleanInitials(op))}">${esc(op)}</span><span class="tn"><b>${esc((it[0].desOperario || op).split(',').reverse().join(' ').trim())}</b><small>${ru.length ? hechas + '/' + ru.length + ' hoy' : 'Sin visitas hoy'}${late ? ' · <span class="ret">' + plural(late, 'retraso') + '</span>' : ''}${sinF ? ' · ' + sinF + ' sin fecha' : ''}${esc1 ? ' · ' + esc1 + ' escalada' + (esc1 === 1 ? '' : 's') : ''}</small></span><em>${it.length}</em><span class="cv">${ab ? '▴' : '▾'}</span></button>${cuerpo}`;
+    }).join('');
+  }).join('');
+}
+function vistaInc() {
+  const l = listaInc(), estados = [...new Set(filas().map(r => r.estado).filter(Boolean))].sort(), zonas = zonasDe(E.perfil).map(z => z.nombre).filter(z => filas().some(r => zonaDe(r.operario) === z));
+  return `${notaRapida()}<div class="chips">${[['', 'Todas'], ['cad', 'Caducadas'], ['caduhoy', 'Caducan hoy'], ['hoy', 'Visita hoy'], ['sinf', 'Sin fecha']].map(([v, t]) => `<button class="ch${filtroInc === v ? ' on' : ''}" data-a="fil" data-v="${v}">${t}</button>`).join('')}</div>
+    <div class="dos"><select data-c="estado" aria-label="Estado"><option value="">Todos los estados</option>${estados.map(e => `<option${e === estadoInc ? ' selected' : ''}>${esc(e)}</option>`).join('')}</select><select data-c="zona" aria-label="Zona"><option value="">Todas las zonas</option>${zonas.map(z => `<option${z === zonaInc ? ' selected' : ''}>${esc(z)}</option>`).join('')}</select></div>
+    <div class="plg"><span>${plural(l.length, 'incidencia')}</span><button class="mini" data-a="plg" data-v="1">Plegar</button><button class="mini" data-a="plg" data-v="">Desplegar</button></div>${porTecnico(l) || '<div class="vac">Nada con este filtro.</div>'}`;
+}
+function resultadosBus() {
+  const t = norm(textoBus).trim(); if (t.length < 2) return '<div class="vac">Escribe Nº, sede, cliente, técnico o población.</div>';
+  const ps = t.split(/\s+/), l = todas().filter(r => { const s = norm([r.num, r.descSede, r.descCliente, r.operario, r.desOperario, r.poblacion, r.domicilio, r.referencia].join(' ')); return ps.every(p => s.includes(p)); });
+  return `<h2>${plural(l.length, 'resultado')}</h2>${l.slice(0, 60).map(r => tarjeta(r)).join('') || '<div class="vac">Sin resultados.</div>'}`;
+}
+function pintarEstado() {
+  $('ti').textContent = TITULOS[tab];
+  $('est').textContent = cargando ? (total ? 'Cargando ' + fin + '/' + total : 'Cargando…') : E.at ? 'Datos de las ' + hora(E.at) + (iso(new Date(E.at)) === iso() ? '' : ' del ' + new Date(E.at).toLocaleDateString('es-ES')) + (E.rapida ? ' · rápida' : '') : 'Sin datos';
+  $('bar').style.width = cargando && total ? Math.round(fin / total * 100) + '%' : '0';
+  const a = sesionMala ? 'Sesión de ATGO caducada. Pulsa ⋮, «Volver a ATGO», inicia sesión y abre de nuevo Despacho.' : aviso || (!cargando && fallos ? plural(fallos, 'técnico') + ' sin actualizar: pulsa ⟳' : '');
+  $('av').hidden = !a; $('av').textContent = a;
+  raiz.querySelectorAll('nav button').forEach(b => { const on = b.dataset.v === tab; b.classList.toggle('on', on); if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
+  const mis = new Set(zonasDe(E.perfil).map(z => z.nombre)), mias = pendientes().filter(r => mis.has(zonaPool(r))); $('nSin').textContent = ' ' + mias.length;
+  const vs = new Set(PA.vistoSin || []), nS = tab === 'sin' || !PA.vistoSin ? 0 : mias.filter(r => !vs.has(r.key)).length, nA = tab === 'act' ? 0 : nuevosAct();
+  $('bSin').hidden = !nS; $('bSin').textContent = nS; $('bSin').title = nS + ' nuevas';
+  $('bAct').hidden = !nA; $('bAct').textContent = nA; $('bAct').title = nA + ' novedades';
+}
+function pintar() {
+  pintarEstado();
+  const v = $('v'), y = v.scrollTop;
+  if (tab === 'bus') {
+    if (!$('q')) v.innerHTML = '<input id="q" type="search" placeholder="Buscar…" aria-label="Buscar" autocomplete="off" value="' + esc(textoBus) + '"><div id="br"></div>';
+    $('br').innerHTML = resultadosBus();
+  } else { v.innerHTML = tab === 'hoy' ? vistaHoy() : tab === 'sin' ? vistaSin() : tab === 'act' ? vistaAct() : vistaInc(); v.scrollTop = y; }
+}
+function pintarPronto() { pintarEstado(); clearTimeout(pintaT); pintaT = setTimeout(pintar, 600); }
+
+async function abrirFicha(k, sinHistorial) {
+  const r = ticket(k); if (!r) return;
+  const f = $('fi'), d = E.der[k] || {}, c = cad(r), mail = /^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(r.email || '') ? r.email : '', tel = String(r.telefono || '').replace(/[^\d+]/g, '');
+  const mapa = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent([r.domicilio, r.provincia].filter(Boolean).join(', '));
+  const wa = 'https://wa.me/?text=' + encodeURIComponent('Incidencia ' + r.num + ' · ' + (r.descSede || ''));
+  const proy = r.numProy != null && r.numProy !== '' && r.numProy !== 'NULL' ? [r.numProy, r.codProy, r.desProy].filter(x => x != null && x !== '' && x !== 'NULL').join(' - ') : '';
+  const fila = (t, v) => v ? `<dt>${t}</dt><dd>${esc(v)}</dd>` : '';
+  f.innerHTML = `<header><button class="ib" data-a="cerrarf" aria-label="Volver">‹</button><h1 style="font-family:monospace;font-size:16px">${esc(r.num)}</h1><div id="est2"></div></header><div class="cb">
+    <span class="p" style="--e:${estadoColor(r.estado)}">${esc(r.estado)}</span>
+    <div class="s" style="font-size:17px;margin:8px 0 2px">${esc(r.descSede || '—')}</div><div class="m">${esc(r.descCliente || '')}</div>
+    <div class="acc">${!esCerrado(r.estado) && todas().some(x => x.key === k) ? `<button type="button" class="prim" data-a="asignar" data-k="${esc(k)}">${/^XXX/i.test(r.operario) ? 'Asignar técnico' : 'Reasignar o cambiar visita'}</button>` : ''}${tel.length >= 6 ? `<a href="tel:${esc(tel)}">Llamar a la tienda</a>` : ''}${r.domicilio ? `<a href="${esc(mapa)}" target="_blank" rel="noopener">Ver en Maps</a>` : ''}${mail ? `<a href="mailto:${esc(mail)}">Correo</a>` : ''}<a href="${esc(wa)}" target="_blank" rel="noopener">WhatsApp</a>${EN_APP ? `<button type="button" data-a="atgo" data-k="${esc(k)}">Abrir en ATGO</button>` : `<a href="${esc(r.url)}" target="_blank" rel="noopener">Abrir en ATGO</a>`}</div>
+    <dl>${fila('Técnico', /^XXX/i.test(r.operario) ? 'Sin asignar · ' + zonaPool(r) : [r.operario, r.desOperario].filter(Boolean).join(' · '))}${fila('Visita', r.fVisita ? r.fVisita + (r.desdeHora ? ' · ' + r.desdeHora + (r.hastaHora ? '–' + r.hastaHora : '') : '') : 'Sin fecha')}${fila('Caducidad', c ? cadTexto(c) : '')}${fila('Dirección', r.domicilio)}${fila('Provincia', r.provincia)}${fila('Teléfono', r.telefono)}${fila('Equipo', [r.tipo, r.elemento].filter(Boolean).join(' · '))}${fila('Referencia', r.referencia)}${fila('Proyecto', proy)}${fila('Registro', r.fRegistro)}${fila('Motivo', d.mot)}</dl>
+    <h2>Hilo</h2><div id="hi"><div class="vac">Cargando el hilo…</div></div></div>`;
+  f.hidden = false; f.dataset.k = k;
+  if (!sinHistorial) history.pushState({ despachoMovil: 1 }, '');
+  try {
+    const items = await leerHilo(k); if (f.dataset.k !== k || f.hidden) return;
+    $('hi').innerHTML = items.slice().sort((a, b) => b.ts - a.ts).map(i => { const t = i.t.replace(/\s+$/, ''), sis = HILO_SISTEMA.some(re => re.test(t.trim())); return `<div class="h${sis ? ' sis' : ''}"><small>${esc([i.ts ? new Date(i.ts).toLocaleString('es-ES', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '', i.n || i.u].filter(Boolean).join(' · '))}</small>${esc(t)}</div>`; }).join('') || '<div class="vac">Sin mensajes.</div>';
+  } catch (e) { if (e.sesion) { sesionMala = true; pintarEstado(); } const h = $('hi'); if (h && f.dataset.k === k) h.innerHTML = '<div class="vac">No se ha podido cargar el hilo.</div>'; }
+}
+const nombreTec = d => String(d || '').split(',').reverse().join(' ').trim();
+const fechaInput = es => { const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(es || ''); return m ? m[3] + '-' + m[2] + '-' + m[1] : ''; };
+function abrirAsignar(k, todasZ) {
+  const r = ticket(k); if (!r) return;
+  const pool = /^XXX/i.test(r.operario), sug = pool ? zonaPool(r) : (zonaDeTexto(r.provincia) || zonaDe(r.operario)), actual = cleanInitials(r.operario);
+  const po = resumenHoy(), nom = {}, ab = {};
+  filas().forEach(x => { const o = cleanInitials(x.operario); if (x.desOperario) nom[o] = x.desOperario; if (!esCerrado(x.estado)) ab[o] = (ab[o] || 0) + 1; });
+  let zs = (todasZ ? ZONAS_BASE : zonasDe(E.perfil)).slice();
+  if (!zs.some(z => z.nombre === sug)) { const z = ZONAS_BASE.find(x => x.nombre === sug); if (z) zs.unshift(z); }
+  zs = zs.sort((a, b) => (b.nombre === sug) - (a.nombre === sug));
+  const lista = zs.map(z => `<div class="sub">${esc(z.nombre)}${z.nombre === sug ? ' · zona de la sede' : ''}</div>` + z.ops.map(op => `<button class="atn${op === actual ? ' on' : ''}" data-a="eligetec" data-k="${esc(k)}" data-v="${esc(op)}"><b>${esc(op)} <small>${esc(nombreTec(nom[op]))}</small></b><span>${plural((po[op] || []).length, 'visita')} hoy · ${plural(ab[op] || 0, 'abierta')}${op === actual ? ' · la tiene ahora' : ''}</span></button>`).join('')).join('');
+  const m = $('me');
+  m.innerHTML = `<div class="hoja" role="dialog" aria-label="Elegir técnico"><h3>${pool ? 'Asignar' : 'Reasignar'} ${esc(String(r.num).slice(-6))} · ${esc(r.descSede || '')}</h3><div class="lista">${lista}${todasZ ? '' : `<button class="fila" data-a="masz" data-k="${esc(k)}">Ver todas las zonas</button>`}</div><button class="fila" data-a="cmenu">Cancelar</button></div>`;
+  m.hidden = false;
+}
+function confirmarAsignar(k, op) {
+  const r = ticket(k); if (!r) return;
+  const nom = (filas().find(x => cleanInitials(x.operario) === op) || {}).desOperario, actual = /^XXX/i.test(r.operario) ? 'sin asignar' : cleanInitials(r.operario);
+  $('me').innerHTML = `<div class="hoja" role="dialog" aria-label="Confirmar asignación"><h3>¿Asignar a ${esc(op)}${nom ? ' · ' + esc(nombreTec(nom)) : ''}?</h3>
+    <div class="m">${esc(String(r.num).slice(-6))} · ${esc(r.descSede || '')}<br>Ahora: ${esc(actual)}${r.fVisita ? ' · visita ' + esc(r.fVisita) : ''}</div>
+    <label class="lb">Fecha de visita (opcional)<input type="date" id="af" value="${esc(fechaInput(r.fVisita))}"></label>
+    <div class="dos"><label class="lb">Desde<input type="time" id="ah1" value="${esc(String(r.desdeHora || '').slice(0, 5))}"></label><label class="lb">Hasta<input type="time" id="ah2" value="${esc(String(r.hastaHora || '').slice(0, 5))}"></label></div>
+    <div id="ares" class="m" role="status"></div>
+    <button class="fila prim" data-a="confasig" data-k="${esc(k)}" data-v="${esc(op)}">Asignar</button><button class="fila" data-a="asignar" data-k="${esc(k)}">Elegir otro técnico</button><button class="fila" data-a="cmenu">Cancelar</button></div>`;
+}
+async function hacerAsignar(k, op) {
+  const r = ticket(k); if (!r || asignando) return;
+  const f = $('af').value, h1 = $('ah1').value, h2 = $('ah2').value, camb = {};
+  if (op !== cleanInitials(r.operario)) camb.codOpe = op;
+  if (f && f !== fechaInput(r.fVisita)) camb.fechaVisita = f;
+  if (h1 !== String(r.desdeHora || '').slice(0, 5)) camb.horaInicioVisita = h1 || null;
+  if (h2 !== String(r.hastaHora || '').slice(0, 5)) camb.horaFinVisita = h2 || null;
+  if (h1 && h2 && horaMin(h2) <= horaMin(h1)) { $('ares').textContent = 'La hora de fin debe ser posterior a la de inicio.'; return; }
+  if (!Object.keys(camb).length) { $('ares').textContent = 'No hay nada que cambiar.'; return; }
+  raiz.querySelectorAll('#me button, #me input').forEach(x => { x.disabled = true; });
+  $('ares').textContent = 'Guardando y comprobando en ATGO…';
+  const res = await asignar(k, camb), num = String(r.num).slice(-6);
+  if (res.ok) aplicarAsignacion(r, res.despues);
+  $('me').innerHTML = `<div class="hoja" role="alertdialog" aria-label="Resultado"><h3>${res.ok ? 'Hecho' : 'No se ha guardado'}</h3><div class="${res.ok ? 'okm' : 'errm'}">${esc(res.ok ? num + (camb.codOpe ? ' asignada a ' + op : ' con la visita cambiada') + ' y comprobada en ATGO.' : res.error)}</div><button class="fila" data-a="cmenu">Cerrar</button></div>`;
+  pintar();
+  if (!$('fi').hidden && $('fi').dataset.k === k) abrirFicha(k, true);
+}
+// Lo asignado pasa al técnico en este móvil; la próxima carga completa lo confirma
+function aplicarAsignacion(r, d) {
+  const op = cleanInitials(d.codOpe), n = { ...r, operario: op, desOperario: d.desOpe || '', fVisita: ymdToEs(d.fechaVisita), desdeHora: d.horaInicioVisita || '', hastaHora: d.horaFinVisita || '' };
+  [E.pool, E.tecs].forEach(g => Object.keys(g).forEach(o => { g[o] = g[o].filter(x => x.key !== r.key); }));
+  if (opsDe(E.perfil).includes(op)) (E.tecs[op] = E.tecs[op] || []).push(n);
+  guardar();
+}
+function cerrarFicha() { const f = $('fi'); f.hidden = true; f.dataset.k = ''; f.innerHTML = ''; }
+function abrirMenu() {
+  const m = $('me');
+  m.innerHTML = `<div class="hoja" role="dialog" aria-label="Opciones"><h3>Perfil</h3><div class="perf">${PERFILES.map(p => `<button class="${E.perfil === p ? 'on' : ''}" data-a="perfil" data-v="${p}">${p}</button>`).join('')}</div><h3>Carga</h3><div class="perf">${[['auto', 'Auto'], ['completa', 'Completa'], ['rapida', 'Rápida']].map(([v, t]) => `<button class="${PA.modo === v ? 'on' : ''}" data-a="modo" data-v="${v}">${t}</button>`).join('')}</div><div class="m">Rápida: solo Sin asignar, cierres y cambios de estado; las visitas se quedan de la última carga completa. Auto: rápida fuera de tu jornada (lunes a viernes).</div><div class="dos"><label class="lb">Jornada desde<input type="time" data-j="0" value="${esc(PA.jornada[0])}"></label><label class="lb">Hasta<input type="time" data-j="1" value="${esc(PA.jornada[1])}"></label></div><button class="fila" data-a="completa">Cargar todo ahora</button><button class="fila" data-a="salir">Volver a ATGO</button><button class="fila" data-a="borrar">Borrar los datos de este móvil</button><button class="fila" data-a="cmenu">Cerrar</button><div class="m" style="text-align:center">Despacho móvil ${MOVIL_VERSION}</div></div>`;
+  m.hidden = false;
+}
+function salir() { marcarVisto(); clearInterval(reloj); window.removeEventListener('popstate', atras, true); document.removeEventListener('visibilitychange', alVolver); host.remove(); document.documentElement.style.overflow = ''; delete window.__despachoMovil; }
+function acciones(b) {
+  const a = b.dataset.a, v = b.dataset.v;
+  if (a === 'tab') {
+    marcarVisto(); if (v === 'act') actPrev = PA.vistoAct || 0; if (v === 'sin') sinPrev = PA.vistoSin ? new Set(PA.vistoSin) : null;
+    tab = v; marcarVisto(); $('v').scrollTop = 0; $('v').innerHTML = ''; pintar(); if (v === 'act' && !cierresAlDia()) cargarCierres();
+  }
+  else if (a === 'asignar') abrirAsignar(b.dataset.k);
+  else if (a === 'masz') abrirAsignar(b.dataset.k, true);
+  else if (a === 'eligetec') confirmarAsignar(b.dataset.k, v);
+  else if (a === 'confasig') hacerAsignar(b.dataset.k, v);
+  else if (a === 'modo') { PA.modo = v; guardarPA(); abrirMenu(); }
+  else if (a === 'completa') { $('me').hidden = true; cargar(true); }
+  else if (a === 'tabf') { tab = 'inc'; filtroInc = v; estadoInc = ''; zonaInc = ''; $('v').innerHTML = ''; $('v').scrollTop = 0; pintar(); }
+  else if (a === 'cargar') { cargar(); if (tab === 'act') cargarCierres(); }
+  else if (a === 'vertodo') { PA.franja = PA.franjas.length; PA.tipo = ''; PA.tec = ''; guardarPA(); pintar(); }
+  else if (a === 'tipoact') { PA.tipo = v; guardarPA(); pintar(); }
+  else if (a === 'tecact') { PA.tec = PA.tec === v ? '' : v; pintar(); }
+  else if (a === 'campana') { if (PA.silencio[v]) delete PA.silencio[v]; else PA.silencio[v] = true; guardarPA(); pintar(); }
+  else if (a === 'franjas') abrirFranjas();
+  else if (a === 'guardafr') {
+    const f = PA.franjas.map((x, i) => [raiz.querySelector('[data-f="' + i + '-0"]').value, raiz.querySelector('[data-f="' + i + '-1"]').value]);
+    if (f.some(([d, h]) => !/^\d{2}:\d{2}$/.test(d) || !/^\d{2}:\d{2}$/.test(h) || horaMin(h) <= horaMin(d))) { alert('Revisa las horas: la de fin debe ser posterior a la de inicio.'); return; }
+    PA.franjas = f; guardarPA(); $('me').hidden = true; pintar();
+  }
+  else if (a === 'menu') abrirMenu();
+  else if (a === 'cmenu') { if (!asignando) $('me').hidden = true; }
+  else if (a === 'ficha') abrirFicha(b.dataset.k);
+  else if (a === 'cerrarf') history.back();
+  else if (a === 'tec') { abiertos[v] = !abiertos[v]; pintar(); }
+  else if (a === 'mi') { verMi = !!v; pintar(); }
+  else if (a === 'fil') { filtroInc = v; pintar(); $('v').scrollTop = 0; }
+  else if (a === 'tecinc') { abiertosInc[v] = !abiertosInc[v]; pintar(); }
+  else if (a === 'plg') { if (v) abiertosInc = {}; else filas().forEach(r => { abiertosInc[r.operario] = true; }); pintar(); $('v').scrollTop = 0; }
+  else if (a === 'perfil') { $('me').hidden = true; if (v !== E.perfil) { E = { ...E, perfil: v, tecs: {}, pool: {}, der: {}, salidas: {}, at: 0, cierres: null, atTecs: 0, rapida: false }; zonaInc = ''; guardar(); cargar(); } }
+  else if (a === 'salir') salir();
+  else if (a === 'atgo') { const r = ticket(b.dataset.k); cerrarFicha(); host.style.display = 'none'; if (r) location.hash = '#/mistickets/' + r.key; }   // en la app: el botón «Despacho» vuelve aquí
+  else if (a === 'borrar') { if (confirm('¿Borrar los datos guardados en este móvil?')) { try { localStorage.removeItem(CLAVE); } catch (e) { /* nada que borrar */ } salir(); } }
+}
+raiz.addEventListener('click', e => { const b = e.target.closest('[data-a]'); if (b) { if (b.tagName === 'A') return; e.preventDefault(); acciones(b); } else if (e.target === $('me') && !asignando) $('me').hidden = true; });
+raiz.addEventListener('change', e => { const c = e.target.dataset.c; if (c === 'estado') { estadoInc = e.target.value; pintar(); } else if (c === 'zona') { zonaInc = e.target.value; pintar(); } else if (c === 'franja') { PA.franja = +e.target.value; guardarPA(); pintar(); } else if (c === 'dia') { PA.dia = +e.target.value; guardarPA(); pintar(); if (!cierresAlDia()) cargarCierres(); } });
+raiz.addEventListener('change', e => {
+  const j = e.target.dataset.j; if (j == null) return;
+  const x = e.target.value; if (!/^\d{2}:\d{2}$/.test(x)) return;
+  const n = PA.jornada.slice(); n[+j] = x;
+  if (horaMin(n[1]) <= horaMin(n[0])) { alert('La hora de fin de jornada debe ser posterior a la de inicio.'); e.target.value = PA.jornada[+j]; return; }
+  PA.jornada = n; guardarPA();
+});
+raiz.addEventListener('input', e => { if (e.target.id === 'q') { textoBus = e.target.value; $('br').innerHTML = resultadosBus(); } });
+function atras(e) { if (!$('fi').hidden) { e.stopImmediatePropagation(); cerrarFicha(); } }
+window.addEventListener('popstate', atras, true);
+function alVolver() { if (document.hidden) marcarVisto(); else if (Date.now() - E.at > AL_VOLVER_MS) cargar(); }
+document.addEventListener('visibilitychange', alVolver);
+const reloj = setInterval(() => { if (!document.hidden && Date.now() - E.at > REFRESCO_MS) cargar(); }, 30000);
+
+recuperar();
+document.documentElement.style.overflow = 'hidden';
+(document.body || document.documentElement).appendChild(host);
+window.__despachoMovil = { mostrar() { host.style.display = ''; }, salir };
+pintar();
+if (Date.now() - E.at > AL_VOLVER_MS) cargar();
+})();
