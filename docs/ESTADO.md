@@ -14,7 +14,6 @@ Máximo ~40 líneas: lo antiguo se resume o se borra (el detalle está en git y 
 - Despacho móvil 1.0.0 (`movil.js`): consulta en Android con el PC apagado; fase 0 validada en el móvil real (63 consultas, 200 incidencias, unos 50 s).
 
 ## Pendiente (espera al usuario)
-- Primer ticket real creado por el usuario el 2026-11-08 (2026/00/102390) y correcto. Por validar: que Sede y Proyecto solo traigan lo del cliente (Diagnóstico registra «Datos del cliente»).
 - Contraseña de ATGO en la extensión (S2) y dominio propio (S4): decisiones de empresa.
 - Repositorio público: siguen los códigos de técnico en el código (sin servidor no se pueden sacar).
 - Recogida GLS de las zonas DSP2–5 y si Canarias pertenece a algún DSP.
@@ -23,6 +22,7 @@ Máximo ~40 líneas: lo antiguo se resume o se borra (el detalle está en git y 
 
 ## Validado con ATGO real
 - El usuario confirmó el 2026-11-08 la prueba de la 1.35 y la extensión 2.1. Claude no escribe en ATGO.
+- Nueva incidencia: primer alta real correcta (2026-11-08, 2026/00/102390); Sede y Proyecto solo traen lo del cliente (comprobado el 2026-11-17).
 
 ## Descartado por ahora (el usuario lo deja para el futuro)
 - Avisos de Windows por DSP en COORD, plantillas de comentario por cliente.
