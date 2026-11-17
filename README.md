@@ -67,6 +67,7 @@ Botones:
 ### Sin asignar
 Visitas en PRESENCIAL que siguen en un operario comodín «PENDIENTE ASIGNAR». Van ordenadas por urgencia: primero las que caducan antes y después las más antiguas.
 - **Técnico recomendado ★:** el que ya tiene otra incidencia en esa sede (📍) o el de su zona con menos carga; cuenta a favor ir ya a esa población.
+- **Misma sede con visita:** si otra incidencia de esa sede ya tiene fecha, el aviso 📍 muestra técnico y día (p. ej. «DSG · vie 20/11»). Un clic pone ese técnico y esa fecha; si al confirmar eliges otro día, lo avisa en ámbar.
 - Los técnicos de Cádiz hacen **apoyo** en Ceuta y los de Málaga en Melilla.
 - **Asignar en masivo:** marca varias, cada una con su técnico y fecha.
 - Las de otras zonas se pueden **archivar en el buzón**.

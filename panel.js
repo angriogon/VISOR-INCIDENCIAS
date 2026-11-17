@@ -92,11 +92,34 @@ function mismaSede(r) {
   return out;
 }
 function mismaSedeTexto(op, n) { return `${op} ya tiene ${n === 1 ? 'otra incidencia abierta' : n + ' incidencias abiertas'} en esta sede`; }
-// Al asignar: bocadillo con el técnico que ya va a esa sede (ámbar si el elegido es otro)
+// Misma sede: visitas ya fijadas (de hoy en adelante) de otras incidencias de esa sede → [{ op, iso, f }], la más cercana primero
+function sedeVisitas(r) {
+  if (!r || !r.descSede) return [];
+  const k = sedeKey(r), hoy = isoHoy(), disp = ZONAS_BASE.filter(z => z.dispatcher).flatMap(z => z.ops), vistas = new Set();
+  return rows.map(x => ({ x, d: parseEs(x.fVisita) }))
+    .filter(({ x, d }) => d && tkey(x) !== tkey(r) && sedeKey(x) === k && !disp.includes(cleanInitials(x.operario)) && isoHoy(d) >= hoy)
+    .map(({ x, d }) => ({ op: cleanInitials(x.operario), iso: isoHoy(d), f: DIAS[d.getDay()].slice(0, 3) + ' ' + ddmmyyyy(d).slice(0, 5) }))
+    .sort((a, b) => a.iso.localeCompare(b.iso)).filter(v => !vistas.has(v.op + v.iso) && vistas.add(v.op + v.iso));
+}
+const sedeVisitasTexto = vis => vis.map(v => `\n${v.op} va el ${v.f}`).join('');
+// Al asignar: bocadillo con el técnico que ya va a esa sede y, si la tiene, su fecha de visita (ámbar si el elegido es otro)
 function sedeAvisoHtml(r, elegido) {
   const ms = mismaSede(r), ops = Object.keys(ms).sort((a, b) => ms[b] - ms[a]); if (!ops.length) return '';
-  const otro = elegido && !ops.includes(elegido);
-  return `<span class="sede-aviso${otro ? ' warn' : ''}" title="${esc(ops.map(op => mismaSedeTexto(op, ms[op])).join('\n') + '\nSugerencia: asígnala al mismo técnico.')}">${ico('pin')} ${esc(ops[0])}${ops.length > 1 ? ' +' + (ops.length - 1) : ''}</span>`;
+  const otro = elegido && !ops.includes(elegido), v = sedeVisitas(r)[0];
+  return `<span class="sede-aviso${otro ? ' warn' : ''}" title="${esc(ops.map(op => mismaSedeTexto(op, ms[op])).join('\n') + sedeVisitasTexto(sedeVisitas(r)) + '\nSugerencia: asígnala al mismo técnico' + (v ? ' y el mismo día.' : '.'))}">${ico('pin')} ${v ? esc(v.op + ' · ' + v.f) : esc(ops[0])}${ops.length > 1 ? ' +' + (ops.length - 1) : ''}</span>`;
+}
+// Sin asignar: si otra incidencia de la sede ya tiene visita, un clic pone ese técnico y ese día (después se pulsa Asignar)
+function sedeSugerirHtml(r, k) {
+  const vis = sedeVisitas(r), v = vis[0]; if (!v) return sedeAvisoHtml(r);
+  return `<button type="button" class="sede-aviso sede-btn" onclick="sinMismaSede('${jsq(k)}','${jsq(v.op)}','${v.iso}')" title="${esc('Otra incidencia de esta sede ya tiene visita:' + sedeVisitasTexto(vis) + `\nClic: poner ${v.op} y el ${v.f}. Después pulsa Asignar.`)}">${ico('pin')} ${esc(v.op + ' · ' + v.f)}</button>`;
+}
+function sinMismaSede(k, op, iso) {
+  const sel = document.getElementById('sa-op-' + k), f = document.getElementById('sa-f-' + k); if (!sel || !f) return;
+  f.value = iso; sinSet(k, 'f', iso);
+  completarSelect(sel); sel.value = op;
+  const fecha = iso.split('-').reverse().join('/');
+  if (sel.value !== op) { sel.value = (sinElec[k] || {}).op || ''; toast(`Fecha puesta (${fecha}). ${op} no está disponible: elige otro técnico`); return; }
+  sinSet(k, 'op', op); toast(`${op} · ${fecha}: revisa y pulsa Asignar`);
 }
 // En la confirmación de cualquier asignación
 function sedeConfirmHtml(r, op) {
@@ -206,7 +229,7 @@ function sinFila(r, enBuzon) {
     <span class="sa-tx"><b>${esc(r.descSede || '—')}</b> · ${esc(r.descCliente || '')} · ${esc(lugar)}${mot ? ` · <i>${esc(mot.slice(0, 90))}</i>` : ''}</span>
     <span class="sa-badges">${olvidoBadge(r)}${cadBadge(r)}${reincBadge(r)}</span>
     <span class="sa-act">${act ? esc(cuando(act)) : ''}</span>
-    <span class="sa-acc">${sedeAvisoHtml(r)}<select id="sa-op-${esc(k)}" data-k="${esc(k)}" onfocus="completarSelect(this)" onmousedown="completarSelect(this)" onchange="sinSet('${jsq(k)}','op',this.value)" title="Cualquier técnico de cualquier perfil. Primero los recomendados de su zona (misma sede o menos visitas hoy)">${opcionesCortas(rec, e.op || '', !rec.length)}</select>
+    <span class="sa-acc">${sedeSugerirHtml(r, k)}<select id="sa-op-${esc(k)}" data-k="${esc(k)}" onfocus="completarSelect(this)" onmousedown="completarSelect(this)" onchange="sinSet('${jsq(k)}','op',this.value)" title="Cualquier técnico de cualquier perfil. Primero los recomendados de su zona (misma sede o menos visitas hoy)">${opcionesCortas(rec, e.op || '', !rec.length)}</select>
       <input type="date" id="sa-f-${esc(k)}" value="${esc(e.f || '')}" onchange="sinSet('${jsq(k)}','f',this.value)" title="Fecha de visita (opcional)">
       <button class="btn sm pri" onclick="asignarSin('${jsq(k)}')">Asignar</button>
       <button class="iconbtn sm" onclick="archivar('${jsq(k)}', ${enBuzon ? 'false' : 'true'})" title="${enBuzon ? 'Recuperar a pendientes' : 'Archivar en el buzón'}" aria-label="${enBuzon ? 'Recuperar' : 'Archivar'}">${enBuzon ? '↩' : '⤓'}</button></span>
@@ -493,9 +516,14 @@ async function asignarLote(items, titulo) {
   if (items.length > LOTE_MAX) { toast(`Máximo ${LOTE_MAX} cambios a la vez: has marcado ${items.length}`); return; }
   // Aviso si otro técnico ya tiene abierta una incidencia de esa sede
   const ausLote = (op, f, r) => { const d = f ? new Date(f + 'T12:00') : new Date(), parc = op && ausenciaParcial(op, d), tras = f && r && r.key && visitaTrasCaducar(r, f); return (tras ? ` <span class="sede-aviso warn">${ico('reloj')} caduca antes de esa fecha</span>` : '') + (parc ? ` <span class="sede-aviso warn">${ico('ausente')} ${esc(op)} no está por la ${parc.p === 'm' ? 'mañana' : 'tarde'}</span>` : '') + (op && noDisponible(op, d) ? ` <span class="sede-aviso warn">${ico('ausente')} ${esc(op)} ${esc(ausenciaTexto(op, d))}</span>` : ''); };
-  const sedeLote = (r, op) => { const ms = mismaSede(r), ops = Object.keys(ms); return ops.length && op && !ops.includes(op) ? ` <span class="sede-aviso warn" title="${esc(ops.map(o => mismaSedeTexto(o, ms[o])).join('\n'))}">${ico('pin')} ${esc(ops.join(', '))}</span>` : ''; };
+  // …y si otra incidencia de esa sede ya tiene visita otro día (o esta va sin fecha)
+  const sedeLote = (r, op, f) => {
+    const ms = mismaSede(r), ops = Object.keys(ms), vis = sedeVisitas(r), v = vis[0];
+    return (ops.length && op && !ops.includes(op) ? ` <span class="sede-aviso warn" title="${esc(ops.map(o => mismaSedeTexto(o, ms[o])).join('\n'))}">${ico('pin')} ${esc(ops.join(', '))}</span>` : '')
+      + (v && !vis.some(x => x.iso === f) ? ` <span class="sede-aviso${f ? ' warn' : ''}" title="${esc('Otra incidencia de esta sede ya tiene visita:' + sedeVisitasTexto(vis) + '\nMejor el mismo día.')}">${ico('pin')} ${esc(v.op)} va el ${esc(v.f)}</span>` : '');
+  };
   const ok = await confirmar(`<b>${esc(titulo || 'Planificar en ATGO')}</b><p>${plural(items.length, 'ticket')}:</p>
-    <table class="md-tab">${items.slice(0, 25).map(it => { const r = ticketDe(it.key) || {}; return `<tr><td>Nº ${esc(r.num || it.key)}</td><td><span>${esc(r.operario || '')}${r.fVisita ? ' · ' + esc(r.fVisita) : ''}</span> → <b>${esc(it.codOpe || r.operario)}${it.fechaVisita ? ' · ' + esc(it.fechaVisita.split('-').reverse().join('/')) : ''}</b>${sedeLote(r, it.codOpe)}${ausLote(it.codOpe, it.fechaVisita, r)}</td></tr>`; }).join('')}${items.length > 25 ? `<tr><td colspan="2">…y ${items.length - 25} más</td></tr>` : ''}</table>
+    <table class="md-tab">${items.slice(0, 25).map(it => { const r = ticketDe(it.key) || {}; return `<tr><td>Nº ${esc(r.num || it.key)}</td><td><span>${esc(r.operario || '')}${r.fVisita ? ' · ' + esc(r.fVisita) : ''}</span> → <b>${esc(it.codOpe || r.operario)}${it.fechaVisita ? ' · ' + esc(it.fechaVisita.split('-').reverse().join('/')) : ''}</b>${sedeLote(r, it.codOpe, it.fechaVisita)}${ausLote(it.codOpe, it.fechaVisita, r)}</td></tr>`; }).join('')}${items.length > 25 ? `<tr><td colspan="2">…y ${items.length - 25} más</td></tr>` : ''}</table>
     <p class="hint">${items.length > 1 && puedeLote() ? 'Se guardan de 4 en 4' : 'Se guardan uno a uno'}, comprobando cada ficha campo a campo. Si alguno falla, los demás siguen.</p>`, 'Guardar ' + plural(items.length, 'cambio'));
   if (!ok) return;
   loteEnCurso = true;

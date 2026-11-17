@@ -491,6 +491,8 @@ details.ed-dif ul{margin:6px 0 0;padding-left:16px;font-size:12px;display:grid;g
 .sa-acc input[type=date]{font:inherit;font-size:12px;padding:2px 5px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);width:128px}
 .sede-aviso{font-size:11px;padding:1px 7px;border-radius:999px;background:var(--teal-dim);color:var(--teal);font-weight:600;white-space:nowrap;cursor:help}
 .sede-aviso.warn{background:var(--warn-dim);color:var(--warn)}
+.sede-btn{border:1px solid transparent;font-family:inherit;line-height:inherit;cursor:pointer}
+.sede-btn:hover,.sede-btn:focus-visible{border-color:var(--teal)}
 .sede-ok{color:var(--teal);font-size:13px;margin:0}
 .sede-warn{color:var(--warn);background:var(--warn-dim);border-radius:8px;padding:6px 10px;font-size:13px;margin:0}
 .ed-grid label .sede-aviso{margin-top:4px;justify-self:start}
