@@ -10,6 +10,7 @@ Máximo ~40 líneas: lo antiguo se resume o se borra (el detalle está en git y 
   CSS: limpieza comprobada sin diferencias en 83.224 elementos; después, contraste AA y letra mínima de 11 px.
 - Publicación: `.github/workflows/pruebas.yml` publica solo si pasan las pruebas. Pages ya usa «GitHub Actions» como fuente.
 
+- Desarrollo en el servidor Ubuntu (`automation`, 2026-11-17): repo, claves en `~/.despacho` (comprobadas con las firmas publicadas), gh, Docker y Claude siempre abierto (`tools/sesion-permanente.sh`). Ya no hace falta el TL021A. Prueba de arranque: `NAVEGADOR=chromium` (docs/servidor-ubuntu.md).
 - Despacho móvil 1.0.0 (`movil.js`): consulta en Android con el PC apagado; fase 0 validada en el móvil real (63 consultas, 200 incidencias, unos 50 s).
 
 ## Pendiente (espera al usuario)

@@ -41,7 +41,7 @@ docker run --rm hello-world
 
 ## 3. Copiar las claves desde el PC
 
-En PowerShell del PC (cambia `usuario@servidor` por los tuyos):
+En PowerShell **del PC**, no dentro de una sesión SSH del servidor (cambia `usuario@servidor` por los tuyos):
 
 ```powershell
 scp C:\Users\tl020\.despacho\* usuario@servidor:~/.despacho/
@@ -63,6 +63,12 @@ cd ~/VISOR/repo && node tests/pruebas.js
 
 ```bash
 cd ~/VISOR/repo/tools/simuladores && node asig.mjs 384 light
+```
+
+Prueba de arranque (en el servidor no hay Chrome: usa el Chromium de los simuladores; instalar `playwright-core` solo hace falta una vez):
+
+```bash
+cd ~/VISOR/repo && npm i --no-save --no-package-lock playwright-core@$(node -p "require('./tools/simuladores/node_modules/playwright-core/package.json').version") && NAVEGADOR=chromium node tests/arranque.mjs
 ```
 
 ## 5. Usarlo desde el móvil
