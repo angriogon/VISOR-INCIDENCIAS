@@ -367,7 +367,7 @@ details.ed-dif ul{margin:6px 0 0;padding-left:16px;font-size:12px;display:grid;g
 .sa-tx i{color:var(--ink-faint);font-style:normal}
 .sa-act{font-size:11px;color:var(--ink-faint);white-space:nowrap}
 .sa-acc{display:flex;gap:4px;align-items:center}
-.sa-acc select{font:inherit;font-size:12px;padding:3px 5px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);max-width:150px}
+.sa-acc select{font:inherit;font-size:12px;padding:3px 5px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);max-width:170px}
 .iconbtn.sm{width:26px;height:26px;font-size:13px}
 @media (max-width:900px){
   .sa-row{grid-template-columns:auto minmax(0,1fr) auto}

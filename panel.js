@@ -172,7 +172,7 @@ function sinMarcarTodas(si) {
 function opcionesCortas(rec, elegido, vacia) {
   const l = [...new Set([...(rec || []).map(x => x.op), ...(elegido ? [elegido] : [])])];
   const recOp = Object.fromEntries((rec || []).map((x, i) => [x.op, { ...x, i }]));
-  const lab = op => { const x = recOp[op]; return x ? `${x.i === 0 ? '★ ' : ''}${op} · ${x.sede ? 'ya va a la sede' : x.carga ? plural(x.carga, 'visita') : 'libre'}${x.apoyo ? ' · apoyo' : ''}${recExtra(x)}` : op; };
+  const lab = op => { const x = recOp[op]; return x ? `${x.i === 0 ? '★ ' : ''}${op} · ${x.sede ? 'misma sede' : x.carga ? plural(x.carga, 'visita') : 'libre'}${x.apoyo ? ' · apoyo' : ''}${recExtra(x)}` : op; };
   return (vacia ? `<option value=""${elegido ? '' : ' selected'}>${esc(typeof vacia === 'string' ? vacia : 'Elige técnico…')}</option>` : '') +
     l.map(op => `<option value="${esc(op)}"${op === elegido ? ' selected' : ''}>${esc(lab(op))}</option>`).join('') + '<option value="" disabled>— más técnicos al abrir —</option>';
 }
@@ -186,7 +186,7 @@ function completarSelect(sel) {
 function opcionesTecnico(rec, elegido, vacia) {
   rec = rec || [];
   const recOp = Object.fromEntries(rec.map((x, i) => [x.op, { ...x, i }]));
-  const lab = op => { const x = recOp[op]; return x ? `${x.i === 0 ? '★ ' : ''}${op} · ${x.sede ? 'ya va a la sede' : x.carga ? plural(x.carga, 'visita') : 'libre'}${x.apoyo ? ' · apoyo' : ''}${recExtra(x)}` : op; };
+  const lab = op => { const x = recOp[op]; return x ? `${x.i === 0 ? '★ ' : ''}${op} · ${x.sede ? 'misma sede' : x.carga ? plural(x.carga, 'visita') : 'libre'}${x.apoyo ? ' · apoyo' : ''}${recExtra(x)}` : op; };
   const vistos = new Set();
   const grupo = (titulo, ops) => {
     const l = ops.filter(op => !vistos.has(op) && (!noDisponible(op) || op === elegido)); l.forEach(op => vistos.add(op));   // los de baja o de vacaciones no se proponen
