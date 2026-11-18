@@ -93,4 +93,5 @@ Dentro de Claude, activa Remote Control con `/remote-control`. La sesión aparec
 | Favorito de Despacho móvil | `tools/movil/favorito.txt` |
 | Simuladores (ATGO simulado) | `tools/simuladores/` (`asig.mjs`, `act.mjs`, `app.mjs`) |
 | App Android | `bash tools/construir-app.sh` → `../app-despacho/despacho-movil.apk` |
+| Descargar la APK | `http://192.168.1.203:8090/despacho-movil.apk` (en casa) o `http://100.127.231.29:8090/despacho-movil.apk` (Tailscale). Servicio de usuario `despacho-apk` (`python3 -m http.server`, solo la carpeta `app-despacho`) |
 | Claves | `~/.despacho/` |
