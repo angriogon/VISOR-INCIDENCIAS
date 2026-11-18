@@ -11,11 +11,17 @@
   if (prev && viva) { viva.style.display = ''; return; }
   if (prev) { try { if (typeof prev.salir === 'function') prev.salir(); } catch (e) { /* versión anterior: se sustituye igualmente */ } delete window.__despachoMovil; }
 }
-const MOVIL_VERSION = '1.4.0';
+const MOVIL_VERSION = '1.5.0';
 const EN_APP = /DespachoApp\//.test(navigator.userAgent);   // dentro de la app Android «Despacho»
 const CLAVE = 'despachoMovil_v1', PARALELO = 6, TIEMPO_MS = 40000, CADUCA_MS = 7 * 86400000, REFRESCO_MS = 10 * 60000, AL_VOLVER_MS = 2 * 60000;
 const ESTADOS_ATGO = [10, 20, 30, 40, 80, 100, 110];
 const ESTADOS_SIN_SLA = ['FUERA DE MANTENIMIENTO'];
+// Incidencias de los técnicos: solo estos estados (con o sin fecha). Pedir menos estados acelera la carga: ATGO tarda por ticket devuelto
+const ESTADOS_INC = ['PRESENCIAL', 'FUERA DE MANTENIMIENTO', 'PTE. MOVER MATERIAL', 'MATERIAL PTE. FABRICANTE', 'EN FABRICANTE', 'PUESTO OPERATIVO'];
+const enInc = r => ESTADOS_INC.some(e => norm(e) === norm(r.estado));
+// El hilo de cada incidencia solo se vuelve a leer si hace falta: visita de hoy en PRESENCIAL (progreso), cambió el estado o el técnico, o tiene más de 6 h
+const HILO_MAX_MS = 6 * 3600000;
+const hiloAlDia = (r, hoy, ahora) => { const d = E.der[r.key]; return !!d && d.e === r.estado && d.o === r.operario && !(r.fVisita === hoy && esPresencial(r)) && ahora - (d.at || 0) < HILO_MAX_MS; };
 const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
 
 // ---- Copias (no editar aquí) ----
@@ -192,7 +198,7 @@ const hora = ts => new Date(ts).toLocaleTimeString('es-ES', { hour: '2-digit', m
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const plural = (n, s) => n + ' ' + s + (n === 1 ? '' : 's');
 const estadoColor = e => ESTADO_COLOR[norm(e)] || (/cerrad|operativo/.test(norm(e)) ? '#5f8f6a' : '#7d8790');
-const esCerrado = e => /cerrad/i.test(e || '');   // en Incidencias salen todos los estados de ATGO menos los cerrados
+const esCerrado = e => /cerrad/i.test(e || '');
 const sinSla = r => ESTADOS_SIN_SLA.some(e => norm(e) === norm(r.estado));
 const dspZona = z => z.dsp || 'DSP1';
 const PERFILES = ['DSP1', 'DSP2', 'DSP3', 'DSP4', 'DSP5', 'COORD'];
@@ -263,7 +269,7 @@ async function asignar(k, camb) {
 }
 
 // ---- Estado ----
-let E = { perfil: null, at: 0, tecs: {}, pool: {}, poolDesc: {}, der: {}, salidas: {}, salidasDia: '', cierres: null, atTecs: 0, rapida: false };   // cierres: los del día elegido en Actividad   // tecs/pool: por operario. der: lo deducido del hilo
+let E = { perfil: null, at: 0, tecs: {}, pool: {}, poolDesc: {}, der: {}, salidas: {}, fuera: {}, salidasDia: '', cierres: null, atTecs: 0, rapida: false };   // cierres: los del día elegido en Actividad   // tecs/pool: por operario. der: lo deducido del hilo. fuera: las de hoy que pasaron a otro estado (para Actividad)
 let cargando = false, fin = 0, total = 0, fallos = 0, sesionMala = false, aviso = '', pintaT = null;
 let tab = 'hoy', filtroInc = '', estadoInc = '', zonaInc = '', verMi = true, abiertos = {}, abiertosInc = {}, textoBus = '';
 function guardar() {
@@ -277,12 +283,12 @@ function recuperar() {
     if (g && Date.now() - (g.ultimoUso || g.at || 0) < CADUCA_MS) { E = { ...E, ...g }; } else localStorage.removeItem(CLAVE);
   } catch (e) { /* sin datos guardados */ }
   if (!E.perfil) E.perfil = perfilInicial();
-  if (E.salidasDia !== iso()) { E.salidas = {}; E.salidasDia = iso(); }
+  if (E.salidasDia !== iso()) { E.salidas = {}; E.fuera = {}; E.salidasDia = iso(); }
 }
 const filas = () => Object.values(E.tecs).flat();
 const pendientes = () => Object.values(E.pool).flat();
 const todas = () => [...filas(), ...pendientes()];
-const ticket = k => todas().find(r => r.key === k) || E.salidas[k] || ((E.cierres && E.cierres.items) || []).find(r => r.key === k) || null;
+const ticket = k => todas().find(r => r.key === k) || E.salidas[k] || E.fuera[k] || ((E.cierres && E.cierres.items) || []).find(r => r.key === k) || null;
 const cad = r => { const d = E.der[r.key]; return d && d.cad && !sinSla(r) ? d.cad : null; };
 const zonaPool = r => {
   const op = cleanInitials(r.operario), d = String(E.poolDesc[op] || r.desOperario || '').replace(/^PENDIENTE( DE)? ASIGNAR\s*/i, '');
@@ -372,7 +378,7 @@ function eventosAct() {
 function eventosRango(a, b) {
   const ops = new Set(opsDe(E.perfil)), vistos = new Set(), out = [];
   const pon = (r, c) => { const k = r.key + '|' + c.ts + '|' + c.a; if (vistos.has(k) || c.ts < a || c.ts >= b) return; vistos.add(k); out.push({ r, ...c, cierre: c.cierre || esCerrado(c.a) }); };
-  filas().forEach(r => { if (ops.has(cleanInitials(r.operario))) ((E.der[r.key] || {}).camb || []).forEach(c => pon(r, c)); });
+  [...filas(), ...Object.values(E.fuera)].forEach(r => { if (ops.has(cleanInitials(r.operario))) ((E.der[r.key] || {}).camb || []).forEach(c => pon(r, c)); });
   ((E.cierres && E.cierres.perfil === E.perfil && E.cierres.items) || []).forEach(r => {
     if (!ops.has(cleanInitials(r.operario))) return;
     const cs = r.camb || []; cs.forEach(c => pon(r, c));
@@ -419,14 +425,15 @@ async function cargar(completa) {
   try {
     const d = await leer('/operario?q=codOpe.contains=XXX'), lp = (Array.isArray(d) ? d : (d && d.content) || []).filter(o => o && /^XXX/i.test(o.codOpe || ''));
     const comodines = [...new Set(lp.map(o => cleanInitials(o.codOpe)))]; lp.forEach(o => { E.poolDesc[cleanInitials(o.codOpe)] = o.desOpe || ''; });
-    let abiertos2 = ESTADOS_ATGO;
-    try { const le = await leer('/estados'), l = (Array.isArray(le) ? le : []).filter(x => x && x.estado != null && !esCerrado(x.desEstado)).map(x => x.estado); if (l.length) abiertos2 = l; } catch (e) { if (e.sesion) throw e; }
+    // Códigos de ATGO de los estados de Incidencias (si no se pueden leer, los de la sincronización y se filtra por nombre)
+    let codInc = ESTADOS_ATGO;
+    try { const le = await leer('/estados'), l = (Array.isArray(le) ? le : []).filter(x => x && x.estado != null && ESTADOS_INC.some(n => norm(n) === norm(x.desEstado))).map(x => x.estado); if (l.length) codInc = l; } catch (e) { if (e.sesion) throw e; }
     // Rápida: los técnicos se quedan de la última carga completa
     const cola = [...(rapida ? [] : ops.map(op => [op, false])), ...comodines.map(op => [op, true])]; total = cola.length; const ok = new Set();
     await Promise.all(Array.from({ length: PARALELO }, async () => {
       while (cola.length && !sesionMala) {
         const [op, esPool] = cola.shift();
-        try { const l = await lista(op, esPool ? [10] : abiertos2); if (esPool) E.pool[op] = l; else { E.tecs[op] = l; ok.add(op); } }
+        try { const l = await lista(op, esPool ? [10] : codInc); if (esPool) E.pool[op] = l; else { E.tecs[op] = l.filter(enInc); ok.add(op); } }
         catch (e) { if (e.sesion) sesionMala = true; else fallos++; }
         fin++; pintarPronto();
       }
@@ -434,10 +441,12 @@ async function cargar(completa) {
     if (!sesionMala && perfil === E.perfil) {
       // Las visitas de hoy que han salido de la lista se dan por resueltas (ATGO ya no las devuelve)
       const vivas = new Set(filas().map(r => r.key));
-      antes.forEach(r => { if (r.fVisita === hoy && esPresencial(r) && ok.has(cleanInitials(r.operario)) && !vivas.has(r.key)) E.salidas[r.key] = r; });
-      const claves = [...todas().map(r => r), ...Object.values(E.salidas)], cola2 = claves.slice();
+      // Las demás que han salido pasaron a otro estado: se guardan del día y su hilo se lee una vez, para ver el cambio en Actividad
+      antes.forEach(r => { if (!ok.has(cleanInitials(r.operario)) || vivas.has(r.key) || !enInc(r)) return; if (r.fVisita === hoy && esPresencial(r)) E.salidas[r.key] = r; else if (!E.fuera[r.key]) { E.fuera[r.key] = r; delete E.der[r.key]; } });
+      // Carga rápida: las listas de técnicos no se piden, así que los cambios de estado solo se ven releyendo todos los hilos
+      const claves = [...todas().map(r => r), ...Object.values(E.salidas), ...Object.values(E.fuera)], ahora = Date.now(), cola2 = rapida ? claves.slice() : claves.filter(r => !hiloAlDia(r, hoy, ahora));
       await Promise.all(Array.from({ length: PARALELO }, async () => {
-        while (cola2.length && !sesionMala) { const r = cola2.shift(); try { E.der[r.key] = deducir(r, await leerHilo(r.key)); } catch (e) { if (e.sesion) sesionMala = true; } }
+        while (cola2.length && !sesionMala) { const r = cola2.shift(); try { E.der[r.key] = { ...deducir(r, await leerHilo(r.key)), e: r.estado, o: r.operario, at: Date.now() }; } catch (e) { if (e.sesion) sesionMala = true; } }
       }));
       const k = new Set(claves.map(r => r.key)); Object.keys(E.der).forEach(x => { if (!k.has(x)) delete E.der[x]; });
       if (!sesionMala) { E.at = Date.now(); E.rapida = rapida; if (!rapida) E.atTecs = E.at; guardar(); if (!PA.vistoSin) { PA.vistoSin = pendientes().map(r => r.key); sinPrev = new Set(PA.vistoSin); guardarPA(); } }
@@ -575,7 +584,7 @@ function vistaSin() {
 }
 function listaInc() {
   const ahora = Date.now(), hoyI = iso(), hoy = hoyEs();
-  return filas().filter(r => !esCerrado(r.estado) && (!estadoInc || r.estado === estadoInc) && (!zonaInc || zonaDe(r.operario) === zonaInc) && (!filtroInc || (filtroInc === 'cad' ? cad(r) && cad(r).ts < ahora : filtroInc === 'caduhoy' ? cad(r) && cad(r).ts >= ahora && iso(new Date(cad(r).ts)) === hoyI : filtroInc === 'hoy' ? r.fVisita === hoy : !r.fVisita))).sort(porCad);
+  return filas().filter(r => enInc(r) && (!estadoInc || r.estado === estadoInc) && (!zonaInc || zonaDe(r.operario) === zonaInc) && (!filtroInc || (filtroInc === 'cad' ? cad(r) && cad(r).ts < ahora : filtroInc === 'caduhoy' ? cad(r) && cad(r).ts >= ahora && iso(new Date(cad(r).ts)) === hoyI : filtroInc === 'hoy' ? r.fVisita === hoy : !r.fVisita))).sort(porCad);
 }
 // Por zona y técnico, como Incidencias en el ordenador: primero lo de hoy y después el resto por estado y fecha de visita
 function porTecnico(l) {
@@ -585,19 +594,19 @@ function porTecnico(l) {
     const ops = z.ops.filter(op => por[op]); if (!ops.length) return '';
     const ruta = ops.flatMap(op => po[op] || []), h = z.dispatcher ? plural(ops.reduce((s, op) => s + por[op].length, 0), 'incidencia') + ' a tu nombre' : ruta.length ? ruta.filter(x => x.st === 'd').length + '/' + plural(ruta.length, 'visita') + ' hechas hoy' : 'sin visitas hoy';
     return `<div class="zh"><b>${esc(z.nombre)}</b> <span>${h}</span></div>` + ops.map(op => {
-      const it = por[op], ru = po[op] || [], ab = abiertosInc[op], hechas = ru.filter(x => x.st === 'd').length, late = ru.filter(x => x.late).length, esc1 = it.filter(r => norm(r.estado) === norm('ESCALADO TIER1')).length, sinF = it.filter(r => esPresencial(r) && !r.fVisita).length;
+      const it = por[op], ru = po[op] || [], ab = abiertosInc[op], hechas = ru.filter(x => x.st === 'd').length, late = ru.filter(x => x.late).length, sinF = it.filter(r => esPresencial(r) && !r.fVisita).length;
       const dehoy = it.filter(r => r.fVisita === hoy && esPresencial(r)).sort((a, b) => horaMin(a.desdeHora) - horaMin(b.desdeHora)), k = new Set(dehoy.map(r => r.key)), resto = it.filter(r => !k.has(r.key)).sort((a, b) => ordenEstado(a.estado) - ordenEstado(b.estado) || ordenVisita(a, b, hoyT));
       let cuerpo = '';
       if (ab) {
         if (dehoy.length) cuerpo += '<div class="sub">Hoy</div>' + dehoy.map(r => tarjeta(r, (ru.find(x => x.r.key === r.key) || {}).late ? 'Con retraso' : '')).join('');
         if (resto.length) { if (dehoy.length) cuerpo += '<div class="sub">Resto de incidencias</div>'; let ant = null; resto.forEach(r => { const e = norm(r.estado); if (e !== ant) { ant = e; cuerpo += `<div class="eg" style="--e:${estadoColor(r.estado)}"><span>${esc(r.estado || '—')}</span><small>${resto.filter(x => norm(x.estado) === e).length}</small></div>`; } cuerpo += tarjeta(r); }); }
       }
-      return `<button class="tg" data-a="tecinc" data-v="${esc(op)}" aria-expanded="${!!ab}"><span class="av" style="--e:${colorFor(cleanInitials(op))}">${esc(op)}</span><span class="tn"><b>${esc((it[0].desOperario || op).split(',').reverse().join(' ').trim())}</b><small>${ru.length ? hechas + '/' + ru.length + ' hoy' : 'Sin visitas hoy'}${late ? ' · <span class="ret">' + plural(late, 'retraso') + '</span>' : ''}${sinF ? ' · ' + sinF + ' sin fecha' : ''}${esc1 ? ' · ' + esc1 + ' escalada' + (esc1 === 1 ? '' : 's') : ''}</small></span><em>${it.length}</em><span class="cv">${ab ? '▴' : '▾'}</span></button>${cuerpo}`;
+      return `<button class="tg" data-a="tecinc" data-v="${esc(op)}" aria-expanded="${!!ab}"><span class="av" style="--e:${colorFor(cleanInitials(op))}">${esc(op)}</span><span class="tn"><b>${esc((it[0].desOperario || op).split(',').reverse().join(' ').trim())}</b><small>${ru.length ? hechas + '/' + ru.length + ' hoy' : 'Sin visitas hoy'}${late ? ' · <span class="ret">' + plural(late, 'retraso') + '</span>' : ''}${sinF ? ' · ' + sinF + ' sin fecha' : ''}</small></span><em>${it.length}</em><span class="cv">${ab ? '▴' : '▾'}</span></button>${cuerpo}`;
     }).join('');
   }).join('');
 }
 function vistaInc() {
-  const l = listaInc(), estados = [...new Set(filas().map(r => r.estado).filter(Boolean))].sort(), zonas = zonasDe(E.perfil).map(z => z.nombre).filter(z => filas().some(r => zonaDe(r.operario) === z));
+  const l = listaInc(), estados = [...new Set(filas().filter(enInc).map(r => r.estado).filter(Boolean))].sort(), zonas = zonasDe(E.perfil).map(z => z.nombre).filter(z => filas().some(r => zonaDe(r.operario) === z));
   return `${notaRapida()}<div class="chips">${[['', 'Todas'], ['cad', 'Caducadas'], ['caduhoy', 'Caducan hoy'], ['hoy', 'Visita hoy'], ['sinf', 'Sin fecha']].map(([v, t]) => `<button class="ch${filtroInc === v ? ' on' : ''}" data-a="fil" data-v="${v}">${t}</button>`).join('')}</div>
     <div class="dos"><select data-c="estado" aria-label="Estado"><option value="">Todos los estados</option>${estados.map(e => `<option${e === estadoInc ? ' selected' : ''}>${esc(e)}</option>`).join('')}</select><select data-c="zona" aria-label="Zona"><option value="">Todas las zonas</option>${zonas.map(z => `<option${z === zonaInc ? ' selected' : ''}>${esc(z)}</option>`).join('')}</select></div>
     <div class="plg"><span>${plural(l.length, 'incidencia')}</span><button class="mini" data-a="plg" data-v="1">Plegar</button><button class="mini" data-a="plg" data-v="">Desplegar</button></div>${porTecnico(l) || '<div class="vac">Nada con este filtro.</div>'}`;
@@ -738,7 +747,7 @@ function acciones(b) {
   else if (a === 'fil') { filtroInc = v; pintar(); $('v').scrollTop = 0; }
   else if (a === 'tecinc') { abiertosInc[v] = !abiertosInc[v]; pintar(); }
   else if (a === 'plg') { if (v) abiertosInc = {}; else filas().forEach(r => { abiertosInc[r.operario] = true; }); pintar(); $('v').scrollTop = 0; }
-  else if (a === 'perfil') { $('me').hidden = true; if (v !== E.perfil) { E = { ...E, perfil: v, tecs: {}, pool: {}, der: {}, salidas: {}, at: 0, cierres: null, atTecs: 0, rapida: false }; zonaInc = ''; guardar(); cargar(); } }
+  else if (a === 'perfil') { $('me').hidden = true; if (v !== E.perfil) { E = { ...E, perfil: v, tecs: {}, pool: {}, der: {}, salidas: {}, fuera: {}, at: 0, cierres: null, atTecs: 0, rapida: false }; zonaInc = ''; guardar(); cargar(); } }
   else if (a === 'salir') salir();
   else if (a === 'atgo') { const r = ticket(b.dataset.k); cerrarFicha(); host.style.display = 'none'; if (r) location.hash = '#/mistickets/' + r.key; }   // en la app: el botón «Despacho» vuelve aquí
   else if (a === 'borrar') { if (confirm('¿Borrar los datos guardados en este móvil?')) { try { localStorage.removeItem(CLAVE); } catch (e) { /* nada que borrar */ } salir(); } }
