@@ -23,7 +23,7 @@
   const TIMEOUT_MS = 120000;
   // Versión de este script: Despacho la compara con la suya (SYNC_VERSION en app.js) y avisa si esta pestaña
   // sigue con una versión antigua (hay que recargarla). Súbela cuando cambie este archivo.
-  const SYNC_VERSION = '1.38.2';
+  const SYNC_VERSION = '1.39.2';
 
   if (location.hostname !== 'atgo.tier1.es') { alert('Abre primero https://atgo.tier1.es e inicia sesión.'); return; }
 
@@ -149,7 +149,9 @@
 
   // ===== Hilo de cada ticket (motivo de apertura y comentarios) =====
   // Responde en ~50 ms por ticket; Despacho lo pide solo para tickets nuevos, cambiados o al abrir su ficha.
-  const isoTs = (s) => { const d = new Date(String(s || '').replace(/([+-]\d{2})(\d{2})$/, '$1:$2')); return isNaN(d) ? 0 : d.getTime(); };
+  // ATGO escribe la hora de España aunque la marque como UTC («Z» o «+0000»): esa se lee como hora local (si no, sale 1 h más tarde).
+  // Con otro desfase se respeta tal cual.
+  const isoTs = (s) => { const d = new Date(String(s || '').replace(/([+-]\d{2})(\d{2})$/, '$1:$2').replace(/(T[\d:.]+)(?:Z|[+-]00:00)$/, '$1')); return isNaN(d) ? 0 : d.getTime(); };
   async function getHilo(key) {
     const [p, s, c] = key.split('/');
     const url = '/api/v1/atgo/hilo/' + encodeURIComponent(p) + '/' + encodeURIComponent(s) + '/' + encodeURIComponent(c);
@@ -206,7 +208,7 @@
     }
   }
   const ymdToEs = (s) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s || ''); return m ? m[3] + '/' + m[2] + '/' + m[1] : ''; };
-  const hhmm = (iso) => { if (!iso) return ''; const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }); };
+  const hhmm = (iso) => { const t = isoTs(iso); if (!t) return ''; const d = new Date(t); return isNaN(d) ? '' : d.toLocaleString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }); };
   // ===== Proyecto de cada incidencia (para filtrar por proyecto en Control) =====
   // Si la lista de ATGO lo trae, se usa; si no, se lee de la ficha (numProy), como mucho PROY_POR_CARGA por carga,
   // y se recuerda mientras la pestaña siga abierta. Los nombres salen del catálogo de proyectos de ATGO (una vez).

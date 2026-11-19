@@ -11,7 +11,7 @@
   if (prev && viva) { viva.style.display = ''; return; }
   if (prev) { try { if (typeof prev.salir === 'function') prev.salir(); } catch (e) { /* versión anterior: se sustituye igualmente */ } delete window.__despachoMovil; }
 }
-const MOVIL_VERSION = '1.5.0';
+const MOVIL_VERSION = '1.6.0';
 const EN_APP = /DespachoApp\//.test(navigator.userAgent);   // dentro de la app Android «Despacho»
 const CLAVE = 'despachoMovil_v1', PARALELO = 6, TIEMPO_MS = 40000, CADUCA_MS = 7 * 86400000, REFRESCO_MS = 10 * 60000, AL_VOLVER_MS = 2 * 60000;
 const ESTADOS_ATGO = /*@b atgo-sync.js const ESTADOS =*/;
@@ -192,17 +192,29 @@ async function leerHilo(k) {
 }
 // ---- Actividad: cierres (técnico a técnico, solo al usar la pestaña) y cambios de estado, por día y franja ----
 const PREF_ACT = 'despachoMovilActividad_v1';
-let PA = { franjas: [['14:00', '16:00'], ['18:00', '19:00']], franja: 0, dia: 0, tipo: '', silencio: {}, tec: '', modo: 'auto', jornada: ['08:00', '14:00'], vistoAct: 0, vistoSin: null };
+let PA = { franjas: [['14:00', '16:00'], ['18:00', '19:00']], franja: 0, dia: 0, tipo: '', silencio: {}, tec: '', modo: 'auto', jornada: ['08:00', '14:00'], vistoAct: 0, vistoSin: null, leidas: {}, desliza: { izq: 'leida', der: 'atgo' } };
 try { PA = { ...PA, ...(JSON.parse(localStorage.getItem(PREF_ACT)) || {}) }; } catch (e) { /* preferencias por defecto */ }
 function guardarPA() { try { localStorage.setItem(PREF_ACT, JSON.stringify(PA)); } catch (e) { /* se usan en esta sesión */ } }
 if (!PA.vistoAct) { PA.vistoAct = Date.now(); guardarPA(); }
-let actPrev = PA.vistoAct, sinPrev = PA.vistoSin ? new Set(PA.vistoSin) : null;
-// Lo que había al entrar en la pestaña queda como visto al salir de ella
+let sinPrev = PA.vistoSin ? new Set(PA.vistoSin) : null;
+// Sin asignar: lo que había al entrar en la pestaña queda como visto al salir de ella
 function marcarVisto() {
-  if (tab === 'act') PA.vistoAct = Date.now();
-  else if (tab === 'sin' && E.at) PA.vistoSin = pendientes().map(r => r.key);
-  else return;
-  guardarPA();
+  if (tab !== 'sin' || !E.at) return;
+  PA.vistoSin = pendientes().map(r => r.key); guardarPA();
+}
+// Actividad: cada novedad sigue «Nueva» hasta marcarla (deslizando o con «Marcar todo leído»). leidas: { clave: 1 leída | 0 no leída }
+const evKey = e => e.r.key + '|' + e.ts + '|' + e.a;
+const esNueva = e => { const k = evKey(e); return k in PA.leidas ? !PA.leidas[k] : e.ts > PA.vistoAct; };
+function limpiaLeidas() { const lim = Date.now() - (ACT_DIAS + 1) * 86400000; Object.keys(PA.leidas).forEach(k => { if (+k.split('|')[1] < lim) delete PA.leidas[k]; }); }
+const DESLIZA = [['leida', 'Leída / no leída'], ['hasta', 'Leídas hasta aquí'], ['ficha', 'Abrir ficha'], ['atgo', 'Abrir en ATGO'], ['silencio', 'Dejar de seguir'], ['', 'Nada']];
+function deslizar(btn, lado) {
+  const accion = PA.desliza[lado], e = eventosAct().find(x => evKey(x) === btn.dataset.ev); if (!e || !accion) return;
+  if (accion === 'leida') PA.leidas[evKey(e)] = esNueva(e) ? 1 : 0;
+  else if (accion === 'hasta') eventosAct().forEach(x => { if (x.ts <= e.ts) PA.leidas[evKey(x)] = 1; });
+  else if (accion === 'silencio') PA.silencio[cleanInitials(e.r.operario)] = true;
+  else if (accion === 'ficha') { abrirFicha(e.r.key); return; }
+  else if (accion === 'atgo') { acciones({ dataset: { a: 'atgo', k: e.r.key } }); return; }
+  limpiaLeidas(); guardarPA(); pintar();
 }
 // Carga rápida: fuera de la jornada (o siempre, si se elige) solo Sin asignar, cierres y cambios de estado
 function esRapida() {
@@ -254,14 +266,16 @@ function eventosRango(a, b) {
   return out.sort((x, y) => y.ts - x.ts);
 }
 // Novedades de hoy desde la última vez que se miró Actividad (de los técnicos que sigues, sin contar las tuyas)
-function nuevosAct(desde) {
+function nuevosAct() {
   const d0 = new Date(); d0.setHours(0, 0, 0, 0);
   const yo = cleanInitials(localStorage.getItem('codigoOperario') || '');
-  return eventosRango(Math.max(d0.getTime(), desde == null ? PA.vistoAct || 0 : desde) + 1, Date.now() + 3600000).filter(e => !PA.silencio[cleanInitials(e.r.operario)] && e.u !== yo).length;
+  return eventosRango(d0.getTime(), Date.now() + 3600000).filter(e => esNueva(e) && !PA.silencio[cleanInitials(e.r.operario)] && e.u !== yo).length;
 }
 const ICO_ON = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>';
 const ICO_OFF = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.7 3A6 6 0 0 1 18 8a21.3 21.3 0 0 0 .6 5M17 17H3s3-2 3-9a4.67 4.67 0 0 1 .3-1.7M10.3 21a1.94 1.94 0 0 0 3.4 0M2 2l20 20"/></svg>';
 const ICO_EDIT = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
+const desNombre = lado => (DESLIZA.find(x => x[0] === PA.desliza[lado]) || DESLIZA[5])[1];
+const desHint = lado => PA.desliza[lado] ? `<span class="evd ${lado}">${esc(desNombre(lado))}</span>` : '';
 function vistaAct() {
   const ev = eventosAct(), sil = PA.silencio, porTec = {}, ops = opsDe(E.perfil);
   ev.forEach(e => { const o = cleanInitials(e.r.operario), t = porTec[o] = porTec[o] || { c: 0, m: 0 }; if (e.cierre) t.c++; else t.m++; });
@@ -271,12 +285,13 @@ function vistaAct() {
   const nC = vis.filter(e => e.cierre).length, tecs = ops.filter(o => porTec[o] || sil[o]).sort((x, y) => ((porTec[y] || {}).c || 0) + ((porTec[y] || {}).m || 0) - ((porTec[x] || {}).c || 0) - ((porTec[x] || {}).m || 0) || x.localeCompare(y));
   const estado = cierresCargando ? `<div class="m">Cargando cierres ${cierresFin}/${cierresTot}…</div>` : E.cierres && E.cierres.fallos ? `<div class="m">${plural(E.cierres.fallos, 'técnico')} sin responder: pulsa ⟳</div>` : !E.cierres ? '<div class="m">Pulsa ⟳ para cargar los cierres</div>' : '';
   const linea = e => { const o = cleanInitials(e.r.operario), por = e.u && e.u !== o ? ' · por ' + e.u : '';
-    return `<button class="ev" data-a="ficha" data-k="${esc(e.r.key)}" style="--e:${e.cierre ? 'var(--ok)' : estadoColor(e.a)}"><span class="evh">${hora(e.ts)}</span><span class="evc">${e.ts > actPrev ? '<span class="nv">Nuevo</span> ' : ''}<b>${esc(o)}</b> · <span class="n">${esc(String(e.r.num).slice(-6))}</span> · ${esc(e.r.descSede || '')}<small>${e.de ? esc(e.de) + ' → ' : ''}${esc(e.a)}${esc(por)}${e.sinAutor ? ' · autor no indicado' : ''}</small></span></button>`; };
+    return `<div class="evw">${desHint('der')}${desHint('izq')}<button class="ev${esNueva(e) ? ' nue' : ''}" data-a="ficha" data-k="${esc(e.r.key)}" data-ev="${esc(evKey(e))}" style="--e:${e.cierre ? 'var(--ok)' : estadoColor(e.a)}"><span class="evh">${hora(e.ts)}</span><span class="evc">${esNueva(e) ? '<span class="nv">Nuevo</span> ' : ''}<b>${esc(o)}</b> · <span class="n">${esc(String(e.r.num).slice(-6))}</span> · ${esc(e.r.descSede || '')}<small>${e.de ? esc(e.de) + ' → ' : ''}${esc(e.a)}${esc(por)}${e.sinAutor ? ' · autor no indicado' : ''}</small></span></button></div>`; };
+  const nNue = vis.filter(esNueva).length;
   return `<div class="tres"><select data-c="dia" aria-label="Día">${dias.map(([v, t]) => `<option value="${v}"${PA.dia === v ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select><select data-c="franja" aria-label="Franja">${franjas.map(([v, t]) => `<option value="${v}"${PA.franja === v ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select><button class="bell" data-a="franjas" aria-label="Editar franjas">${ICO_EDIT}</button></div>
     <div class="seg">${[['', 'Todo'], ['c', 'Cierres'], ['m', 'Cambios']].map(([v, t]) => `<button class="ch${PA.tipo === v ? ' on' : ''}" data-a="tipoact" data-v="${v}" aria-pressed="${PA.tipo === v}">${t}</button>`).join('')}</div>
-    ${PA.dia === 0 && nuevosAct(actPrev) > vis.filter(e => e.ts > actPrev).length ? `<div class="nota"><span>Hay novedades de hoy fuera de esta franja</span><button class="mini" data-a="vertodo">Ver todo el día</button></div>` : ''}${estado}<div class="res2"><b>${nC}</b> ${nC === 1 ? 'cierre' : 'cierres'} · <b>${vis.length - nC}</b> ${vis.length - nC === 1 ? 'cambio' : 'cambios'}${PA.tec ? ` de ${esc(PA.tec)} <button class="mini" data-a="tecact" data-v="">Ver todos</button>` : ''}</div>
+    ${PA.dia === 0 && nuevosAct() > vis.filter(e => esNueva(e) && e.u !== cleanInitials(localStorage.getItem('codigoOperario') || '')).length ? `<div class="nota"><span>Hay novedades de hoy fuera de esta franja</span><button class="mini" data-a="vertodo">Ver todo el día</button></div>` : ''}${estado}<div class="res2"><b>${nC}</b> ${nC === 1 ? 'cierre' : 'cierres'} · <b>${vis.length - nC}</b> ${vis.length - nC === 1 ? 'cambio' : 'cambios'}${PA.tec ? ` de ${esc(PA.tec)} <button class="mini" data-a="tecact" data-v="">Ver todos</button>` : ''}</div>
     ${tecs.length ? '<h2>Técnicos</h2>' + tecs.map(o => { const t = porTec[o] || { c: 0, m: 0 }, on = !sil[o]; return `<div class="at"><button class="bell" data-a="campana" data-v="${esc(o)}" aria-pressed="${on}" aria-label="${on ? 'Dejar de seguir a ' : 'Seguir a '}${esc(o)}">${on ? ICO_ON : ICO_OFF}</button><button class="atn${PA.tec === o ? ' on' : ''}${on ? '' : ' off'}" data-a="tecact" data-v="${esc(o)}"><b>${esc(o)} <small>${esc(zonaDe(o))}</small></b><span>${plural(t.c, 'cierre')} · ${plural(t.m, 'cambio')}${on ? '' : ' · no lo sigues'}</span></button></div>`; }).join('') : ''}
-    <h2>Actividad</h2>${vis.map(linea).join('') || `<div class="vac">${cierresCargando ? 'Cargando…' : 'Nada en esta franja.'}</div>`}`;
+    <div class="plg"><h2 style="margin:0">Actividad</h2><span></span>${nNue ? `<button class="mini" data-a="leertodo">Marcar todo leído · ${nNue}</button>` : ''}</div>${vis.length && (PA.desliza.izq || PA.desliza.der) ? `<div class="m" style="margin:0 2px 6px">Desliza: ← ${esc(desNombre('izq'))} · → ${esc(desNombre('der'))}</div>` : ''}${vis.map(linea).join('') || `<div class="vac">${cierresCargando ? 'Cargando…' : 'Nada en esta franja.'}</div>`}`;
 }
 function abrirFranjas() {
   const m = $('me');
@@ -393,6 +408,10 @@ dt{color:var(--dim);font-size:13px}dd{margin:0;overflow-wrap:anywhere}
 .atn.on{border-color:var(--marca);box-shadow:inset 0 0 0 1px var(--marca)}.atn.off{opacity:.6}
 .atn small{color:var(--dim);font-weight:400}.atn span{font-size:12px;color:var(--dim)}
 .ev{display:grid;grid-template-columns:48px minmax(0,1fr);gap:8px;width:100%;text-align:left;background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--e);border-radius:10px;padding:8px 10px;margin-bottom:6px;min-height:52px}
+.evw{position:relative;margin-bottom:6px;border-radius:10px;overflow:hidden;background:var(--p2)}.evw .ev{position:relative;margin:0;touch-action:pan-y;transition:transform .2s}
+.evd{position:absolute;top:0;bottom:0;display:none;align-items:center;padding:0 14px;font-size:13px;font-weight:700;color:var(--dim)}.evd.der{left:0}.evd.izq{right:0}
+.evw[data-lado=izq] .evd.izq,.evw[data-lado=der] .evd.der{display:flex}.evw.listo{background:var(--marca)}.evw.listo .evd{color:var(--panel)}
+.ev.nue{box-shadow:inset 3px 0 0 var(--rojo)}
 .evh{font-family:monospace;font-weight:700}.evc{min-width:0;overflow-wrap:anywhere}.evc small{display:block;color:var(--dim);font-size:12px;margin-top:2px}
 .bd{position:absolute;top:4px;right:4px;min-width:18px;height:18px;padding:0 4px;border-radius:9px;background:var(--rojo);color:var(--panel);font:700 11px/18px system-ui,sans-serif}
 .nv{display:inline-block;font-size:11px;font-weight:700;padding:1px 7px;border-radius:999px;background:var(--rojo);color:var(--panel);vertical-align:1px}
@@ -577,14 +596,14 @@ function aplicarAsignacion(r, d) {
 function cerrarFicha() { const f = $('fi'); f.hidden = true; f.dataset.k = ''; f.innerHTML = ''; }
 function abrirMenu() {
   const m = $('me');
-  m.innerHTML = `<div class="hoja" role="dialog" aria-label="Opciones"><h3>Perfil</h3><div class="perf">${PERFILES.map(p => `<button class="${E.perfil === p ? 'on' : ''}" data-a="perfil" data-v="${p}">${p}</button>`).join('')}</div><h3>Carga</h3><div class="perf">${[['auto', 'Auto'], ['completa', 'Completa'], ['rapida', 'Rápida']].map(([v, t]) => `<button class="${PA.modo === v ? 'on' : ''}" data-a="modo" data-v="${v}">${t}</button>`).join('')}</div><div class="m">Rápida: solo Sin asignar, cierres y cambios de estado; las visitas se quedan de la última carga completa. Auto: rápida fuera de tu jornada (lunes a viernes).</div><div class="dos"><label class="lb">Jornada desde<input type="time" data-j="0" value="${esc(PA.jornada[0])}"></label><label class="lb">Hasta<input type="time" data-j="1" value="${esc(PA.jornada[1])}"></label></div><button class="fila" data-a="completa">Cargar todo ahora</button><button class="fila" data-a="salir">Volver a ATGO</button><button class="fila" data-a="borrar">Borrar los datos de este móvil</button><button class="fila" data-a="cmenu">Cerrar</button><div class="m" style="text-align:center">Despacho móvil ${MOVIL_VERSION}</div></div>`;
+  m.innerHTML = `<div class="hoja" role="dialog" aria-label="Opciones"><h3>Perfil</h3><div class="perf">${PERFILES.map(p => `<button class="${E.perfil === p ? 'on' : ''}" data-a="perfil" data-v="${p}">${p}</button>`).join('')}</div><h3>Carga</h3><div class="perf">${[['auto', 'Auto'], ['completa', 'Completa'], ['rapida', 'Rápida']].map(([v, t]) => `<button class="${PA.modo === v ? 'on' : ''}" data-a="modo" data-v="${v}">${t}</button>`).join('')}</div><div class="m">Rápida: solo Sin asignar, cierres y cambios de estado; las visitas se quedan de la última carga completa. Auto: rápida fuera de tu jornada (lunes a viernes).</div><div class="dos"><label class="lb">Jornada desde<input type="time" data-j="0" value="${esc(PA.jornada[0])}"></label><label class="lb">Hasta<input type="time" data-j="1" value="${esc(PA.jornada[1])}"></label></div><h3>Deslizar en Actividad</h3><div class="dos">${['izq', 'der'].map(l => `<label class="lb">${l === 'izq' ? '← A la izquierda' : 'A la derecha →'}<select data-d="${l}">${DESLIZA.map(([v, n]) => `<option value="${v}"${PA.desliza[l] === v ? ' selected' : ''}>${esc(n)}</option>`).join('')}</select></label>`).join('')}</div><button class="fila" data-a="completa">Cargar todo ahora</button><button class="fila" data-a="salir">Volver a ATGO</button><button class="fila" data-a="borrar">Borrar los datos de este móvil</button><button class="fila" data-a="cmenu">Cerrar</button><div class="m" style="text-align:center">Despacho móvil ${MOVIL_VERSION}</div></div>`;
   m.hidden = false;
 }
 function salir() { marcarVisto(); clearInterval(reloj); window.removeEventListener('popstate', atras, true); document.removeEventListener('visibilitychange', alVolver); host.remove(); document.documentElement.style.overflow = ''; delete window.__despachoMovil; }
 function acciones(b) {
   const a = b.dataset.a, v = b.dataset.v;
   if (a === 'tab') {
-    marcarVisto(); if (v === 'act') actPrev = PA.vistoAct || 0; if (v === 'sin') sinPrev = PA.vistoSin ? new Set(PA.vistoSin) : null;
+    marcarVisto(); if (v === 'sin') sinPrev = PA.vistoSin ? new Set(PA.vistoSin) : null;
     tab = v; marcarVisto(); $('v').scrollTop = 0; $('v').innerHTML = ''; pintar(); if (v === 'act' && !cierresAlDia()) cargarCierres();
   }
   else if (a === 'asignar') abrirAsignar(b.dataset.k);
@@ -595,6 +614,7 @@ function acciones(b) {
   else if (a === 'completa') { $('me').hidden = true; cargar(true); }
   else if (a === 'tabf') { tab = 'inc'; filtroInc = v; estadoInc = ''; zonaInc = ''; $('v').innerHTML = ''; $('v').scrollTop = 0; pintar(); }
   else if (a === 'cargar') { cargar(); if (tab === 'act') cargarCierres(); }
+  else if (a === 'leertodo') { eventosAct().filter(x => (PA.tec ? cleanInitials(x.r.operario) === PA.tec : !PA.silencio[cleanInitials(x.r.operario)]) && (!PA.tipo || (PA.tipo === 'c') === x.cierre)).forEach(x => { PA.leidas[evKey(x)] = 1; }); limpiaLeidas(); guardarPA(); pintar(); }
   else if (a === 'vertodo') { PA.franja = PA.franjas.length; PA.tipo = ''; PA.tec = ''; guardarPA(); pintar(); }
   else if (a === 'tipoact') { PA.tipo = v; guardarPA(); pintar(); }
   else if (a === 'tecact') { PA.tec = PA.tec === v ? '' : v; pintar(); }
@@ -619,7 +639,7 @@ function acciones(b) {
   else if (a === 'atgo') { const r = ticket(b.dataset.k); cerrarFicha(); host.style.display = 'none'; if (r) location.hash = '#/mistickets/' + r.key; }   // en la app: el botón «Despacho» vuelve aquí
   else if (a === 'borrar') { if (confirm('¿Borrar los datos guardados en este móvil?')) { try { localStorage.removeItem(CLAVE); } catch (e) { /* nada que borrar */ } salir(); } }
 }
-raiz.addEventListener('click', e => { const b = e.target.closest('[data-a]'); if (b) { if (b.tagName === 'A') return; e.preventDefault(); acciones(b); } else if (e.target === $('me') && !asignando) $('me').hidden = true; });
+raiz.addEventListener('click', e => { if (trasDeslizar) { e.preventDefault(); return; } const b = e.target.closest('[data-a]'); if (b) { if (b.tagName === 'A') return; e.preventDefault(); acciones(b); } else if (e.target === $('me') && !asignando) $('me').hidden = true; });
 raiz.addEventListener('change', e => { const c = e.target.dataset.c; if (c === 'estado') { estadoInc = e.target.value; pintar(); } else if (c === 'zona') { zonaInc = e.target.value; pintar(); } else if (c === 'franja') { PA.franja = +e.target.value; guardarPA(); pintar(); } else if (c === 'dia') { PA.dia = +e.target.value; guardarPA(); pintar(); if (!cierresAlDia()) cargarCierres(); } });
 raiz.addEventListener('change', e => {
   const j = e.target.dataset.j; if (j == null) return;
@@ -628,6 +648,21 @@ raiz.addEventListener('change', e => {
   if (horaMin(n[1]) <= horaMin(n[0])) { alert('La hora de fin de jornada debe ser posterior a la de inicio.'); e.target.value = PA.jornada[+j]; return; }
   PA.jornada = n; guardarPA();
 });
+raiz.addEventListener('change', e => { const l = e.target.dataset.d; if (!l) return; PA.desliza = { ...PA.desliza, [l]: e.target.value }; guardarPA(); if (tab === 'act') pintar(); });
+// Deslizar una línea de Actividad: más de 80 px en horizontal hace la acción elegida en el menú; menos, vuelve a su sitio
+let tira = null, trasDeslizar = false;
+raiz.addEventListener('pointerdown', e => { const b = e.target.closest('.ev[data-ev]'); tira = b && e.isPrimary ? { b, x: e.clientX, y: e.clientY, dx: 0, h: false } : null; });
+raiz.addEventListener('pointermove', e => {
+  if (!tira) return; const dx = e.clientX - tira.x, dy = e.clientY - tira.y;
+  if (!tira.h) { if (Math.abs(dy) > 12) { tira = null; return; } if (Math.abs(dx) < 12) return; tira.h = true; try { tira.b.setPointerCapture(e.pointerId); } catch (x) { /* sin captura */ } }
+  tira.dx = (dx < 0 && !PA.desliza.izq) || (dx > 0 && !PA.desliza.der) ? dx / 4 : dx; tira.b.style.transition = 'none'; tira.b.style.transform = `translateX(${tira.dx}px)`;
+  tira.b.parentNode.dataset.lado = tira.dx < 0 ? 'izq' : 'der'; tira.b.parentNode.classList.toggle('listo', Math.abs(dx) > 80);
+});
+const sueltaTira = ok => { if (!tira) return; const { b, dx, h } = tira; tira = null; if (!h) return; trasDeslizar = true; setTimeout(() => { trasDeslizar = false; }, 350);
+  b.style.transition = ''; b.style.transform = ''; b.parentNode.classList.remove('listo');
+  if (ok && Math.abs(dx) > 80) { if (navigator.vibrate) navigator.vibrate(15); deslizar(b, dx < 0 ? 'izq' : 'der'); } };
+raiz.addEventListener('pointerup', () => sueltaTira(true));
+raiz.addEventListener('pointercancel', () => sueltaTira(false));
 raiz.addEventListener('input', e => { if (e.target.id === 'q') { textoBus = e.target.value; $('br').innerHTML = resultadosBus(); } });
 function atras(e) { if (!$('fi').hidden) { e.stopImmediatePropagation(); cerrarFicha(); } }
 window.addEventListener('popstate', atras, true);

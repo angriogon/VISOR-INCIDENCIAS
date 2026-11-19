@@ -5,7 +5,7 @@ const AQUI = path.dirname(fileURLToPath(import.meta.url)), repo = path.resolve(A
 const lanzar = () => chromium.launch(process.platform === 'win32' ? { channel: 'chrome' } : {});   // Windows: Chrome instalado; Ubuntu: Chromium de Playwright
 ;
 const fav = fs.readFileSync(repo + '/tools/movil/favorito.txt', 'utf8').trim(), codigo = fs.readFileSync(repo + '/movil.js', 'utf8'), firma = fs.readFileSync(repo + '/movil.firma.json', 'utf8');
-const h = (hh, mm) => { const d = new Date(); d.setHours(hh, mm, 0, 0); return d; }, isoZ = d => d.toISOString().replace('Z', '+0000');
+const h = (hh, mm) => { const d = new Date(); d.setHours(hh, mm, 0, 0); return d; }, isoZ = d => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().replace('Z', '+0000');   // como ATGO: hora de España marcada como UTC
 const b = await lanzar();
 for (const [tema, ancho] of [['light', 384], ['dark', 360], ['light', 320]]) {
   const ctx = await b.newContext({ viewport: { width: ancho, height: 832 }, isMobile: true, hasTouch: true, colorScheme: tema });
