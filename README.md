@@ -47,22 +47,26 @@ Web: **https://angriogon.github.io/VISOR-INCIDENCIAS/**. Son archivos estáticos
 
 ### Mi día
 
-**Qué hacer ahora** ordena por riesgo lo que hay que atender. En **Más**: **Propuesta del día** (reparte lo pendiente de asignar de tu zona; se revisa y se aplica con confirmación) y **Mañana listo** (lo que falta por dejar resuelto; a partir de las 15:00 también tiene botón propio).
-Lo que pide acción hoy:
-- Novedades desde la última carga.
-- Tickets a tu nombre.
-- Sin asignar de tu zona.
-- Rutas enviadas.
-- **Hoy en directo:** línea de tiempo por técnico.
-- **Conflictos sede-técnicos:** una misma sede o dirección con incidencias en PRESENCIAL de dos técnicos distintos; las del mismo día, primero.
-- Conflictos del próximo laborable (dos citas a la misma hora en la misma sede no cuentan como solape).
-- Caducidades y material.
+Arriba, la fecha y cuántas cosas quedan pendientes (y cuántas urgentes).
 
-Botones:
+**Herramientas** (botones con icono; el número dice cuántas tiene y se ponen en rojo si hay algo que atender):
+- **Qué hacer ahora:** lo que corre más riesgo, de más a menos urgente.
 - **Revisión de la mañana** (también en Control): incidencias sin cerrar, en cualquier estado, con fecha de visita de los últimos 7 días, agrupadas por día y con lo que hizo el técnico según el hilo. En cada DSP, las de sus técnicos; en COORD, todas, asignadas o no. Se pueden abrir, marcar como revisadas (vuelven mañana si siguen abiertas), replanificar en bloque o recordar por WhatsApp.
+- **Mañana listo:** lo que falta por dejar resuelto para el próximo laborable (en rojo a partir de las 15:00).
+- **Sin cerrar hoy** (solo si hay): visitas de hoy sin finalizar, con «Recordar» por WhatsApp.
 - **Mis cambios:** todo lo hecho en ATGO desde Despacho, con su resultado.
-- **Sin cerrar hoy:** visitas de hoy sin finalizar, con «Recordar» por WhatsApp.
-- **Copiar resumen del día** e **Informe semanal**, con histórico de 8 semanas.
+- **Propuesta del día:** reparte lo pendiente de asignar de tu zona; se revisa y se aplica con confirmación.
+- **Copiar resumen** del día e **Informe semanal**, con histórico de 8 semanas.
+
+**Pendiente:** solo sale lo que tiene algo, de más a menos urgente (rojo, ámbar, gris). Las que tienen lista se despliegan al pulsarlas; las demás llevan a donde se resuelven:
+- Caducidades vencidas y de las próximas 48 h.
+- Sin asignar de tu zona (→ Sin asignar) y rutas del próximo laborable sin enviar o cambiadas tras enviar (→ Planificación).
+- **Sedes con 2 técnicos:** una misma sede o dirección con incidencias en PRESENCIAL de dos técnicos distintos; las del mismo día, primero.
+- Conflictos del próximo laborable (dos citas a la misma hora en la misma sede no cuentan como solape).
+- Material movido (listas para visita) o pendiente de mover.
+- Tickets a tu nombre (→ Incidencias).
+
+**Seguimiento:** Novedades desde la última carga y **Hoy en directo** (línea de tiempo por técnico).
 
 ### Sin asignar
 Visitas en PRESENCIAL que siguen en un operario comodín «PENDIENTE ASIGNAR». Van ordenadas por urgencia: primero las que caducan antes y después las más antiguas.
@@ -77,7 +81,7 @@ Visitas en PRESENCIAL que siguen en un operario comodín «PENDIENTE ASIGNAR». 
 
 El botón de tabla, junto a la leyenda, cambia a una vista densa con una fila por incidencia y columnas ordenables.
 
-**Nueva incidencia** crea un ticket en ATGO con los campos del alta rápida (también en «Más», en Mi día). Pide confirmación, comprueba el ticket creado y no se reintenta sola. Un ticket creado por error no se anula: se cierra en ATGO. Necesita la extensión 2.3 o posterior.
+**Nueva incidencia** crea un ticket en ATGO con los campos del alta rápida. Pide confirmación, comprueba el ticket creado y no se reintenta sola. Un ticket creado por error no se anula: se cierra en ATGO. Necesita la extensión 2.3 o posterior.
 Un bloque por técnico, agrupados por zona:
 - **Barra de progreso de su ruta de hoy:** terminada, en trámite, en curso o pendiente, con retrasos.
 - Dentro, las incidencias van **agrupadas por estado**, cada línea con el color de su estado. En cada estado, de la visita más próxima a la más lejana; debajo, las que no tienen fecha y, al final, las de fechas pasadas. Justo detrás del Nº salen **VISITA** y **CADUCA**: naranja si quedan menos de 3 días; rojo si quedan menos de 24 h o ya caducó.

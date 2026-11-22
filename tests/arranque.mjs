@@ -84,7 +84,7 @@ try {
     abrirMisCambios('hoy'); out.misCambios = document.querySelectorAll('#modal table.camb tbody tr').length; cerrarModal();
     abrirSinCerrar(); out.sinCerrar = document.querySelectorAll('#modal .sc-it').length; cerrarModal();
     out.olvidada = olvidada(poolRows.find(r => r.key === '2026/00/91'));
-    showTab('dia'); out.botonMisCambios = /Mis cambios · 1/.test(document.getElementById('viewDia').innerText);
+    showTab('dia'); out.botonMisCambios = /Mis cambios\s*1\b/.test(document.getElementById('viewDia').innerText);
     // Festivos: 12/10 es fiesta nacional; el viernes 9/10 de 2026 el próximo laborable es el martes 13
     out.festivo = festivo(new Date(2026, 9, 12, 12)); out.proxLab = isoHoy(nextWorkday(new Date(2026, 9, 9, 12)));
     out.viernesSanto = festivo(new Date(2027, 2, 26, 12));
@@ -109,7 +109,7 @@ try {
     // ⚙ › General › ACTUALIZAR: pide los datos a la pestaña de ATGO sin recargar
     { const prev = atgoSource, pedidos = []; atgoSource = { closed: false, postMessage: m => pedidos.push(m.type) }; await actualizarAhora(); out.actualizar = pedidos.join() === 'despacho-refresh' && /Actualizar:/.test(document.getElementById('toast').textContent); atgoSource = prev; }
     // Mi día: conflictos sede-técnicos (dos técnicos en la misma sede)
-    { const pres = rows.filter(r => esPresencial(r) && !/^XXX|AMRG/.test(r.operario)), a = pres[0], b = pres.find(r => r.operario !== a.operario), sede = [b.descSede, b.domicilio]; b.descSede = a.descSede; b.domicilio = a.domicilio; showTab('dia'); await paso(100); out.conflictoSede = !!document.querySelector('#secSedes .cs-g') && /Sedes con 2/.test(document.querySelector('.tiles').textContent); [b.descSede, b.domicilio] = sede; }
+    { const pres = rows.filter(r => esPresencial(r) && !/^XXX|AMRG/.test(r.operario)), a = pres[0], b = pres.find(r => r.operario !== a.operario), sede = [b.descSede, b.domicilio]; b.descSede = a.descSede; b.domicilio = a.domicilio; showTab('dia'); await paso(100); out.conflictoSede = !!document.querySelector('#tSedes .cs-g') && /Sedes con 2/.test(document.querySelector('.tareas').textContent); [b.descSede, b.domicilio] = sede; }
     // Revisión de la mañana: estados abiertos, solo los últimos 7 días
     { const haceD = n => { const d = new Date(); d.setDate(d.getDate() - n); return ddmmyyyy(d); }, l = rows.filter(r => TECNICOS.includes(r.operario)).slice(0, 3), prev = l.map(r => [r.fVisita, r.estado]);
       l[0].fVisita = haceD(1); l[0].estado = 'EN FABRICANTE'; l[1].fVisita = haceD(7); l[1].estado = 'PRESENCIAL'; l[2].fVisita = haceD(8); l[2].estado = 'PRESENCIAL';

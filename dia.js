@@ -55,7 +55,10 @@ const ICONOS = {
   ausente: 'M12 3a9 9 0 0 1 9 9H3a9 9 0 0 1 9-9zM12 12v7a2 2 0 0 0 4 0', repetir: 'M17 2l4 4-4 4M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4M21 13v2a3 3 0 0 1-3 3H3',
   accesible: 'M12 5.500a1.500 1.500 0 1 0 0-3 1.500 1.500 0 0 0 0 3zM5 8l7 1.500L19 8M12 9.500V14l-3 7M12 14l3 7', equipo: 'M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM2 21v-1a6 6 0 0 1 6-6h2a6 6 0 0 1 6 6v1M16 3.200a4 4 0 0 1 0 7.600M19 14.300a6 6 0 0 1 3 5.200V21',
   telefono: 'M22 16.900v3a2 2 0 0 1-2.200 2A19.800 19.800 0 0 1 2.100 4.200 2 2 0 0 1 4.100 2h3a2 2 0 0 1 2 1.700l.5 3a2 2 0 0 1-.6 1.800L7.700 9.800a16 16 0 0 0 6.500 6.500l1.300-1.300a2 2 0 0 1 1.800-.6l3 .5a2 2 0 0 1 1.700 2z',
-  correo: 'M3 5h18v14H3zM3 6l9 7 9-7', reloj: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2', ok: 'M4 12.500 9.500 18 20 6.500', mas: 'M5 12h.01M12 12h.01M19 12h.01'
+  correo: 'M3 5h18v14H3zM3 6l9 7 9-7', reloj: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2', ok: 'M4 12.500 9.500 18 20 6.500', mas: 'M5 12h.01M12 12h.01M19 12h.01',
+  rayo: 'M13 2 4 14h7l-1 8 9-12h-7z', sol: 'M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10zM12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4',
+  calendario: 'M3 5h18v16H3zM3 10h18M8 3v4M16 3v4', historial: 'M3 12a9 9 0 1 0 2.6-6.4L3 8M3 3v5h5M12 7v5l3 2', reparto: 'M4 6h16M4 12h10M4 18h6M17 15l3 3-3 3',
+  copiar: 'M9 9h11v11H9zM5 15H4V4h11v1', grafico: 'M4 20V10M10 20V4M16 20v-7M22 20H2'
 };
 function ico(n) { return `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="${ICONOS[n]}"/></svg>`; }
 
@@ -658,6 +661,37 @@ function refreshVisible() {
 function ticketLi(r, extra, cls) {
   return `<li class="${cls || ''}" data-key="${esc(tkey(r))}"><b class="mono">${esc(r.num)}</b><span class="op">${esc(r.operario || '')}</span><span class="tx">${esc(r.descSede || r.domicilio || '—')}</span>${extra ? `<span class="ex">${extra}</span>` : ''}</li>`;
 }
+// ===== Mi día: lo pendiente como lista de tareas y las herramientas como botones con icono =====
+const TAREA_NIV = ['alta', 'media', 'baja'];
+function tareaHtml(x) {
+  const cab = `<span class="t-dot"></span><b class="t-n">${esc(String(x.c))}</b><span class="t-tx"><span class="t-t">${esc(x.t)}</span><small>${esc(x.s)}</small></span>`;
+  if (!x.id) return `<button class="tarea t-${x.n}" data-go="${x.go}">${cab}<span class="t-ir">${esc(x.ir)} ›</span></button>`;
+  return `<section class="dsec tarea t-${x.n}" id="${x.id}"><div class="dsh">${cab}</div><div class="t-b">${x.b}</div></section>`;
+}
+function herramientasDiaHtml() {
+  if (typeof revisionPendientes !== 'function') return '';   // ajustes.js aún no ha cargado (primer pintado)
+  const qh = queHacerLista(), qhU = qh.filter(x => x.peso >= 85).length, rev = revisionPendientes().length;
+  const man = mananaComprobaciones().lista.filter(x => x.n).length, c = misCambios('hoy'), mal = c.filter(e => !e.ok).length;
+  const sc = horaPasada(horaCierre()) && tecCfg.cierreOn !== false ? sinCerrarHoy().length : 0;
+  const h = [
+    ['rayo', 'Qué hacer ahora', qh.length, qhU, 'abrirQueHacer()', 'Lo que corre más riesgo ahora mismo, de más a menos urgente'],
+    ['sol', 'Revisión de la mañana', rev, rev, 'abrirRevision()', `Incidencias sin cerrar con fecha de visita de los últimos ${REV_DIAS} días`],
+    ['calendario', 'Mañana listo', man || '✓', man && horaPasada('15:00'), 'abrirMananaListo()', 'Lo que falta por dejar resuelto para el próximo día laborable'],
+    sc && ['alerta', 'Sin cerrar hoy', sc, sc, 'abrirSinCerrar()', 'Visitas de hoy que siguen en PRESENCIAL sin «finalizado» del técnico'],
+    ['historial', 'Mis cambios', c.length ? c.length + (mal ? ` · ${mal} ✕` : '') : '', mal, "abrirMisCambios('hoy')", 'Todo lo que has hecho hoy en ATGO desde Despacho, con su resultado'],
+    ['reparto', 'Propuesta del día', '', 0, 'abrirPropuesta()', 'Reparte lo pendiente de asignar de tu zona'],
+    ['copiar', 'Copiar resumen', '', 0, 'copiarResumenJornada()', 'Texto listo para pegar a tu responsable'],
+    ['grafico', 'Informe semanal', '', 0, 'abrirInforme()', 'Informe de la semana, con histórico de 8 semanas']
+  ].filter(Boolean);
+  return `<nav class="herr" aria-label="Herramientas del día">${h.map(([i, l, n, aviso, fn, tit]) => `<button class="herr-b${aviso ? ' aviso' : ''}" onclick="${fn}" title="${esc(tit)}">${ico(i)}<span>${esc(l)}</span>${n !== '' && n !== 0 ? `<i>${esc(String(n))}</i>` : ''}</button>`).join('')}</nav>`;
+}
+function conflictosHtml(cM) {
+  return `<ul class="tlist">${cM.map(c => `<li class="due" data-key="${esc(c.keys[0])}"><b class="mono">${esc(c.op)}</b><span class="tx">${esc(c.texto)}</span><span class="ex">${esc(c.tipo === 'solape' ? 'solape' : c.tipo === 'gls' ? 'GLS' : 'carga')}</span></li>`).join('')}</ul>`;
+}
+function materialDiaHtml(mat) {
+  return (mat.listos.length ? `<div class="dnote" style="margin:0 0 4px">Listas para visita (material movido)</div><ul class="tlist">${mat.listos.map(x => ticketLi(x.r, 'a PRESENCIAL ' + esc(cuando(x.ts)), 'due')).join('')}</ul>` : '')
+    + (mat.enMaterial.length ? `<div class="dnote" style="margin:6px 0 4px">En PTE. MOVER MATERIAL</div><ul class="tlist">${mat.enMaterial.map(x => ticketLi(x.r, x.ts ? 'desde ' + esc(cuando(x.ts)) : '')).join('')}</ul>` : '');
+}
 function renderDia(force) {
   const root = document.getElementById('viewDia');
   if (!force && typeof ocupado === 'function' && ocupado()) { refrescoPendiente = true; return; }   // se repinta al soltar el campo (app.js)
@@ -671,61 +705,45 @@ function renderDia(force) {
     return;
   }
   const nv = noVistos(), mio = rows.filter(r => esMio(r.operario));
-  const rt = rutasResumen();
-  const M = nextWorkday();
+  const rt = rutasResumen(), M = nextWorkday(), tarde = ahora.getHours() >= 15;
   const evHoy = eventos.filter(e => isoHoy(new Date(e.ts)) === isoHoy()).length;
-  const mat = material(), cads = caducidadesProximas();
+  const mat = material(), cads = caducidadesProximas(), sin = sinListas().mias.length;
   const cadV = cads.filter(x => cadNivel(x.c) === 'venc').length, cadU = cads.filter(x => cadNivel(x.c) === 'urg').length;
-  const confSedes = conflictosSede(), confSedesDia = confSedes.filter(c => c.mismoDia.length).length;
-  const tiles = [
-    { go: 'secNov', n: nv.length, l: 'Novedades', s: `${evHoy} hoy`, hot: nv.some(evImportante) },
-    { go: 'mio', n: mio.length, l: 'A tu nombre', s: 'por asignar', hot: mio.length > 0 },
-    { go: 'sin', n: sinListas().mias.length, l: 'Sin asignar', s: 'pendientes en tu zona', hot: sinListas().mias.length > 0 },
-    { go: 'man', n: `${rt.enviadas}/${rt.total}`, l: `Rutas ${DIAS[M.getDay()]}`, s: rt.cambiadas ? `${rt.cambiadas} cambiadas tras enviar` : 'enviadas', hot: rt.cambiadas > 0 || (rt.total > 0 && rt.enviadas < rt.total && ahora.getHours() >= 15) },
-    { go: 'secSedes', n: confSedes.length, l: 'Sedes con 2 técnicos', s: `${confSedesDia} el mismo día`, hot: confSedes.length > 0 },
-    { go: 'secCad', n: cads.length, l: 'Caducidades', s: `${cadV} vencidas · ${cadU} en 24 h`, hot: cadV + cadU > 0 },
-    { go: 'secMat', n: mat.enMaterial.length + mat.listos.length, l: 'Material', s: `${mat.listos.length} listos para visita`, hot: mat.listos.length > 0 }
-  ];
+  const confSedes = conflictosSede(), confSedesDia = confSedes.filter(c => c.mismoDia.length).length, cM = conflictos(ddmmyyyy(M));
+  // Lo pendiente, de más a menos urgente: solo sale lo que tiene algo. n: 'alta' (rojo), 'media' (ámbar), 'baja' (gris)
+  // Con «id» es plegable y lleva su lista; con «go» o «fn» lleva a otra vista.
+  const faltan = rt.total - rt.enviadas;
+  const tareas = [
+    cads.length && { id: 'tCad', n: cadV + cadU ? 'alta' : 'media', c: cads.length, t: 'Caducidades', s: [cadV && plural(cadV, 'vencida'), cadU && cadU + ' en 24 h', cads.length - cadV - cadU && (cads.length - cadV - cadU) + ' en 48 h'].filter(Boolean).join(' · '),
+      b: `<ul class="tlist">${cads.slice(0, 25).map(x => ticketLi(x.r, cadBadge(x.r), cadNivel(x.c) === 'venc' || cadNivel(x.c) === 'urg' ? 'due' : '')).join('')}${cads.length > 25 ? `<li class="more">y ${cads.length - 25} más…</li>` : ''}</ul>` },
+    sin && { go: 'sin', n: 'alta', c: sin, t: 'Sin asignar', s: 'en tu zona', ir: 'Asignar' },
+    (faltan > 0 || rt.cambiadas) && { go: 'man', n: rt.cambiadas || tarde ? 'alta' : 'media', c: rt.cambiadas || faltan, t: rt.cambiadas ? `Rutas del ${DIAS[M.getDay()]} cambiadas` : `Rutas del ${DIAS[M.getDay()]} sin enviar`, s: rt.cambiadas ? 'después de enviarlas' : `${rt.enviadas} de ${rt.total} enviadas`, ir: 'Enviar' },
+    confSedes.length && { id: 'tSedes', n: confSedesDia ? 'alta' : 'media', c: confSedes.length, t: 'Sedes con 2 técnicos', s: confSedesDia ? confSedesDia + ' el mismo día' : 'en días distintos', b: conflictosSedeHtml(confSedes) },
+    cM.length && { id: 'tConf', n: 'media', c: cM.length, t: 'Conflictos del ' + DIAS[M.getDay()], s: 'solapes, sobrecargas o GLS', b: conflictosHtml(cM) },
+    (mat.listos.length || mat.enMaterial.length) && { id: 'tMat', n: mat.listos.length ? 'media' : 'baja', c: mat.listos.length || mat.enMaterial.length, t: mat.listos.length ? 'Material movido' : 'Pendiente de mover material', s: mat.listos.length ? 'listas para visita' + (mat.enMaterial.length ? ` · ${mat.enMaterial.length} esperando material` : '') : 'en PTE. MOVER MATERIAL', b: materialDiaHtml(mat) },
+    mio.length && { go: 'mio', n: 'baja', c: mio.length, t: 'A tu nombre', s: 'por asignar a un técnico', ir: 'Ver' }
+  ].filter(Boolean).sort((a, b) => TAREA_NIV.indexOf(a.n) - TAREA_NIV.indexOf(b.n));
+  const urg = tareas.filter(x => x.n === 'alta').length;
+  const resumen = !tareas.length ? 'Todo al día' : `${plural(tareas.length, 'cosa')} pendiente${tareas.length === 1 ? '' : 's'}${urg ? ` · ${urg} urgente${urg === 1 ? '' : 's'}` : ''}`;
   const feed = eventos.filter(e => novFiltro === 'nv' ? !e.visto : novFiltro === 'hoy' ? isoHoy(new Date(e.ts)) === isoHoy() : true).slice(0, 80);
-  root.innerHTML = `
-    <div class="dia-top">
-      <h1>${esc(fecha)}</h1>
-      <div class="acts">${typeof botonesDiaHtml === 'function' ? botonesDiaHtml() : ''}<details class="mas"><summary class="btn sm" aria-label="Más acciones">Más</summary><div class="mas-lista">${typeof masDiaHtml === 'function' ? masDiaHtml() : ''}<button onclick="copiarResumenJornada()" title="Texto listo para pegar a tu responsable">Copiar resumen del día</button><button onclick="abrirInforme()">Informe semanal</button><button onclick="plegarTodo(true)">Plegar secciones</button><button onclick="plegarTodo(false)">Desplegar secciones</button></div></details></div>
-    </div>
-    <div class="tiles">${tiles.map(t => `<button class="tile${t.hot ? ' hot' : ''}${!t.n || t.n === '0/0' ? ' zero' : ''}" data-go="${t.go}"><b>${esc(String(t.n))}</b><span>${esc(t.l)}</span><small>${esc(t.s)}</small></button>`).join('')}</div>
-    <div class="dia-grid">
-      <div class="dcol">
-      <section class="dsec" id="secNov">
-        <div class="dsh"><h2>Novedades</h2>
-          <span class="seg mini">${[['nv', 'Sin ver'], ['hoy', 'Hoy'], ['all', 'Todo']].map(([v, l]) => `<button class="segb${novFiltro === v ? ' on' : ''}" onclick="novFiltro='${v}';renderDia()">${l}</button>`).join('')}</span>
-          ${nv.length ? '<button class="btn sm ghost" onclick="marcarVistos();renderDia()">Marcar todo visto</button>' : ''}</div>
-        ${feed.length ? `<ul class="feed">${feed.map(e => `<li class="${e.visto ? '' : 'nv'}${evImportante(e) ? ' imp' : ''}" data-key="${esc(e.tipo === 'ruta' ? '' : e.key)}" ${e.tipo === 'ruta' ? 'data-go="man"' : ''}>
-            <span class="t">${esc(cuando(e.ts))}</span>
-            <span class="w">${e.num ? `<b class="mono">${esc(e.num)}</b> · ` : ''}${esc(e.op)}${e.sede ? ' · ' + esc(e.sede) : ''}</span>
-            <span class="x tipo-${e.tipo}">${esc(evTexto(e))}</span></li>`).join('')}</ul>`
-          : `<div class="dempty">${segSnap.start ? (novFiltro === 'nv' ? 'Todo visto. Despacho compara cada actualización de ATGO y te muestra aquí lo que cambie.' : 'Sin cambios en este periodo.') : 'Empezará a detectar cambios en la próxima actualización de ATGO.'}</div>`}
-      </section>
-      <section class="dsec" id="secTL"><div class="dsh"><h2>Hoy en directo</h2><small>visitas de hoy · hora prevista y real</small></div>${lineaTiempoHtml()}</section>
-      </div>
-      <div class="dcol">
-        <section class="dsec" id="secSedes">
-          <div class="dsh"><h2>Conflictos sede-técnicos</h2><small>Misma sede o dirección con dos técnicos en PRESENCIAL</small></div>
-          ${conflictosSedeHtml(confSedes)}
-        </section>
-        ${seccionesExtra()}
-        <section class="dsec" id="secCad">
-          <div class="dsh"><h2>Caducidades</h2><small>Vencidas y próximas ${SLA_PRONTO_HORAS} h · según el hilo</small></div>
-          ${cads.length ? `<ul class="tlist">${cads.slice(0, 25).map(x => ticketLi(x.r, cadBadge(x.r), cadNivel(x.c) === 'venc' || cadNivel(x.c) === 'urg' ? 'due' : '')).join('')}${cads.length > 25 ? `<li class="more">y ${cads.length - 25} más…</li>` : ''}</ul>`
-            : '<div class="dempty">Ningún ticket caduca en las próximas 48 horas.</div>'}
-        </section>
-        <section class="dsec" id="secMat">
-          <div class="dsh"><h2>Material</h2><small>PTE. MOVER MATERIAL y vueltos a PRESENCIAL</small></div>
-          ${mat.listos.length ? `<div class="dnote" style="margin:0 0 4px">Listos para visita (material movido)</div><ul class="tlist">${mat.listos.map(x => ticketLi(x.r, 'a PRESENCIAL ' + esc(cuando(x.ts)), 'due')).join('')}</ul>` : ''}
-          ${mat.enMaterial.length ? `<div class="dnote" style="margin:6px 0 4px">En PTE. MOVER MATERIAL</div><ul class="tlist">${mat.enMaterial.map(x => ticketLi(x.r, x.ts ? 'desde ' + esc(cuando(x.ts)) : '')).join('')}</ul>` : ''}
-          ${!mat.listos.length && !mat.enMaterial.length ? '<div class="dempty">Ningún ticket pendiente de mover material.</div>' : ''}
-        </section>
-      </div>
-    </div>`;
+  const nHoy = rutaHoy().filter(x => TECNICOS.includes(cleanInitials(x.op))).length;
+  root.innerHTML = `<div class="dia-wrap">
+    <div class="dia-top"><h1>${esc(fecha)}</h1><span class="dia-res${urg ? ' urg' : tareas.length ? '' : ' ok'}">${tareas.length ? '' : ico('ok') + ' '}${esc(resumen)}</span></div>
+    ${herramientasDiaHtml()}
+    <div class="tareas">${tareas.length ? tareas.map(tareaHtml).join('') : `<div class="tarea-ok">${ico('ok')} Nada pendiente: sin caducidades, sin asignar ni rutas por enviar.</div>`}</div>
+    <h3 class="dia-tit">Seguimiento</h3>
+    <section class="dsec" id="secNov">
+      <div class="dsh"><h2>Novedades</h2><small>${nv.length ? `<b class="dia-nv">${nv.length} sin ver</b> · ` : ''}${evHoy} hoy</small>
+        <span class="seg mini">${[['nv', 'Sin ver'], ['hoy', 'Hoy'], ['all', 'Todo']].map(([v, l]) => `<button class="segb${novFiltro === v ? ' on' : ''}" onclick="novFiltro='${v}';renderDia()">${l}</button>`).join('')}</span>
+        ${nv.length ? '<button class="btn sm ghost" onclick="marcarVistos();renderDia()">Marcar todo visto</button>' : ''}</div>
+      ${feed.length ? `<ul class="feed">${feed.map(e => `<li class="${e.visto ? '' : 'nv'}${evImportante(e) ? ' imp' : ''}" data-key="${esc(e.tipo === 'ruta' ? '' : e.key)}" ${e.tipo === 'ruta' ? 'data-go="man"' : ''}>
+          <span class="t">${esc(cuando(e.ts))}</span>
+          <span class="w">${e.num ? `<b class="mono">${esc(e.num)}</b> · ` : ''}${esc(e.op)}${e.sede ? ' · ' + esc(e.sede) : ''}</span>
+          <span class="x tipo-${e.tipo}">${esc(evTexto(e))}</span></li>`).join('')}</ul>`
+        : `<div class="dempty">${segSnap.start ? (novFiltro === 'nv' ? 'Todo visto. Despacho compara cada actualización de ATGO y te muestra aquí lo que cambie.' : 'Sin cambios en este periodo.') : 'Empezará a detectar cambios en la próxima actualización de ATGO.'}</div>`}
+    </section>
+    <section class="dsec" id="secTL"><div class="dsh"><h2>Hoy en directo</h2><small>${nHoy ? plural(nHoy, 'visita') + ' · hora prevista y real' : 'sin visitas enrutadas'}</small></div>${lineaTiempoHtml()}</section>
+  </div>`;
   aplicarPliegues(root);
 }
 

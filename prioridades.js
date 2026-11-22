@@ -46,10 +46,6 @@ function queHacerLista() {
   const cad = r => { const c = caducidad(r); return c ? c.ts : 9e15; };
   return [...lista.values()].sort((a, b) => b.peso - a.peso || cad(a.r) - cad(b.r));
 }
-function queHacerBotonHtml() {
-  const l = queHacerLista(), u = l.filter(x => x.peso >= 85).length;
-  return `<button class="btn sm${u ? ' warn' : ''}" onclick="abrirQueHacer()" title="Lo que corre más riesgo ahora mismo, de más a menos urgente">Qué hacer ahora · ${l.length}</button>`;
-}
 function abrirQueHacer() {
   const l = queHacerLista(), vis = l.slice(0, QH_MAX), m = document.getElementById('modal');
   const nivel = p => p >= 85 ? 3 : p >= 70 ? 2 : 1;
@@ -132,10 +128,6 @@ function mananaComprobaciones() {
     { n: revisionPendientes().length, t: 'Visitas de días anteriores sin revisar', ir: 'abrirRevision()', b: 'Revisar' }
   ] };
 }
-function mananaBotonHtml() {
-  const n = mananaComprobaciones().lista.filter(x => x.n).length;
-  return `<button class="btn sm${n ? ' warn' : ''}" onclick="abrirMananaListo()" title="Lo que falta por dejar resuelto para el próximo día laborable">Mañana listo${n ? ' · faltan ' + n : ' ✓'}</button>`;
-}
 function abrirMananaListo() {
   const c = mananaComprobaciones(), faltan = c.lista.filter(x => x.n).length, m = document.getElementById('modal');
   const fila = x => `<div class="ml-it ${x.n ? 'mal' : 'ok'}"><div><b class="n">${x.n || ico('ok')}</b><span>${esc(x.t)}</span><span class="spacer"></span>${x.n && x.ir ? `<button class="btn sm" onclick="${x.ir}">${x.b}</button>` : ''}</div>
@@ -147,13 +139,6 @@ function abrirMananaListo() {
 }
 
 // Entradas del menú «Más» de Mi día
-function masDiaHtml() {
-  return '<button onclick="abrirPropuesta()" title="Reparte lo pendiente de asignar de tu zona">Propuesta del día</button><button onclick="abrirMananaListo()">Mañana listo</button>';
-}
-document.addEventListener('click', e => {
-  const dentro = e.target.closest && e.target.closest('.mas-lista button');
-  document.querySelectorAll('details.mas[open]').forEach(d => { if (dentro || !d.contains(e.target)) d.open = false; });
-});
 
 // ---- Confirmar la visita a la tienda (plantilla en Ajustes › WhatsApp) ----
 const CONFIRMA_DEF = 'Buenos días:\n\nLes confirmamos la visita de nuestro técnico {tecnico} el {fecha}{franja} en {sede}, por la incidencia {num}.\n\nUn saludo.';

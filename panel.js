@@ -726,17 +726,8 @@ function lineaTiempoHtml() {
   </div>`;
 }
 
-// ===== Secciones adicionales de Mi día =====
-function seccionesExtra() {
-  const fM = ddmmyyyy(nextWorkday()), cM = conflictos(fM);
-  return `<section class="dsec" id="secConf">
-      <div class="dsh"><h2>Conflictos</h2><small>${esc(diaLargo(nextWorkday()))} · ${cM.length}</small></div>
-      ${cM.length ? `<ul class="tlist">${cM.map(c => `<li class="due" data-key="${esc(c.keys[0])}"><b class="mono">${esc(c.op)}</b><span class="tx">${esc(c.texto)}</span><span class="ex">${esc(c.tipo === 'solape' ? 'solape' : c.tipo === 'gls' ? 'GLS' : 'carga')}</span></li>`).join('')}</ul>` : '<div class="dempty">Sin solapes, sobrecargas ni choques con la recogida en GLS.</div>'}
-    </section>`;
-}
-
 // ===== Secciones plegables de Mi día =====
-const PLIEGUE_DEF = { secNov: false, secTL: false, secSedes: false };   // abiertas por defecto; el resto, plegadas
+const PLIEGUE_DEF = { secNov: false };   // abiertas por defecto; el resto (tareas y Hoy en directo), plegadas
 function plegada(id) { return id in pliegues ? pliegues[id] : !(id in PLIEGUE_DEF); }
 function aplicarPliegues(root) {
   root.querySelectorAll('.dsec[id]').forEach(s => {
