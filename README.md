@@ -84,6 +84,7 @@ Un bloque por técnico, agrupados por zona:
 - **Filtros:** por zona, DSP, estado, «caducan en 24 h o vencidas» y texto. Los filtros se pueden guardar.
 - **🔁 Reincidencia:** el mismo equipo vuelve a fallar en 10 días, abierto o ya cerrado. El equipo se reconoce por el IT de la balanza, el elemento de ATGO o «caja N» con su aparato.
 - **Cerradas · últimos 15 días** en cada técnico.
+- **Seleccionar** (con ATGO conectado): marca varias incidencias pulsando la línea, por estado («Marcar todas») o todas las de un técnico, y abajo elige otro técnico y, si quieres, otra fecha de visita (vacía = cada una conserva la suya). Pide confirmación y comprueba cada ficha.
 
 ### Planificación
 La semana por técnico y día (cada zona se pliega pulsando su nombre; los iconos de arriba pliegan o despliegan todas, y plegada muestra el total por día), con número de visitas, **carga en horas** (verde, ámbar o rojo) y ⚠ cuando hay conflicto. Respeta los festivos.

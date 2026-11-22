@@ -3,13 +3,13 @@
 // asistente de inicio, diagnóstico, resumen matinal, aviso de técnico sin actividad y exportar a Excel.
 // Usa utilidades de app.js, dia.js, herramientas.js, edicion.js y panel.js solo en tiempo de llamada.
 
-const APP_VERSION = '1.39.2';   // súbela a la vez que VERSION en sw.js
+const APP_VERSION = '1.40.0';   // súbela a la vez que VERSION en sw.js
 const NOVEDADES = [
+  { v: '1.40.0', f: '2026-11-22', l: ['Incidencias: «Seleccionar» en cada técnico para marcar varias (una a una, por estado o todas) y reasignarlas de una vez a otro técnico o a otra fecha.'] },
   { v: '1.39.2', f: '2026-11-19', l: ['Las horas del hilo de ATGO (comentarios, inicios, cierres) ya no salen 1 hora más tarde. Recarga la pestaña de ATGO cuando Despacho lo pida.'] },
   { v: '1.39.1', f: '2026-11-17', l: ['Sin asignar: el técnico recomendado ya no se corta («★ LEOC · misma sede»).'] },
   { v: '1.39.0', f: '2026-11-17', l: ['Sin asignar: si otra incidencia de la misma sede ya tiene visita, el aviso muestra el técnico y el día (por ejemplo «DSG · vie 20/11»). Con un clic pone ese técnico y esa fecha; al confirmar avisa si eliges otro día.'] },
   { v: '1.38.2', f: '2026-11-08', l: ['La página y el código llegan siempre juntos, de la misma versión. Nueva incidencia hace menos consultas a ATGO y le da más tiempo si va lento.'] },
-  { v: '1.38.1', f: '2026-11-08', l: ['El botón «Actualizar» ya no se queda sin hacer nada: si la actualización normal no termina en unos segundos, hace una completa, como Ctrl+F5.'] },
 ];
 // Resumen de lo más importante de las versiones anteriores a las 5 últimas (se ve en ⓘ › Anteriores)
 const ANTERIORES = [
@@ -49,7 +49,7 @@ const ANTERIORES = [
   'Nueva incidencia: Sede y Proyecto solo con lo del cliente',
   'Botones fijos arriba, informes de Control y primera visita resuelta'
 ];
-const NOV_VISIBLES = 5, ANTERIORES_HASTA = '1.38.0';   // al añadir una versión, quita la más antigua de NOVEDADES y resúmela aquí si importa
+const NOV_VISIBLES = 5, ANTERIORES_HASTA = '1.38.1';   // al añadir una versión, quita la más antigua de NOVEDADES y resúmela aquí si importa
 const NOV_KEY = 'dispatcher_version_vista_v1', BIENV_KEY = 'dispatcher_bienvenida_v1', DATOS_VER_KEY = 'dispatcher_datos_version_v1';
 
 // ---- Novedades de la versión ----

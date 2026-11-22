@@ -790,6 +790,9 @@ document.getElementById('palette').addEventListener('click', e => { if (e.target
 document.getElementById('drawer').addEventListener('click', e => { if (e.target.classList.contains('dw-back')) closeTicket(); });
 // Clic en cualquier ticket (Mi día, Incidencias, Mañana) abre su ficha; los enlaces y botones siguen funcionando.
 document.querySelector('main').addEventListener('click', e => {
+  // Incidencias con «Seleccionar» activo: pulsar una línea (o su casilla) la marca o desmarca
+  const sl = incSel && !e.target.closest('a,button,select,label') && e.target.closest('#groupsPanel [data-key]');
+  if (sl){ e.preventDefault(); incSelToggle(sl.dataset.key); return; }
   if (e.target.closest('a,button,input,label,select,textarea')) {
     const t = e.target.closest('button[data-go]'); if (!t) return;
   }

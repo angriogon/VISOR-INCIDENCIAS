@@ -601,6 +601,7 @@ function render(){
   if (!ops.length){ panel.innerHTML = `<div class="empty"><h2>Nada con este filtro</h2>${filtroActivo() || zonaSel ? `<div class="acts" style="justify-content:center;margin-top:10px"><button class="btn" onclick="filtroInc={est:'',cad:false,q:''};zonaSel=null;renderFilters();render()">Quitar filtros</button></div>` : '<div>Este perfil no tiene incidencias abiertas ahora mismo.</div>'}</div>`; return; }
 
   if (vistaTabla()){ panel.innerHTML = ausHtml + incTablaHtml(data.filter(r => ops.includes(r.operario))); ajustarTablaInc(); return; }
+  if (incSel) [...incSel].forEach(k => { const r = ticketDe(k); if (!r || esCierre(r.estado)) incSel.delete(k); });
   panel.innerHTML = ausHtml + ZONAS.map(z => {
     const zops = ops.filter(op => zonaDe(op) === z.nombre).sort((a, b) => opIndex(a) - opIndex(b));
     if (!zops.length) return '';
@@ -609,7 +610,7 @@ function render(){
       ? `<div class="zhead" style="color:var(--marca)">${esc(z.nombre)} <span>${plural(zops.reduce((s2, op) => s2 + (byOp[op] || []).length, 0), 'incidencia')} a tu nombre</span></div>`
       : `<div class="zhead">${esc(z.nombre)} <span>${zr.length ? zr.filter(x => x.st === 'd').length + '/' + plural(zr.length, 'visita') + ' hechas hoy' : 'sin visitas hoy'}</span></div>`;
     return head + zops.map(op => tecRow(op, byOp[op] || [], rutaOp[op] || [], z.dispatcher)).join('');
-  }).join('');
+  }).join('') + incSelBarHtml();
 }
 
 function tecRow(op, items, ruta, esDisp){
@@ -637,7 +638,7 @@ function tecRow(op, items, ruta, esDisp){
       <span class="chev">▾</span>
     </div>
     <div class="tg-b">
-      ${!esDisp && ruta.some(x => esPresencial(x.r) && !x.salio) ? `<div class="tg-acts"><button class="btn sm" onclick="abrirRuta('${jsq(op)}', todayStr())" title="GLS 9:00-10:00, citas con hora en su orden, sin hora a mediodía">Ruta de hoy en Maps</button></div>` : ''}
+      ${(!esDisp && ruta.some(x => esPresencial(x.r) && !x.salio)) || (items.length && puedePlanificar()) ? `<div class="tg-acts">${!esDisp && ruta.some(x => esPresencial(x.r) && !x.salio) ? `<button class="btn sm" onclick="abrirRuta('${jsq(op)}', todayStr())" title="GLS 9:00-10:00, citas con hora en su orden, sin hora a mediodía">Ruta de hoy en Maps</button>` : ''}${items.length && puedePlanificar() ? incSelBotonesHtml(op, items) : ''}</div>` : ''}
       ${tot ? '<div class="tg-l">Hoy</div>' + sortByHora(ruta.map(x => Object.assign({}, x.r, { _x: x }))).map(r => visitaHoyHtml(r._x)).join('') : ''}
       ${resto.length ? `<div class="tg-l">${tot ? 'Resto de incidencias' : 'Incidencias'}</div>` + porEstadoHtml(resto) : ''}
       ${esDisp ? '' : cerradasHtml(op)}
@@ -649,8 +650,9 @@ function visitaHoyHtml(x){
   const r = x.r, mot = typeof motivoTexto === 'function' ? motivoTexto(tkey(r)) : '';
   const hora = (r.desdeHora || '--:--') + (r.hastaHora ? '–' + r.hastaHora : '');
   const lab = x.label || ST_LAB[x.st];
-  return `<div class="vh ln-color" data-key="${esc(tkey(r))}" style="--c:${estadoColor(r.estado)}">
-    <span class="vh-i st-${x.st}" title="${esc(ST_LAB[x.st])}">${ST_ICO[x.st]}</span>
+  const ck = incSel && !x.salio, on = ck && incSel.has(tkey(r));
+  return `<div class="vh ln-color${on ? ' sel' : ''}" data-key="${esc(tkey(r))}" style="--c:${estadoColor(r.estado)}">
+    <span class="vh-i st-${x.st}" title="${esc(ST_LAB[x.st])}">${ck ? selCkHtml(r) : ST_ICO[x.st]}</span>
     <span class="vh-h${x.late ? ' late' : ''}" title="${x.late ? 'Ya debería haber empezado' : ''}">${esc(hora)}</span>
     <span class="vh-n">${numHtml(r)}${segBadges(r)}${cadBadge(r)}${tcBadge(r)}</span>
     <span class="vh-s">${esc(r.descSede || r.domicilio || '—')}${mot ? ` · <span class="vh-m">${esc(mot.slice(0, 90))}</span>` : ''}</span>
@@ -675,7 +677,7 @@ function porEstadoHtml(lista){
   let h = '', ant = null;
   lista.forEach(r => {
     const e = r.estado || '—';
-    if (norm(e) !== ant){ ant = norm(e); h += `<div class="ln-grupo" style="--c:${estadoColor(e)}"><span>${esc(e)}</span><small>${lista.filter(x => norm(x.estado || '—') === ant).length}</small></div>`; }
+    if (norm(e) !== ant){ ant = norm(e); const g = lista.filter(x => norm(x.estado || '—') === ant); h += `<div class="ln-grupo" style="--c:${estadoColor(e)}"><span>${esc(e)}</span><small>${g.length}</small>${incSel ? incSelGrupoHtml(g) : ''}</div>`; }
     h += lineHtml(r);
   });
   return h;
@@ -697,11 +699,51 @@ function fechasHtml(r){
 }
 function lineHtml(r){
   const txt = [r.tipo, r.descSede || '—', r.referencia && 'Ref ' + r.referencia, r.descCliente, r.domicilio].filter(Boolean);
-  return `<div class="line ln-color" data-key="${esc(tkey(r))}" style="--c:${estadoColor(r.estado)}" title="${esc(txt.join(' · '))}">
-    <span class="ln-tx">${numHtml(r)}${fechasHtml(r)}${segBadges(r)}${tcBadge(r)}${reincBadge(r)}
+  const on = incSel && incSel.has(tkey(r));
+  return `<div class="line ln-color${on ? ' sel' : ''}" data-key="${esc(tkey(r))}" style="--c:${estadoColor(r.estado)}" title="${esc(txt.join(' · '))}">
+    <span class="ln-tx">${incSel ? selCkHtml(r) : ''}${numHtml(r)}${fechasHtml(r)}${segBadges(r)}${tcBadge(r)}${reincBadge(r)}
     <span class="ln-d">${esc(txt.join(' · '))}</span></span>
     <span class="ln-end">${estadoPill(r.estado || '—')}</span>
   </div>`;
+}
+
+// ===== Incidencias: marcar varias y reasignarlas de una vez (técnico y, si se quiere, fecha) =====
+// incSel = null: modo apagado. Con el modo activo, pulsar una línea la marca en vez de abrir la ficha (dia.js).
+let incSel = null, incSelOp = '', incSelFecha = '';
+const selCkHtml = r => `<input type="checkbox" class="sel-ck"${incSel.has(tkey(r)) ? ' checked' : ''} aria-label="Marcar Nº ${esc(r.num || '')}">`;
+const incSelLibres = l => l.filter(r => !esCierre(r.estado)).map(tkey);
+function incSelBotonesHtml(op, items){
+  if (!incSel) return `<button class="btn sm" onclick="incSelModo(true)" title="Marca varias incidencias para pasarlas a otro técnico o a otra fecha">Seleccionar</button>`;
+  const ks = incSelLibres(items), todas = ks.length && ks.every(k => incSel.has(k));
+  return `<button class="btn sm" onclick="incSelMarcar(${esc(JSON.stringify(ks))}, ${!todas})">${todas ? 'Desmarcar' : 'Marcar'} ${ks.length === 1 ? 'la' : 'las ' + ks.length} de ${esc(op)}</button>`;
+}
+function incSelGrupoHtml(g){
+  const ks = incSelLibres(g); if (!ks.length) return '';
+  const todas = ks.every(k => incSel.has(k));
+  return `<button class="sel-g" onclick="incSelMarcar(${esc(JSON.stringify(ks))}, ${!todas})">${todas ? 'Desmarcar' : 'Marcar'} todas</button>`;
+}
+function incSelModo(on){ incSel = on ? new Set() : null; render(); }
+function incSelMarcar(ks, on){ if (!incSel) return; ks.forEach(k => on ? incSel.add(k) : incSel.delete(k)); render(); }
+function incSelToggle(k){ const r = ticketDe(k); if (!incSel || !r || esCierre(r.estado)) return; incSel.has(k) ? incSel.delete(k) : incSel.add(k); render(); }
+function incSelBarHtml(){
+  if (!incSel) return '';
+  const n = incSel.size;
+  return `<div class="inc-selsp"></div><div class="inc-selbar" role="region" aria-label="Reasignar las marcadas"><b>${n ? plural(n, 'marcada') : 'Marca las incidencias que quieras reasignar'}</b>
+    ${n ? `<label>Pasar a <select id="incSelOp" onchange="incSelOp=this.value">${opcionesTecnico([], incSelOp, 'el mismo técnico')}</select></label>
+    <label>Visita <input type="date" id="incSelFecha" value="${esc(incSelFecha)}" onchange="incSelFecha=this.value" title="Vacía: cada una conserva su fecha"></label>
+    <button class="btn sm pri" onclick="incSelAsignar()">Reasignar</button><button class="btn sm ghost" onclick="incSelMarcar([...incSel], false)">Desmarcar</button>` : ''}
+    <button class="btn sm ghost" onclick="incSelModo(false)">Terminar</button></div>`;
+}
+async function incSelAsignar(){
+  if (!incSel || !incSel.size) return;
+  const op = incSelOp, f = incSelFecha;
+  if (!op && !f){ toast('Elige el técnico nuevo o una fecha de visita'); return; }
+  if (!puedePlanificar()){ toast('Para reasignar, abre ATGO y espera a que conecte'); return; }
+  const items = [...incSel].map(k => ({ r: ticketDe(k), key: k })).filter(x => x.r && ((op && op !== cleanInitials(x.r.operario)) || (f && f.split('-').reverse().join('/') !== x.r.fVisita)))
+    .map(x => ({ key: x.key, codOpe: op || cleanInitials(x.r.operario), ...(f ? { fechaVisita: f } : {}) }));
+  if (!items.length){ toast('Las marcadas ya tienen ese técnico y esa fecha'); return; }
+  const res = await asignarLote(items, `Reasignar ${plural(items.length, 'incidencia')}${op ? ' a ' + op : ''}${f ? ' · visita ' + f.split('-').reverse().join('/') : ''}`);
+  if (res && incSel){ res.okKeys.forEach(k => incSel.delete(k)); if (!res.mal.length){ incSel = null; incSelOp = ''; incSelFecha = ''; } render(); }
 }
 
 function plural(n, w){ return n + ' ' + w + (n === 1 ? '' : 's'); }
