@@ -115,15 +115,13 @@ async function propAplicar() {
 
 // ---- Mañana listo: lo que queda por dejar resuelto antes de terminar la jornada ----
 function mananaComprobaciones() {
-  const M = nextWorkday(), f = ddmmyyyy(M), rt = rutasResumen();
+  const M = nextWorkday(), f = ddmmyyyy(M);
   const visitas = rows.filter(r => r.fVisita === f && esPresencial(r) && TECNICOS.includes(cleanInitials(r.operario)));
   const ver = l => l.map(r => ({ k: tkey(r), t: `${String(r.num).slice(-5)} · ${cleanInitials(r.operario)} · ${r.descSede || r.descCliente || ''}` }));
-  const faltan = Math.max(0, rt.total - rt.enviadas) + (rt.cambiadas || 0);
   return { M, visitas: visitas.length, lista: [
     { n: sinListas().mias.length, t: 'Sin asignar en tu zona', ir: "cerrarModal();showTab('sin')", b: 'Ver' },
     { n: visitas.filter(r => noDisponible(cleanInitials(r.operario), M)).length, t: 'Visitas de técnicos no disponibles', l: ver(visitas.filter(r => noDisponible(cleanInitials(r.operario), M))) },
     { n: visitas.filter(r => visitaTrasCaducar(r)).length, t: 'Visitas posteriores a su caducidad', l: ver(visitas.filter(r => visitaTrasCaducar(r))) },
-    { n: faltan, t: 'Rutas sin enviar o cambiadas tras enviar', ir: "cerrarModal();showTab('man')", b: 'Ver rutas' },
     { n: sinCerrarHoy().length, t: 'Visitas de hoy sin cerrar', ir: 'abrirSinCerrar()', b: 'Ver' },
     { n: revisionPendientes().length, t: 'Visitas de días anteriores sin revisar', ir: 'abrirRevision()', b: 'Revisar' }
   ] };

@@ -216,13 +216,6 @@ function revisarRutasEnviadas(out, now) {
   });
   lsSet(ENV_KEY, envios);
 }
-function rutasResumen() {
-  const f = ddmmyyyy(nextWorkday());
-  const ops = [...new Set(rows.filter(r => esPresencial(r) && r.fVisita === f && TECNICOS.includes(cleanInitials(r.operario))).map(r => r.operario))];
-  let enviadas = 0, cambiadas = 0;
-  ops.forEach(op => { const s = estadoEnvio(op, f); if (s) { enviadas++; if (s.cambiada) cambiadas++; } });
-  return { total: ops.length, enviadas, cambiadas };
-}
 
 // ===== 3 y 4. Sin planificar y parados =====
 function sinPlanificar() {
@@ -705,19 +698,17 @@ function renderDia(force) {
     return;
   }
   const nv = noVistos(), mio = rows.filter(r => esMio(r.operario));
-  const rt = rutasResumen(), M = nextWorkday(), tarde = ahora.getHours() >= 15;
+  const M = nextWorkday();
   const evHoy = eventos.filter(e => isoHoy(new Date(e.ts)) === isoHoy()).length;
   const mat = material(), cads = caducidadesProximas(), sin = sinListas().mias.length;
   const cadV = cads.filter(x => cadNivel(x.c) === 'venc').length, cadU = cads.filter(x => cadNivel(x.c) === 'urg').length;
   const confSedes = conflictosSede(), confSedesDia = confSedes.filter(c => c.mismoDia.length).length, cM = conflictos(ddmmyyyy(M));
   // Lo pendiente, de más a menos urgente: solo sale lo que tiene algo. n: 'alta' (rojo), 'media' (ámbar), 'baja' (gris)
   // Con «id» es plegable y lleva su lista; con «go» o «fn» lleva a otra vista.
-  const faltan = rt.total - rt.enviadas;
   const tareas = [
     cads.length && { id: 'tCad', n: cadV + cadU ? 'alta' : 'media', c: cads.length, t: 'Caducidades', s: [cadV && plural(cadV, 'vencida'), cadU && cadU + ' en 24 h', cads.length - cadV - cadU && (cads.length - cadV - cadU) + ' en 48 h'].filter(Boolean).join(' · '),
       b: `<ul class="tlist">${cads.slice(0, 25).map(x => ticketLi(x.r, cadBadge(x.r), cadNivel(x.c) === 'venc' || cadNivel(x.c) === 'urg' ? 'due' : '')).join('')}${cads.length > 25 ? `<li class="more">y ${cads.length - 25} más…</li>` : ''}</ul>` },
     sin && { go: 'sin', n: 'alta', c: sin, t: 'Sin asignar', s: 'en tu zona', ir: 'Asignar' },
-    (faltan > 0 || rt.cambiadas) && { go: 'man', n: rt.cambiadas || tarde ? 'alta' : 'media', c: rt.cambiadas || faltan, t: rt.cambiadas ? `Rutas del ${DIAS[M.getDay()]} cambiadas` : `Rutas del ${DIAS[M.getDay()]} sin enviar`, s: rt.cambiadas ? 'después de enviarlas' : `${rt.enviadas} de ${rt.total} enviadas`, ir: 'Enviar' },
     confSedes.length && { id: 'tSedes', n: confSedesDia ? 'alta' : 'media', c: confSedes.length, t: 'Sedes con 2 técnicos', s: confSedesDia ? confSedesDia + ' el mismo día' : 'en días distintos', b: conflictosSedeHtml(confSedes) },
     cM.length && { id: 'tConf', n: 'media', c: cM.length, t: 'Conflictos del ' + DIAS[M.getDay()], s: 'solapes, sobrecargas o GLS', b: conflictosHtml(cM) },
     (mat.listos.length || mat.enMaterial.length) && { id: 'tMat', n: mat.listos.length ? 'media' : 'baja', c: mat.listos.length || mat.enMaterial.length, t: mat.listos.length ? 'Material movido' : 'Pendiente de mover material', s: mat.listos.length ? 'listas para visita' + (mat.enMaterial.length ? ` · ${mat.enMaterial.length} esperando material` : '') : 'en PTE. MOVER MATERIAL', b: materialDiaHtml(mat) },
@@ -730,7 +721,7 @@ function renderDia(force) {
   root.innerHTML = `<div class="dia-wrap">
     <div class="dia-top"><h1>${esc(fecha)}</h1><span class="dia-res${urg ? ' urg' : tareas.length ? '' : ' ok'}">${tareas.length ? '' : ico('ok') + ' '}${esc(resumen)}</span></div>
     ${herramientasDiaHtml()}
-    <div class="tareas">${tareas.length ? tareas.map(tareaHtml).join('') : `<div class="tarea-ok">${ico('ok')} Nada pendiente: sin caducidades, sin asignar ni rutas por enviar.</div>`}</div>
+    <div class="tareas">${tareas.length ? tareas.map(tareaHtml).join('') : `<div class="tarea-ok">${ico('ok')} Nada pendiente: sin caducidades ni incidencias sin asignar.</div>`}</div>
     <h3 class="dia-tit">Seguimiento</h3>
     <section class="dsec" id="secNov">
       <div class="dsh"><h2>Novedades</h2><small>${nv.length ? `<b class="dia-nv">${nv.length} sin ver</b> · ` : ''}${evHoy} hoy</small>

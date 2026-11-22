@@ -60,7 +60,7 @@ Arriba, la fecha y cuántas cosas quedan pendientes (y cuántas urgentes).
 
 **Pendiente:** solo sale lo que tiene algo, de más a menos urgente (rojo, ámbar, gris). Las que tienen lista se despliegan al pulsarlas; las demás llevan a donde se resuelven:
 - Caducidades vencidas y de las próximas 48 h.
-- Sin asignar de tu zona (→ Sin asignar) y rutas del próximo laborable sin enviar o cambiadas tras enviar (→ Planificación).
+- Sin asignar de tu zona (→ Sin asignar). Las rutas no hace falta enviarlas: los técnicos las ven en ATGO desde el móvil (el WhatsApp de Planificación sigue disponible si quieres mandarla).
 - **Sedes con 2 técnicos:** una misma sede o dirección con incidencias en PRESENCIAL de dos técnicos distintos; las del mismo día, primero.
 - Conflictos del próximo laborable (dos citas a la misma hora en la misma sede no cuentan como solape).
 - Material movido (listas para visita) o pendiente de mover.
