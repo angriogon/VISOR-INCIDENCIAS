@@ -3,13 +3,13 @@
 // asistente de inicio, diagnóstico, resumen matinal, aviso de técnico sin actividad y exportar a Excel.
 // Usa utilidades de app.js, dia.js, herramientas.js, edicion.js y panel.js solo en tiempo de llamada.
 
-const APP_VERSION = '1.42.2';   // súbela a la vez que VERSION en sw.js
+const APP_VERSION = '1.42.3';   // súbela a la vez que VERSION en sw.js
 const NOVEDADES = [
+  { v: '1.42.3', f: '2026-11-23', l: ['Quitar la fecha de visita: tercer intento, con la fecha vacía (ATGO rechazaba la forma de la 1.42.2 sin cambiar nada). Recarga la pestaña de ATGO cuando Despacho lo pida.'] },
   { v: '1.42.2', f: '2026-11-23', l: ['Quitar la fecha de visita: segundo intento, ahora se le pide a ATGO de forma explícita (en la 1.42.1 la ignoraba). Recarga la pestaña de ATGO cuando Despacho lo pida.'] },
   { v: '1.42.1', f: '2026-11-23', l: ['Ficha › Planificar en ATGO: ya puedes quitar la fecha de visita. Bórrala y pulsa «Guardar en ATGO»: la incidencia se queda con su técnico, sin día y sin horas. «Deshacer» también devuelve una incidencia a «sin fecha». Recarga la pestaña de ATGO cuando Despacho lo pida.'] },
   { v: '1.42.0', f: '2026-11-23', l: ['Diseño nuevo (prueba), en ⚙ › Apariencia: menú lateral con las secciones y las herramientas, tonos claros, Mi día en dos columnas (Pendiente y Seguimiento) e Incidencias con cada línea sombreada del color de su estado. Desmarcándolo vuelve el diseño de siempre.'] },
   { v: '1.41.1', f: '2026-11-22', l: ['Las rutas ya no hay que enviarlas por WhatsApp (los técnicos las ven en ATGO): Mi día y Mañana listo dejan de pedirlo. El envío sigue en Planificación por si lo quieres usar.'] },
-  { v: '1.40.0', f: '2026-11-22', l: ['Incidencias: «Seleccionar» en cada técnico para marcar varias (una a una, por estado o todas) y reasignarlas de una vez a otro técnico o a otra fecha.'] },
 ];
 // Resumen de lo más importante de las versiones anteriores a las 5 últimas (se ve en ⓘ › Anteriores)
 const ANTERIORES = [
