@@ -4,13 +4,14 @@ Archivo de traspaso entre sesiones. Al empezar una sesión: «lee docs/ESTADO.md
 Máximo ~40 líneas: lo antiguo se resume o se borra (el detalle está en git y en `NOVEDADES` de `ajustes.js`).
 
 ## Versión actual
-- `sw.js` despacho-v1.42.4 = `APP_VERSION` (ajustes.js). `SYNC_VERSION` 1.42.4 (atgo-sync.js = app.js). Extensión 2.3.0: descarga la sincronización firmada (`tools/firmar-sync.mjs`; clave en `%USERPROFILE%\.despacho`, si se pierde hay que generar otra y reinstalar).
+- `sw.js` despacho-v1.42.5 = `APP_VERSION` (ajustes.js). `SYNC_VERSION` 1.42.4 (atgo-sync.js = app.js). App Android 1.1.0 (logo nuevo). Extensión 2.3.0: descarga la sincronización firmada (`tools/firmar-sync.mjs`; clave en `%USERPROFILE%\.despacho`, si se pierde hay que generar otra y reinstalar).
 - 1.35.0 (auditoría, lotes 1–5 y mejoras sin API; publicada el 2026-11-08): ver NOVEDADES. Nuevo `prioridades.js`.
   Control: `ctlPorDsp`, `CTL_EDADES`, vistas pron/esta, `revisarInformeAuto`. Nómina: `hab` y `vac[].p` ('m'/'t'). Incidencias: `tecCfg.vistaInc`.
   CSS: limpieza comprobada sin diferencias en 83.224 elementos; después, contraste AA y letra mínima de 11 px.
 - Publicación: `.github/workflows/pruebas.yml` publica solo si pasan las pruebas. Pages ya usa «GitHub Actions» como fuente.
 
 - Desarrollo en el servidor Ubuntu (`automation`, 2026-11-17): repo, claves en `~/.despacho` (comprobadas con las firmas publicadas), gh, Docker y Claude siempre abierto (`tools/sesion-permanente.sh`). Ya no hace falta el TL021A. Prueba de arranque: `NAVEGADOR=chromium` (docs/servidor-ubuntu.md).
+- 1.42.5: logo nuevo (ruta → pin con ✓; PWA y app Android 1.1.0, APK en ../app-despacho). Ficha: comentario + estado en un solo envío (`actuarAtgo`) y «Mover también otras de…» en Planificar (`asExtra`, va por `asignarLote`).
 - 1.42.1–1.42.4: quitar la fecha de visita NO es posible en ATGO (ni desde su web, comprobado por el usuario el 23/11): sin parámetro y con `fechaVisita=` vacío la conserva; con `null` da 400. En la 1.42.4 se deshizo el intento y `asignarAtgo` avisa si se borra la fecha.
 - 1.42.0: «Diseño nuevo (prueba)» (`tecCfg.disenoNuevo`, ⚙ › Apariencia; `disenoNuevo`/`dnMenu` en ajustes.js): clase `html.dn`, mueve `.tabs` a un menú lateral `#dnSide` y lo devuelve al quitarlo; todo el CSS al final de styles.css. Mi día con columnas `.dia-ca`/`.dia-cb` (`display:contents` en el diseño de siempre). Maqueta aprobada: https://claude.ai/artifact/C9ZctgUJLWb5iYLz3HzcuW. Falta que el usuario lo pruebe con datos reales antes de hacerlo el diseño por defecto.
 - 1.41.0: Mi día como lista de tareas (`tareaHtml`, ids `tCad`/`tSedes`/`tConf`/`tMat`, plegadas por defecto) y herramientas con icono (`herramientasDiaHtml`, dia.js). Sin tarjetas ni menú «Más». 1.41.1: las rutas ya no cuentan como pendiente (los técnicos las ven en ATGO); el envío por WhatsApp sigue en Planificación.

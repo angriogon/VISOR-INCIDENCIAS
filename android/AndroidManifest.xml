@@ -3,8 +3,8 @@
      La versión de la app solo cambia si cambia la propia app; Despacho móvil se actualiza solo (movil.js firmado). -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="es.despacho.movil"
-    android:versionCode="1"
-    android:versionName="1.0.0">
+    android:versionCode="2"
+    android:versionName="1.1.0">
 
     <uses-permission android:name="android.permission.INTERNET" />
 

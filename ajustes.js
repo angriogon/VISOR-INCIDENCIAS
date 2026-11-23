@@ -3,13 +3,13 @@
 // asistente de inicio, diagnóstico, resumen matinal, aviso de técnico sin actividad y exportar a Excel.
 // Usa utilidades de app.js, dia.js, herramientas.js, edicion.js y panel.js solo en tiempo de llamada.
 
-const APP_VERSION = '1.42.4';   // súbela a la vez que VERSION en sw.js
+const APP_VERSION = '1.42.5';   // súbela a la vez que VERSION en sw.js
 const NOVEDADES = [
+  { v: '1.42.5', f: '2026-11-23', l: ['Ficha › Actuar: comentario y estado se envían juntos con un solo «Enviar a ATGO» (primero el comentario y, si sale bien, el estado).', 'Ficha › Planificar: «Mover también otras de…» marca otras incidencias del mismo técnico (las de la misma sede, primero) y las pasa con esta al nuevo técnico o fecha.', 'Logo nuevo: una ruta que llega a un pin con el visto bueno, en la app de Windows, la pestaña del navegador y la app Android (1.1.0, hay que reinstalarla).'] },
   { v: '1.42.4', f: '2026-11-23', l: ['Quitar la fecha de visita no es posible: ATGO la conserva aunque diga que ha guardado, también desde su propia web. Si la borras en la ficha, Despacho te lo avisa y la deja como estaba. Recarga la pestaña de ATGO cuando Despacho lo pida.'] },
   { v: '1.42.0', f: '2026-11-23', l: ['Diseño nuevo (prueba), en ⚙ › Apariencia: menú lateral con las secciones y las herramientas, tonos claros, Mi día en dos columnas (Pendiente y Seguimiento) e Incidencias con cada línea sombreada del color de su estado. Desmarcándolo vuelve el diseño de siempre.'] },
   { v: '1.41.1', f: '2026-11-22', l: ['Las rutas ya no hay que enviarlas por WhatsApp (los técnicos las ven en ATGO): Mi día y Mañana listo dejan de pedirlo. El envío sigue en Planificación por si lo quieres usar.'] },
   { v: '1.41.0', f: '2026-11-22', l: ['Mi día más sencillo: arriba las herramientas como botones con icono y contador (en rojo si tienen algo pendiente) y debajo solo lo pendiente, de más a menos urgente. Cada línea se despliega o lleva a donde se resuelve. Novedades y Hoy en directo, al final.'] },
-  { v: '1.40.0', f: '2026-11-22', l: ['Incidencias: «Seleccionar» en cada técnico para marcar varias (una a una, por estado o todas) y reasignarlas de una vez a otro técnico o a otra fecha.'] },
 ];
 // Resumen de lo más importante de las versiones anteriores a las 5 últimas (se ve en ⓘ › Anteriores)
 const ANTERIORES = [
@@ -48,9 +48,10 @@ const ANTERIORES = [
   'Sincronización con ATGO firmada que se actualiza sola',
   'Nueva incidencia: Sede y Proyecto solo con lo del cliente',
   'Botones fijos arriba, informes de Control y primera visita resuelta',
-  'Horas del hilo de ATGO sin la hora de más'
+  'Horas del hilo de ATGO sin la hora de más',
+  'Incidencias: seleccionar varias y reasignarlas de una vez'
 ];
-const NOV_VISIBLES = 5, ANTERIORES_HASTA = '1.39.2';   // al añadir una versión, quita la más antigua de NOVEDADES y resúmela aquí si importa
+const NOV_VISIBLES = 5, ANTERIORES_HASTA = '1.40.0';   // al añadir una versión, quita la más antigua de NOVEDADES y resúmela aquí si importa
 const NOV_KEY = 'dispatcher_version_vista_v1', BIENV_KEY = 'dispatcher_bienvenida_v1', DATOS_VER_KEY = 'dispatcher_datos_version_v1';
 
 // ---- Novedades de la versión ----

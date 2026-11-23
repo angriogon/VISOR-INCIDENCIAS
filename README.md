@@ -113,9 +113,8 @@ Incluye semáforo y carga por DSP, antigüedad de lo abierto (pulsa una barra pa
 Se abre con clic en cualquier ticket y tiene tres pestañas:
 - **Resumen:** datos (con el **proyecto**) y contacto (llamar o escribir), duración estimada, caducidad (corregible a mano), motivo de apertura y último comentario, material con su seguimiento de GLS, **Esta sede** (sus otras incidencias) y tu **nota con fecha de seguimiento**.
 - **Actuar:**
-  - Comentar en el hilo, con respuestas rápidas.
-  - Cambiar estado.
-  - **Planificar en ATGO:** técnico, fecha y horas, con el técnico sugerido. ATGO no deja quitar la fecha de visita (tampoco desde su web): se puede cambiar a otro día.
+  - Comentario en el hilo (con respuestas rápidas) y nuevo estado, juntos o por separado, con un solo **Enviar a ATGO**: primero el comentario y, si sale bien, el estado.
+  - **Planificar en ATGO:** técnico, fecha y horas, con el técnico sugerido. Con **Mover también otras de…** se marcan otras incidencias abiertas del mismo técnico (las de la misma sede, primero) y pasan con esta al nuevo técnico o fecha. ATGO no deja quitar la fecha de visita (tampoco desde su web): se puede cambiar a otro día.
   - WhatsApp al técnico con plantillas.
   - El resultado de cada cambio sale arriba (✓ o ✕).
   - Tras asignar, **Deshacer** durante 10 s.
