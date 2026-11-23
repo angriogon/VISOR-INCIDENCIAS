@@ -23,7 +23,7 @@
   const TIMEOUT_MS = 120000;
   // Versión de este script: Despacho la compara con la suya (SYNC_VERSION en app.js) y avisa si esta pestaña
   // sigue con una versión antigua (hay que recargarla). Súbela cuando cambie este archivo.
-  const SYNC_VERSION = '1.42.3';
+  const SYNC_VERSION = '1.42.4';
 
   if (location.hostname !== 'atgo.tier1.es') { alert('Abre primero https://atgo.tier1.es e inicia sesión.'); return; }
 
@@ -430,8 +430,7 @@
         // está (leída justo antes) cambiando solo esos campos, y después se comprueba campo a campo.
         const camb = {};
         if (m.codOpe != null) { const op = String(m.codOpe).trim().toUpperCase(); if (!OPERARIOS.includes(op) && !permitidos.includes(op) && !(poolOps && poolOps[op])) throw new Error('técnico no válido'); camb.codOpe = op; }
-        if (m.fechaVisita === '') camb.fechaVisita = null;   // quitar la fecha: se guarda como su formulario sin fecha
-        else if (m.fechaVisita != null) { if (!/^\d{4}-\d{2}-\d{2}$/.test(m.fechaVisita)) throw new Error('fecha no válida'); camb.fechaVisita = m.fechaVisita; }
+        if (m.fechaVisita != null) { if (!/^\d{4}-\d{2}-\d{2}$/.test(m.fechaVisita)) throw new Error('fecha no válida'); camb.fechaVisita = m.fechaVisita; }
         for (const [k, n] of [['horaInicioVisita', 'horaInicio'], ['horaFinVisita', 'horaFin']]) {
           if (m[n] != null) { if (m[n] !== '' && !/^\d{2}:\d{2}$/.test(m[n])) throw new Error('hora no válida'); camb[k] = m[n] || null; }
         }
@@ -439,16 +438,13 @@
         const base = '/api/v1/atgo/incidencias/' + p + '/' + s + '/' + c;
         const leer = async () => { const r = await fetch(base, { headers: { ...H, Accept: 'application/json' } }); if (!r.ok) throw new Error('no se pudo leer la ficha (ATGO respondió ' + r.status + ')'); return r.json(); };
         const antes = await leer();
-        // Quitar la fecha: sin el parámetro ATGO conserva la que tenía y «null» lo rechaza (400), probado el 23/11; se manda vacía
-        let url = urlGuardado(antes, camb);
-        if (camb.fechaVisita === null && antes.fechaVisita) url = url.replace('&inicioVisita=', '&fechaVisita=&inicioVisita=');
-        const put = await fetch(url, { method: 'PUT', headers: H });
+        const put = await fetch(urlGuardado(antes, camb), { method: 'PUT', headers: H });
         if (!put.ok) throw new Error(await errorDe(put));
         const despues = await leer();
         const dif = compararFichas(antes, despues);
         const esperados = new Set(['codOpe', 'desOpe', 'fechaVisita', 'horaInicioVisita', 'horaFinVisita']);
         const inesperados = Object.keys(dif).filter(k => !esperados.has(k));
-        const pedidos = Object.keys(camb).filter(k => k === 'fechaVisita' ? String(despues.fechaVisita || '').slice(0, 10) !== (camb.fechaVisita || '') : String(despues[k] || '') !== String(camb[k] || ''));
+        const pedidos = Object.keys(camb).filter(k => k === 'fechaVisita' ? String(despues.fechaVisita || '').slice(0, 10) !== camb.fechaVisita : String(despues[k] || '') !== String(camb[k] || ''));
         if (inesperados.length) {
           // Algo más cambió: se restaura la ficha tal como estaba
           const rr = await fetch(urlGuardado(antes, {}), { method: 'PUT', headers: H });
