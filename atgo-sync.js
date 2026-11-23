@@ -23,7 +23,7 @@
   const TIMEOUT_MS = 120000;
   // Versión de este script: Despacho la compara con la suya (SYNC_VERSION en app.js) y avisa si esta pestaña
   // sigue con una versión antigua (hay que recargarla). Súbela cuando cambie este archivo.
-  const SYNC_VERSION = '1.42.1';
+  const SYNC_VERSION = '1.42.2';
 
   if (location.hostname !== 'atgo.tier1.es') { alert('Abre primero https://atgo.tier1.es e inicia sesión.'); return; }
 
@@ -439,7 +439,10 @@
         const base = '/api/v1/atgo/incidencias/' + p + '/' + s + '/' + c;
         const leer = async () => { const r = await fetch(base, { headers: { ...H, Accept: 'application/json' } }); if (!r.ok) throw new Error('no se pudo leer la ficha (ATGO respondió ' + r.status + ')'); return r.json(); };
         const antes = await leer();
-        const put = await fetch(urlGuardado(antes, camb), { method: 'PUT', headers: H });
+        // Quitar la fecha: sin el parámetro ATGO conserva la que tenía (probado el 23/11), así que se manda vacía de forma explícita
+        let url = urlGuardado(antes, camb);
+        if (camb.fechaVisita === null && antes.fechaVisita) url = url.replace('&inicioVisita=', '&fechaVisita=null&inicioVisita=');
+        const put = await fetch(url, { method: 'PUT', headers: H });
         if (!put.ok) throw new Error(await errorDe(put));
         const despues = await leer();
         const dif = compararFichas(antes, despues);
