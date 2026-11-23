@@ -80,11 +80,11 @@ function enviarEdicion(accion, key, datos) {
   const r0 = ticketDe(key) || {}, antes = {};
   if (accion === 'asignar' && !datos.esDeshacer && !datos.sinDeshacer) {
     if ('codOpe' in datos) antes.codOpe = cleanInitials(r0.operario);
-    if ('fechaVisita' in datos && fechaIsoDe(r0)) antes.fechaVisita = fechaIsoDe(r0);
+    if ('fechaVisita' in datos) antes.fechaVisita = fechaIsoDe(r0);   // '' = no tenía fecha: deshacer la vuelve a quitar
     if ('horaInicio' in datos || 'fechaVisita' in datos) antes.horaInicio = r0.desdeHora || '';
     if ('horaFin' in datos || 'fechaVisita' in datos) antes.horaFin = r0.hastaHora || '';
   }
-  editPend = { id, key, accion, t0: Date.now(), datos, resolve, antes, sinFechaAntes: 'fechaVisita' in datos && !fechaIsoDe(r0) };
+  editPend = { id, key, accion, t0: Date.now(), datos, resolve, antes };
   try { src.postMessage({ type: 'despacho-editar', id, key, accion, ...datos }, ATGO_ORIGIN); }
   catch (e) { editPend = null; toast('No se pudo contactar con la pestaña de ATGO'); resolve({ ok: false, error: 'sin contacto con ATGO', sinAtgo: true }); return; }
   if (fichaKey) renderFicha();
@@ -142,7 +142,7 @@ function recibirEdicion(m) {
     p.resolve(m); return;
   }
   if (!editPend || m.id !== editPend.id) return;
-  const { key, accion, datos, resolve, antes, sinFechaAntes } = editPend;
+  const { key, accion, datos, resolve, antes } = editPend;
   editPend = null;
   const r = ticketDe(key) || {};
   if (!m.ok) m = { ...m, error: errorAtgo(m.error), sinAtgo: /sesión de ATGO ha caducado/.test(errorAtgo(m.error)) };
@@ -152,7 +152,7 @@ function recibirEdicion(m) {
   if (m.ok) {
     anotarResultado(key, true, accion === 'comentario' ? 'Comentario publicado en ATGO ✓' : accion === 'asignar' ? 'Guardado en ATGO ✓ · comprobado campo a campo' : 'Estado cambiado en ATGO ✓ · ' + (m.estadoActual || ''));
     if (accion === 'comentario' && fichaKey === key) { const ta = document.getElementById('edCom'); if (ta) ta.value = ''; }
-    if (accion === 'asignar' && antes && Object.keys(antes).length) ofrecerDeshacer(key, r, antes, sinFechaAntes);
+    if (accion === 'asignar' && antes && Object.keys(antes).length) ofrecerDeshacer(key, r, antes);
   } else anotarResultado(key, false, 'No se aplicó: ' + (m.error || 'error desconocido'));
   if (fichaKey === key) { renderFicha(); verResultado(); }
   if (resolve) resolve(m);
@@ -193,9 +193,12 @@ async function asignarAtgo() {
   const h1 = document.getElementById('asH1').value, h2 = document.getElementById('asH2').value;
   const datos = {}, cambios = [];
   if (op && op !== cleanInitials(r.operario)) { datos.codOpe = op; cambios.push(['Técnico', r.operario || '—', op + (nombreDe(op) ? ' · ' + nombreDe(op) : '')]); }
+  const quitaFecha = !f && !!fechaIsoDe(r);   // fecha borrada: la incidencia se queda con su técnico y sin día (y sin horas)
   if (f && f !== fechaIsoDe(r)) { datos.fechaVisita = f; cambios.push(['Fecha de visita', r.fVisita || '—', f.split('-').reverse().join('/')]); }
-  if (h1 !== (r.desdeHora || '')) { datos.horaInicio = h1; cambios.push(['Hora desde', r.desdeHora || '—', h1 || '—']); }
-  if (h2 !== (r.hastaHora || '')) { datos.horaFin = h2; cambios.push(['Hora hasta', r.hastaHora || '—', h2 || '—']); }
+  if (quitaFecha) { datos.fechaVisita = ''; cambios.push(['Fecha de visita', r.fVisita, 'sin fecha']); }
+  const n1 = quitaFecha ? '' : h1, n2 = quitaFecha ? '' : h2;
+  if (n1 !== (r.desdeHora || '')) { datos.horaInicio = n1; cambios.push(['Hora desde', r.desdeHora || '—', n1 || '—']); }
+  if (n2 !== (r.hastaHora || '')) { datos.horaFin = n2; cambios.push(['Hora hasta', r.hastaHora || '—', n2 || '—']); }
   if (!cambios.length) { toast('No has cambiado nada'); return; }
   if (!f && !r.fVisita && (h1 || h2)) { toast('Pon también la fecha de visita'); return; }
   if (h1 && h2 && h2 <= h1) { toast('La hora "hasta" debe ser posterior a "desde"'); return; }
@@ -209,7 +212,7 @@ async function asignarAtgo() {
 // Vuelve a guardar el técnico y la fecha/horas anteriores, con la misma confirmación y comprobación.
 const DESHACER_MS = 10000;
 let deshacerT = null;
-function ofrecerDeshacer(key, r, antes, sinFechaAntes) {
+function ofrecerDeshacer(key, r, antes) {
   let bar = document.getElementById('undoBar');
   if (!bar) { bar = document.createElement('div'); bar.id = 'undoBar'; bar.className = 'undo-bar'; document.body.appendChild(bar); }
   bar.innerHTML = `<span>Asignación guardada · Nº ${esc(r.num || key)}</span><button class="btn sm" id="undoBtn">Deshacer</button><button class="iconbtn sm" onclick="this.parentNode.hidden=true" aria-label="Cerrar">✕</button>`;
@@ -218,8 +221,8 @@ function ofrecerDeshacer(key, r, antes, sinFechaAntes) {
   document.getElementById('undoBtn').onclick = async () => {
     bar.hidden = true; clearTimeout(deshacerT);
     const ok = await confirmar(`<b>Deshacer en ATGO</b><p>Nº ${esc(r.num || key)} · ${esc(r.descSede || '')}</p>
-      <table class="md-tab">${'codOpe' in antes ? `<tr><td>Técnico</td><td>vuelve a <b>${esc(antes.codOpe || '—')}</b></td></tr>` : ''}${antes.fechaVisita ? `<tr><td>Fecha de visita</td><td>vuelve al <b>${esc(antes.fechaVisita.split('-').reverse().join('/'))}</b></td></tr>` : ''}${'horaInicio' in antes ? `<tr><td>Horas</td><td><b>${esc(antes.horaInicio || '—')} – ${esc(antes.horaFin || '—')}</b></td></tr>` : ''}</table>
-      ${sinFechaAntes ? '<p class="md-warn">Antes no tenía fecha de visita: ATGO no deja quitarla desde Despacho. Quítala en ATGO si hace falta.</p>' : ''}`, 'Deshacer');
+      <table class="md-tab">${'codOpe' in antes ? `<tr><td>Técnico</td><td>vuelve a <b>${esc(antes.codOpe || '—')}</b></td></tr>` : ''}${'fechaVisita' in antes ? `<tr><td>Fecha de visita</td><td>${antes.fechaVisita ? `vuelve al <b>${esc(antes.fechaVisita.split('-').reverse().join('/'))}</b>` : 'vuelve a <b>sin fecha</b>'}</td></tr>` : ''}${'horaInicio' in antes ? `<tr><td>Horas</td><td><b>${esc(antes.horaInicio || '—')} – ${esc(antes.horaFin || '—')}</b></td></tr>` : ''}</table>
+`, 'Deshacer');
     if (ok) enviarEdicion('asignar', key, { ...antes, esDeshacer: true, resumen: 'Deshacer: ' + Object.entries(antes).map(([k, v]) => k + ' → ' + (v || '—')).join(' · ') });
   };
 }

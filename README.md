@@ -115,7 +115,7 @@ Se abre con clic en cualquier ticket y tiene tres pestañas:
 - **Actuar:**
   - Comentar en el hilo, con respuestas rápidas.
   - Cambiar estado.
-  - **Planificar en ATGO:** técnico, fecha y horas, con el técnico sugerido.
+  - **Planificar en ATGO:** técnico, fecha y horas, con el técnico sugerido. Si borras la fecha, la incidencia se queda con su técnico, sin día y sin horas.
   - WhatsApp al técnico con plantillas.
   - El resultado de cada cambio sale arriba (✓ o ✕).
   - Tras asignar, **Deshacer** durante 10 s.

@@ -23,7 +23,7 @@
   const TIMEOUT_MS = 120000;
   // Versión de este script: Despacho la compara con la suya (SYNC_VERSION en app.js) y avisa si esta pestaña
   // sigue con una versión antigua (hay que recargarla). Súbela cuando cambie este archivo.
-  const SYNC_VERSION = '1.39.2';
+  const SYNC_VERSION = '1.42.1';
 
   if (location.hostname !== 'atgo.tier1.es') { alert('Abre primero https://atgo.tier1.es e inicia sesión.'); return; }
 
@@ -430,7 +430,8 @@
         // está (leída justo antes) cambiando solo esos campos, y después se comprueba campo a campo.
         const camb = {};
         if (m.codOpe != null) { const op = String(m.codOpe).trim().toUpperCase(); if (!OPERARIOS.includes(op) && !permitidos.includes(op) && !(poolOps && poolOps[op])) throw new Error('técnico no válido'); camb.codOpe = op; }
-        if (m.fechaVisita != null) { if (!/^\d{4}-\d{2}-\d{2}$/.test(m.fechaVisita)) throw new Error('fecha no válida'); camb.fechaVisita = m.fechaVisita; }
+        if (m.fechaVisita === '') camb.fechaVisita = null;   // quitar la fecha: se guarda como su formulario sin fecha
+        else if (m.fechaVisita != null) { if (!/^\d{4}-\d{2}-\d{2}$/.test(m.fechaVisita)) throw new Error('fecha no válida'); camb.fechaVisita = m.fechaVisita; }
         for (const [k, n] of [['horaInicioVisita', 'horaInicio'], ['horaFinVisita', 'horaFin']]) {
           if (m[n] != null) { if (m[n] !== '' && !/^\d{2}:\d{2}$/.test(m[n])) throw new Error('hora no válida'); camb[k] = m[n] || null; }
         }
@@ -444,7 +445,7 @@
         const dif = compararFichas(antes, despues);
         const esperados = new Set(['codOpe', 'desOpe', 'fechaVisita', 'horaInicioVisita', 'horaFinVisita']);
         const inesperados = Object.keys(dif).filter(k => !esperados.has(k));
-        const pedidos = Object.keys(camb).filter(k => k === 'fechaVisita' ? String(despues.fechaVisita || '').slice(0, 10) !== camb.fechaVisita : String(despues[k] || '') !== String(camb[k] || ''));
+        const pedidos = Object.keys(camb).filter(k => k === 'fechaVisita' ? String(despues.fechaVisita || '').slice(0, 10) !== (camb.fechaVisita || '') : String(despues[k] || '') !== String(camb[k] || ''));
         if (inesperados.length) {
           // Algo más cambió: se restaura la ficha tal como estaba
           const rr = await fetch(urlGuardado(antes, {}), { method: 'PUT', headers: H });
