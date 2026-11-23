@@ -51,6 +51,7 @@ let novFiltro = 'nv';
 
 // Iconos de línea (mismo trazo que los de la cabecera). En textos planos (toast, title, WhatsApp) no se usan.
 const ICONOS = {
+  casa: 'M3 11l9-8 9 8M5 9.5V21h14V9.5M10 21v-6h4v6', bandeja: 'M3 13h5l2 3h4l2-3h5M5.5 5h13L21 13v6H3v-6z', lista: 'M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01',
   alerta: 'M12 3 2 20h20L12 3zM12 10v4M12 17.5v.01', pin: 'M12 21s7-6.2 7-11.5A7 7 0 0 0 5 9.5C5 14.800 12 21 12 21zM12 11.500a2 2 0 1 0 0-4 2 2 0 0 0 0 4z',
   ausente: 'M12 3a9 9 0 0 1 9 9H3a9 9 0 0 1 9-9zM12 12v7a2 2 0 0 0 4 0', repetir: 'M17 2l4 4-4 4M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4M21 13v2a3 3 0 0 1-3 3H3',
   accesible: 'M12 5.500a1.500 1.500 0 1 0 0-3 1.500 1.500 0 0 0 0 3zM5 8l7 1.500L19 8M12 9.500V14l-3 7M12 14l3 7', equipo: 'M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM2 21v-1a6 6 0 0 1 6-6h2a6 6 0 0 1 6 6v1M16 3.200a4 4 0 0 1 0 7.600M19 14.300a6 6 0 0 1 3 5.200V21',
@@ -634,6 +635,7 @@ function updateDiaBadge() {
   const b = document.getElementById('diaBadge'); if (!b) return;
   const n = noVistos().length;
   b.textContent = n > 99 ? '99+' : n; b.hidden = !n;
+  if (typeof dnMenu === 'function') dnMenu();   // diseño nuevo: números del menú lateral (ajustes.js)
 }
 let refrescoPendiente = false;
 function refreshVisible() {
@@ -661,8 +663,9 @@ function tareaHtml(x) {
   if (!x.id) return `<button class="tarea t-${x.n}" data-go="${x.go}">${cab}<span class="t-ir">${esc(x.ir)} ›</span></button>`;
   return `<section class="dsec tarea t-${x.n}" id="${x.id}"><div class="dsh">${cab}</div><div class="t-b">${x.b}</div></section>`;
 }
-function herramientasDiaHtml() {
-  if (typeof revisionPendientes !== 'function') return '';   // ajustes.js aún no ha cargado (primer pintado)
+// Herramientas del día: [icono, texto, número, aviso, acción, explicación]. Las usan Mi día y el menú del diseño nuevo (dnMenu, ajustes.js)
+function herramientasDia() {
+  if (typeof revisionPendientes !== 'function') return [];   // ajustes.js aún no ha cargado (primer pintado)
   const qh = queHacerLista(), qhU = qh.filter(x => x.peso >= 85).length, rev = revisionPendientes().length;
   const man = mananaComprobaciones().lista.filter(x => x.n).length, c = misCambios('hoy'), mal = c.filter(e => !e.ok).length;
   const sc = horaPasada(horaCierre()) && tecCfg.cierreOn !== false ? sinCerrarHoy().length : 0;
@@ -676,6 +679,10 @@ function herramientasDiaHtml() {
     ['copiar', 'Copiar resumen', '', 0, 'copiarResumenJornada()', 'Texto listo para pegar a tu responsable'],
     ['grafico', 'Informe semanal', '', 0, 'abrirInforme()', 'Informe de la semana, con histórico de 8 semanas']
   ].filter(Boolean);
+  return h;
+}
+function herramientasDiaHtml() {
+  const h = herramientasDia(); if (!h.length) return '';
   return `<nav class="herr" aria-label="Herramientas del día">${h.map(([i, l, n, aviso, fn, tit]) => `<button class="herr-b${aviso ? ' aviso' : ''}" onclick="${fn}" title="${esc(tit)}">${ico(i)}<span>${esc(l)}</span>${n !== '' && n !== 0 ? `<i>${esc(String(n))}</i>` : ''}</button>`).join('')}</nav>`;
 }
 function conflictosHtml(cM) {
@@ -719,10 +726,12 @@ function renderDia(force) {
   const feed = eventos.filter(e => novFiltro === 'nv' ? !e.visto : novFiltro === 'hoy' ? isoHoy(new Date(e.ts)) === isoHoy() : true).slice(0, 80);
   const nHoy = rutaHoy().filter(x => TECNICOS.includes(cleanInitials(x.op))).length;
   root.innerHTML = `<div class="dia-wrap">
+    <p class="dia-hola dn-solo">${ahora.getHours() < 14 ? 'Buenos días' : ahora.getHours() < 21 ? 'Buenas tardes' : 'Buenas noches'}</p>
     <div class="dia-top"><h1>${esc(fecha)}</h1><span class="dia-res${urg ? ' urg' : tareas.length ? '' : ' ok'}">${tareas.length ? '' : ico('ok') + ' '}${esc(resumen)}</span></div>
     ${herramientasDiaHtml()}
-    <div class="tareas">${tareas.length ? tareas.map(tareaHtml).join('') : `<div class="tarea-ok">${ico('ok')} Nada pendiente: sin caducidades ni incidencias sin asignar.</div>`}</div>
-    <h3 class="dia-tit">Seguimiento</h3>
+    <div class="dia-ca"><h3 class="dia-tit dn-solo">Pendiente</h3>
+    <div class="tareas">${tareas.length ? tareas.map(tareaHtml).join('') : `<div class="tarea-ok">${ico('ok')} Nada pendiente: sin caducidades ni incidencias sin asignar.</div>`}</div></div>
+    <div class="dia-cb"><h3 class="dia-tit">Seguimiento</h3>
     <section class="dsec" id="secNov">
       <div class="dsh"><h2>Novedades</h2><small>${nv.length ? `<b class="dia-nv">${nv.length} sin ver</b> · ` : ''}${evHoy} hoy</small>
         <span class="seg mini">${[['nv', 'Sin ver'], ['hoy', 'Hoy'], ['all', 'Todo']].map(([v, l]) => `<button class="segb${novFiltro === v ? ' on' : ''}" onclick="novFiltro='${v}';renderDia()">${l}</button>`).join('')}</span>
@@ -733,7 +742,7 @@ function renderDia(force) {
           <span class="x tipo-${e.tipo}">${esc(evTexto(e))}</span></li>`).join('')}</ul>`
         : `<div class="dempty">${segSnap.start ? (novFiltro === 'nv' ? 'Todo visto. Despacho compara cada actualización de ATGO y te muestra aquí lo que cambie.' : 'Sin cambios en este periodo.') : 'Empezará a detectar cambios en la próxima actualización de ATGO.'}</div>`}
     </section>
-    <section class="dsec" id="secTL"><div class="dsh"><h2>Hoy en directo</h2><small>${nHoy ? plural(nHoy, 'visita') + ' · hora prevista y real' : 'sin visitas enrutadas'}</small></div>${lineaTiempoHtml()}</section>
+    <section class="dsec" id="secTL"><div class="dsh"><h2>Hoy en directo</h2><small>${nHoy ? plural(nHoy, 'visita') + ' · hora prevista y real' : 'sin visitas enrutadas'}</small></div>${lineaTiempoHtml()}</section></div>
   </div>`;
   aplicarPliegues(root);
 }

@@ -1105,3 +1105,94 @@ button.sg-zona .pl-chev{font-size:13px;width:14px;color:var(--ink-dim)}
 /* Confirmar visita y aviso en Planificación */
 .vis-conf{border:0;background:none;padding:0;font:inherit;font-size:11px;color:var(--marca);text-decoration:underline;cursor:pointer}
 .sg-cell .cf-t{right:auto;left:1px}
+
+/* ===== Diseño nuevo (prueba): html.dn, se activa en ⚙ › Apariencia (disenoNuevo en ajustes.js) =====
+   Menú lateral con las pestañas y las herramientas, tonos claros, tarjetas redondeadas y Mi día en dos columnas.
+   En tema oscuro mandan los colores oscuros de siempre (más específicos que html.dn). */
+.dn-solo,.dn-ico,.dn-side{display:none}
+.dia-ca,.dia-cb{display:contents}
+.dn-cfg{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--line);border-radius:10px;cursor:pointer}
+.dn-cfg.on{border-color:var(--marca);background:var(--acento-suave)}
+.dn-cfg small{display:block;color:var(--ink-dim);font-size:11px;margin-top:2px}
+html.dn{--bg:#f3f5f9;--panel:#ffffff;--panel2:#f1f4f8;--line:#e4e8ef;--ink:#1b2330;--ink-dim:#4a5260;--ink-faint:#5b6472;--radius:12px;--dn-sombra:0 1px 2px rgba(20,30,50,.04),0 4px 14px rgba(20,30,50,.05)}
+html.dn .dn-solo{display:block}
+html.dn body{padding-left:244px}
+html.dn .dn-side{display:flex;flex-direction:column;gap:2px;position:fixed;z-index:6;top:0;bottom:0;left:0;width:244px;padding:18px 14px 14px;background:var(--panel);border-right:1px solid var(--line);overflow-y:auto}
+html.dn .dn-ico{display:inline-flex;width:18px;height:18px;flex-shrink:0}
+html.dn .dn-ico .ico{width:18px;height:18px}
+.dn-marca{display:flex;align-items:center;gap:10px;padding:2px 8px 16px;font-size:16px}
+.dn-logo{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:10px;background:var(--marca-fondo);color:#fff;font-weight:800}
+.dn-g{font-size:11px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:var(--ink-faint);padding:14px 10px 6px}
+html.dn .tabs{flex-direction:column;gap:2px}
+html.dn .tab,.dn-b{display:flex;align-items:center;gap:10px;width:100%;text-align:left;text-transform:none;letter-spacing:0;font:inherit;font-size:13px;font-weight:600;padding:9px 10px;border:0;border-radius:10px;background:none;color:var(--ink-dim);cursor:pointer;box-shadow:none}
+html.dn .tab:hover,.dn-b:hover{background:var(--panel2);color:var(--ink)}
+html.dn .tab.active{background:var(--acento-suave);color:var(--marca);box-shadow:none}
+html.dn .tab .tbadge{margin-left:auto}
+html.dn .tab[hidden]{display:none}
+.dn-herr{display:grid;gap:2px}
+.dn-b .dn-ico{color:var(--marca)}
+.dn-b i{margin-left:auto;font-style:normal;font-size:11px;font-weight:700;min-width:20px;padding:1px 7px;border-radius:999px;background:var(--panel2);color:var(--ink-dim);text-align:center}
+.dn-b.aviso i{background:var(--rojo);color:#fff}
+.dn-b.aviso .dn-ico{color:var(--rojo)}
+.dn-pie{margin-top:auto;padding-top:14px;display:grid;gap:8px}
+.dn-est,.dn-vis{border:1px solid var(--line);border-radius:12px;padding:10px 12px;font-size:12px;background:var(--panel2)}
+.dn-est{display:flex;align-items:center;gap:8px;font-weight:600;color:var(--ink-dim)}
+.dn-est i{width:8px;height:8px;border-radius:50%;background:var(--ink-faint)}
+.dn-est.ok{color:var(--done-tx)}
+.dn-est.ok i{background:var(--done)}
+.dn-vis{display:grid;grid-template-columns:1fr auto;gap:6px;color:var(--ink-dim)}
+.dn-vis b{color:var(--ink)}
+.dn-bar{grid-column:1/-1;height:6px;border-radius:999px;background:var(--line);overflow:hidden}
+.dn-bar i{display:block;height:100%;background:var(--marca-fondo);border-radius:999px}
+.dn-ver{font-size:11px;color:var(--ink-faint);padding:0 4px}
+/* Barra superior */
+html.dn header{background:color-mix(in srgb, var(--panel) 92%, transparent);backdrop-filter:blur(8px);padding:12px 24px;border-bottom:1px solid var(--line)}
+html.dn header .iconbtn{width:36px;height:36px;border-radius:12px;background:var(--panel)}
+html.dn header .btn{border-radius:12px}
+html.dn .plg-grupo .cab-b span{display:none}
+html.dn .herr-b{text-align:left}
+html.dn header .iconbtn[aria-label="Buscar"]{order:-1;flex:1 1 240px;max-width:420px;width:auto;justify-content:flex-start;gap:10px;padding:0 12px;color:var(--ink-faint);background:var(--panel2)}
+html.dn header .iconbtn[aria-label="Buscar"]::after{content:"Buscar ticket, sede, técnico o acción…";font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+html.dn header .sync-dot{order:-2}
+html.dn main{padding:22px 28px;gap:14px}
+/* Tarjetas */
+html.dn .tg,html.dn .dsec,html.dn .tarea,html.dn .mpanel,html.dn .tcard,html.dn .group,html.dn .kpi{border-radius:16px;box-shadow:var(--dn-sombra)}
+html.dn .tarea.dsec,html.dn .tarea{border-left-width:1px;border-left-color:var(--line);position:relative;overflow:hidden}
+html.dn .tarea::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--t)}
+html.dn .chip{border-radius:999px;background:var(--panel)}
+html.dn .chip.active{background:var(--acento-suave)}
+/* Mi día: saludo, herramientas en tarjetas y dos columnas (Pendiente · En directo) */
+html.dn .dia-wrap{max-width:1360px;grid-template-columns:minmax(0,1.45fr) minmax(320px,1fr);gap:16px 20px;align-items:start}
+html.dn .dia-hola,html.dn .dia-top,html.dn .herr{grid-column:1/-1}
+html.dn .dia-hola{margin:0 0 -12px;font-size:12px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:var(--marca)}
+html.dn .dia-top h1{font-size:30px;letter-spacing:-.5px}
+html.dn .herr{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px}
+html.dn .herr-b{padding:12px 14px;border-radius:14px;box-shadow:var(--dn-sombra);transition:transform .15s,box-shadow .15s,border-color .15s}
+html.dn .herr-b:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(20,30,50,.09)}
+html.dn .herr-b .ico{width:20px;height:20px}
+html.dn .herr-b i{margin-left:auto}
+html.dn .dia-ca,html.dn .dia-cb{display:flex;flex-direction:column;gap:10px;min-width:0}
+html.dn .dia-tit{margin:0 2px}
+html.dn #secTL{order:-1}
+html.dn .dia-cb .dia-tit{order:-2}
+html.dn #secTL{background:color-mix(in srgb, var(--acento-suave) 55%, var(--panel))}
+/* Incidencias: técnicos en tarjeta y cada línea sombreada con el color de su estado */
+html.dn #groupsPanel{gap:10px 12px}
+html.dn .tg-b{border-top:1px solid var(--line);padding:6px 10px 10px}
+html.dn .ln-grupo{border-top:0;padding:10px 6px 4px}
+html.dn .tg-b .line,html.dn .tg-b .vh{padding-left:12px}
+html.dn .tg-l,html.dn .tg-acts{padding-left:6px}
+html.dn .line.ln-color,html.dn .vh.ln-color{margin:3px 0;border-radius:10px;border-top:0;background:color-mix(in srgb, var(--c) 13%, var(--panel))}
+html.dn .line.ln-color[data-key]:hover,html.dn .vh.ln-color:hover{background:color-mix(in srgb, var(--c) 21%, var(--panel))}
+@media (max-width:900px){
+  html.dn body{padding-left:0}
+  html.dn .dn-side{position:sticky;top:0;bottom:auto;width:auto;flex-direction:row;align-items:center;padding:8px 12px;border-right:0;border-bottom:1px solid var(--line);overflow-x:auto}
+  html.dn .dn-g,html.dn .dn-herr,html.dn .dn-pie,html.dn .dn-marca b{display:none}
+  html.dn .dn-marca{padding:0 8px 0 0}
+  html.dn .tabs{flex-direction:row}
+  html.dn .tab{width:auto;white-space:nowrap}
+  html.dn header{position:static}
+  html.dn .dia-wrap{grid-template-columns:1fr}
+  html.dn header .iconbtn[aria-label="Buscar"]{width:36px;padding:0;justify-content:center}
+  html.dn header .iconbtn[aria-label="Buscar"]::after{display:none}
+}

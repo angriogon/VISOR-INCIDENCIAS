@@ -159,6 +159,7 @@ No se avisa en fines de semana ni en festivos.
   - **Color:** naranja, azul ATGO, verde, morado o grafito.
   - **Tamaño:** compacto, normal o amplio.
   - **Zoom:** del 100 al 150 %.
+  - **Diseño nuevo (prueba):** menú lateral con las secciones y las herramientas del día, tonos claros, Mi día en dos columnas e Incidencias con cada línea sombreada del color de su estado. Desmarcándolo vuelve el diseño de siempre.
 - **Accesibilidad**, en Apariencia:
   - **Modo accesible**, que activa de una vez el alto contraste, el foco visible, los botones grandes, los enlaces subrayados y quita las animaciones.
   - Cada opción se puede activar por separado. Hay además una letra de lectura fácil.

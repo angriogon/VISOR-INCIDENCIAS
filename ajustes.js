@@ -3,13 +3,13 @@
 // asistente de inicio, diagnóstico, resumen matinal, aviso de técnico sin actividad y exportar a Excel.
 // Usa utilidades de app.js, dia.js, herramientas.js, edicion.js y panel.js solo en tiempo de llamada.
 
-const APP_VERSION = '1.41.1';   // súbela a la vez que VERSION en sw.js
+const APP_VERSION = '1.42.0';   // súbela a la vez que VERSION en sw.js
 const NOVEDADES = [
+  { v: '1.42.0', f: '2026-11-23', l: ['Diseño nuevo (prueba), en ⚙ › Apariencia: menú lateral con las secciones y las herramientas, tonos claros, Mi día en dos columnas (Pendiente y Seguimiento) e Incidencias con cada línea sombreada del color de su estado. Desmarcándolo vuelve el diseño de siempre.'] },
   { v: '1.41.1', f: '2026-11-22', l: ['Las rutas ya no hay que enviarlas por WhatsApp (los técnicos las ven en ATGO): Mi día y Mañana listo dejan de pedirlo. El envío sigue en Planificación por si lo quieres usar.'] },
   { v: '1.41.0', f: '2026-11-22', l: ['Mi día más sencillo: arriba las herramientas como botones con icono y contador (en rojo si tienen algo pendiente) y debajo solo lo pendiente, de más a menos urgente. Cada línea se despliega o lleva a donde se resuelve. Novedades y Hoy en directo, al final.'] },
   { v: '1.40.0', f: '2026-11-22', l: ['Incidencias: «Seleccionar» en cada técnico para marcar varias (una a una, por estado o todas) y reasignarlas de una vez a otro técnico o a otra fecha.'] },
   { v: '1.39.2', f: '2026-11-19', l: ['Las horas del hilo de ATGO (comentarios, inicios, cierres) ya no salen 1 hora más tarde. Recarga la pestaña de ATGO cuando Despacho lo pida.'] },
-  { v: '1.39.1', f: '2026-11-17', l: ['Sin asignar: el técnico recomendado ya no se corta («★ LEOC · misma sede»).'] },
 ];
 // Resumen de lo más importante de las versiones anteriores a las 5 últimas (se ve en ⓘ › Anteriores)
 const ANTERIORES = [
@@ -49,7 +49,7 @@ const ANTERIORES = [
   'Nueva incidencia: Sede y Proyecto solo con lo del cliente',
   'Botones fijos arriba, informes de Control y primera visita resuelta'
 ];
-const NOV_VISIBLES = 5, ANTERIORES_HASTA = '1.39.0';   // al añadir una versión, quita la más antigua de NOVEDADES y resúmela aquí si importa
+const NOV_VISIBLES = 5, ANTERIORES_HASTA = '1.39.1';   // al añadir una versión, quita la más antigua de NOVEDADES y resúmela aquí si importa
 const NOV_KEY = 'dispatcher_version_vista_v1', BIENV_KEY = 'dispatcher_bienvenida_v1', DATOS_VER_KEY = 'dispatcher_datos_version_v1';
 
 // ---- Novedades de la versión ----
@@ -333,7 +333,33 @@ function aplicarApariencia() {
   ACC_OPS.forEach(([k]) => h.classList.toggle('acc-' + k, !!a[k]));
   if (a.lectura) cargarLetraLectura();
   document.body.style.zoom = (a.texto || 100) > 100 ? String(a.texto / 100) : '';
-  document.querySelectorAll('meta[name="theme-color"]').forEach(m => { const osc = t === 'auto' ? /dark/.test(m.media) : t === 'dark'; m.content = osc ? '#1b2126' : '#f7f5f0'; });   // barra de la ventana de la app
+  document.querySelectorAll('meta[name="theme-color"]').forEach(m => { const osc = t === 'auto' ? /dark/.test(m.media) : t === 'dark'; m.content = osc ? '#1b2126' : tecCfg.disenoNuevo ? '#ffffff' : '#f7f5f0'; });   // barra de la ventana de la app
+  disenoNuevo(!!tecCfg.disenoNuevo);
+}
+// ---- Diseño nuevo (prueba): menú lateral, tonos claros y Mi día en dos columnas. Todo cuelga de html.dn (styles.css) ----
+// Activarlo mueve las pestañas de la cabecera al menú lateral; desactivarlo las devuelve.
+const DN_TABS = { tabCtl: 'alerta', tabDia: 'casa', tabSin: 'bandeja', tabInc: 'lista', tabSem: 'calendario' };
+function disenoNuevo(on) {
+  const h = document.documentElement, tabs = document.querySelector('.tabs');
+  h.classList.toggle('dn', on);
+  let side = document.getElementById('dnSide');
+  if (!on) { if (side) { document.querySelector('header').prepend(tabs); side.remove(); } return; }
+  if (!side) {
+    side = document.createElement('aside'); side.id = 'dnSide'; side.className = 'dn-side'; side.setAttribute('aria-label', 'Menú');
+    side.innerHTML = `<div class="dn-marca"><span class="dn-logo">D</span><b>Despacho</b></div><div class="dn-g">Trabajo</div><div class="dn-tabs"></div><div class="dn-g">Herramientas</div><nav class="dn-herr" id="dnHerr" aria-label="Herramientas del día"></nav><div class="dn-pie" id="dnPie"></div>`;
+    document.body.prepend(side);
+    side.querySelector('.dn-tabs').appendChild(tabs);
+    Object.entries(DN_TABS).forEach(([id, i]) => { const b = document.getElementById(id); if (b && !b.querySelector('.dn-ico')) b.insertAdjacentHTML('afterbegin', `<span class="dn-ico" aria-hidden="true">${ico(i)}</span>`); });
+  }
+  dnMenu();
+}
+function dnMenu() {
+  const herr = document.getElementById('dnHerr'); if (!herr) return;
+  herr.innerHTML = herramientasDia().filter(x => x[2] !== '' && x[2] !== 0 || /Propuesta|Informe/.test(x[1])).map(([i, l, n, aviso, fn, tit]) => `<button class="dn-b${aviso ? ' aviso' : ''}" onclick="${fn}" title="${esc(tit)}"><span class="dn-ico" aria-hidden="true">${ico(i)}</span><span>${esc(l)}</span>${n !== '' && n !== 0 ? `<i>${esc(String(n))}</i>` : ''}</button>`).join('');
+  const pie = document.getElementById('dnPie'), ok = source === 'atgo' && rows.length;
+  const ru = rows.length ? rutaHoy().filter(x => TECNICOS.includes(cleanInitials(x.op))) : [];
+  const hechas = ru.filter(x => x.st === 'd' || x.st === 't').length;
+  pie.innerHTML = `<div class="dn-est${ok ? ' ok' : ''}"><i></i>${ok ? 'ATGO conectado' : rows.length ? 'Datos de Excel' : 'Sin datos de ATGO'}</div>${ru.length ? `<div class="dn-vis"><span>Visitas de hoy</span><b>${hechas} de ${ru.length}</b><span class="dn-bar"><i style="width:${Math.round(hechas * 100 / ru.length)}%"></i></span></div>` : ''}<div class="dn-ver">Despacho ${esc(APP_VERSION)}</div>`;
 }
 function setPref(k, v) { tecCfg[k] = v; if (k === 'densidad') delete tecCfg.densa; saveTec(); aplicarApariencia(); renderCfg(); }
 
@@ -404,7 +430,9 @@ function renderCfg() {
 `;
   } else if (cfgTab === 'apa') {
     const a = accCfg(), on = accActivo(), seg = (k, ops, cur) => `<span class="seg mini" role="group">${ops.map(([v, l]) => `<button class="segb${cur === v ? ' on' : ''}" aria-pressed="${cur === v}" onclick="event.stopPropagation();${k}">${l}</button>`.replace(k, k.replace('@', String(v)))).join('')}</span>`;
-    h = `<div class="cfg-h">Tema</div>
+    h = `<div class="cfg-h">Diseño</div>
+      <label class="dn-cfg${tecCfg.disenoNuevo ? ' on' : ''}"><input type="checkbox" ${tecCfg.disenoNuevo ? 'checked' : ''} onchange="setPref('disenoNuevo',this.checked)"><span><b>Diseño nuevo (prueba)</b><small>Menú lateral, tonos claros, Mi día en dos columnas y líneas de Incidencias sombreadas con el color de su estado. Se quita desmarcando esta casilla.</small></span></label>
+      <div class="cfg-h">Tema</div>
       <div class="cfg-row"><span>Claro u oscuro</span>${seg("setPref('tema','@')", [['auto', 'Como Windows'], ['light', 'Claro'], ['dark', 'Oscuro']], tecCfg.tema || 'auto')}</div>
       <div class="cfg-h">Color</div>
       <div class="acentos" role="group" aria-label="Color de la aplicación">${ACENTOS.map(([v, l, c]) => `<button class="acento-b${(tecCfg.acento || '') === v ? ' on' : ''}" aria-pressed="${(tecCfg.acento || '') === v}" onclick="event.stopPropagation();setPref('acento','${v}')"><i style="background:${c}"></i>${l}</button>`).join('')}</div>
