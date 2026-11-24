@@ -1,6 +1,6 @@
 // Service worker del Panel de Despacho.
 // Sube VERSION cada vez que publiques cambios para que la app instalada se actualice.
-const VERSION = 'despacho-v1.42.5';
+const VERSION = 'despacho-v1.42.6';
 const SHELL = [
   './',
   './index.html',

@@ -59,7 +59,7 @@ Arriba, la fecha y cuántas cosas quedan pendientes (y cuántas urgentes).
 - **Copiar resumen** del día e **Informe semanal**, con histórico de 8 semanas.
 
 **Pendiente:** solo sale lo que tiene algo, de más a menos urgente (rojo, ámbar, gris). Las que tienen lista se despliegan al pulsarlas; las demás llevan a donde se resuelven:
-- Caducidades vencidas y de las próximas 48 h.
+- Caducidades vencidas y de las próximas 48 h, solo de PRESENCIAL, PTE. MOVER MATERIAL y MATERIAL PTE. FABRICANTE (en el resto de estados la caducidad no cuenta).
 - Sin asignar de tu zona (→ Sin asignar). Las rutas no hace falta enviarlas: los técnicos las ven en ATGO desde el móvil (el WhatsApp de Planificación sigue disponible si quieres mandarla).
 - **Sedes con 2 técnicos:** una misma sede o dirección con incidencias en PRESENCIAL de dos técnicos distintos; las del mismo día, primero.
 - Conflictos del próximo laborable (dos citas a la misma hora en la misma sede no cuentan como solape).

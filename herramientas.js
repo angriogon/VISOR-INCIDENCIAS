@@ -138,15 +138,19 @@ function cadBadge(r) {
   const txt = nv === 'venc' ? 'caducada ' + cadTexto(c) : 'caduca ' + cadTexto(c);
   return `<span class="cad ${nv}" title="Caducidad (${c.src === 'manual' ? 'puesta a mano' : c.src === 'excel' ? 'del Excel' : 'del hilo'})">${ico('reloj')} ${esc(txt)}</span>`;
 }
+// Caducidades de Mi día y avisos de Windows: solo los estados en los que cuenta la caducidad
+// (FUERA DE MANTENIMIENTO, PUESTO OPERATIVO, EN FABRICANTE o ESCALADO TIER1 no se muestran)
+const ESTADOS_CADUCIDAD = ['PRESENCIAL', 'PTE. MOVER MATERIAL', 'MATERIAL PTE. FABRICANTE'];
+const cuentaCaducidad = r => ESTADOS_CADUCIDAD.some(e => norm(e) === norm(r.estado));
 function caducidadesProximas() {
   const lim = Date.now() + SLA_PRONTO_HORAS * 3600000;
-  return rows.filter(r => !esCierre(r.estado)).map(r => ({ r, c: caducidad(r) })).filter(x => x.c && x.c.ts < lim).sort((a, b) => a.c.ts - b.c.ts);
+  return rows.filter(cuentaCaducidad).map(r => ({ r, c: caducidad(r) })).filter(x => x.c && x.c.ts < lim).sort((a, b) => a.c.ts - b.c.ts);
 }
 function revisarSLA() {
   if (!avisos.sla) return;
   const lim = Date.now() + SLA_AVISO_HORAS * 3600000, list = [];
   rows.forEach(r => {
-    if (esCierre(r.estado)) return;
+    if (!cuentaCaducidad(r)) return;
     const c = caducidad(r); if (!c || c.ts > lim) return;
     const k = tkey(r); if (slaAvisados[k] === c.ts) return;
     slaAvisados[k] = c.ts;
