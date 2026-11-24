@@ -701,33 +701,8 @@ document.addEventListener('drop', e => {
   asignarLote([{ key, codOpe: op, fechaVisita: f }], `Planificar Nº ${r.num}`).then(res => { if (res) quitarDeSinAsignar(res.okKeys); });
 }, true);
 
-// ===== Línea de tiempo del día (Mi día) =====
-function lineaTiempoHtml() {
-  const ruta = rutaHoy().filter(x => TECNICOS.includes(cleanInitials(x.op)) && (!zonaSel || zonaDe(x.op) === zonaSel));
-  if (!ruta.length) return '<div class="dempty">Sin visitas enrutadas para hoy.</div>';
-  const H0 = 8 * 60, H1 = 20 * 60, pos = m => Math.max(0, Math.min(100, (m - H0) / (H1 - H0) * 100));
-  const now = new Date(), nowM = now.getHours() * 60 + now.getMinutes();
-  const byOp = {}; ruta.forEach(x => (byOp[x.op] = byOp[x.op] || []).push(x));
-  const horas = []; for (let h = 8; h <= 20; h += 2) horas.push(h);
-  return `<div class="tl">
-    <div class="tl-row tl-head"><div></div><div class="tl-axis">${horas.map(h => `<span style="left:${pos(h * 60)}%">${h}:00</span>`).join('')}</div></div>
-    ${Object.keys(byOp).sort((a, b) => opIndex(a) - opIndex(b)).map(op => `<div class="tl-row"><div class="tl-op">${esc(op)}</div><div class="tl-track">
-      ${nowM > H0 && nowM < H1 ? `<i class="tl-now" style="left:${pos(nowM)}%"></i>` : ''}
-      ${byOp[op].map(x => {
-        const r = x.r, a = r.desdeHora ? horaMin(r.desdeHora) : null;
-        if (a == null) return '';
-        const est = estimarMin(r), b = r.hastaHora ? horaMin(r.hastaHora) : est ? a + est : null;
-        if (b == null) return `<span class="tl-b st-${x.st}${x.late ? ' late' : ''} sin-dur" data-key="${esc(tkey(r))}" style="left:${pos(a)}%" title="${esc(r.desdeHora + ' · Nº ' + r.num + ' · ' + (r.descSede || '') + ' · duración sin estimar · ' + (x.label || ST_LAB[x.st]))}"></span>`;
-        const real = x.ts ? new Date(x.ts) : null, realM = real ? real.getHours() * 60 + real.getMinutes() : null;
-        return `<span class="tl-b st-${x.st}${x.late ? ' late' : ''}" data-key="${esc(tkey(r))}" style="left:${pos(a)}%;width:${Math.max(1.5, pos(b) - pos(a))}%" title="${esc(r.desdeHora + ' · Nº ' + r.num + ' · ' + (r.descSede || '') + ' · ' + (x.label || ST_LAB[x.st]))}"></span>${realM != null ? `<i class="tl-real" style="left:${pos(realM)}%" title="Real: ${esc(hhmm(x.ts))}"></i>` : ''}`;
-      }).join('')}
-      ${byOp[op].filter(x => !x.r.desdeHora).length ? `<span class="tl-sh">+${byOp[op].filter(x => !x.r.desdeHora).length} sin hora</span>` : ''}
-    </div></div>`).join('')}
-  </div>`;
-}
-
 // ===== Secciones plegables de Mi día =====
-const PLIEGUE_DEF = { secNov: false };   // abiertas por defecto; el resto (tareas y Hoy en directo), plegadas
+const PLIEGUE_DEF = { secNov: false };   // abiertas por defecto; el resto (tareas), plegadas
 function plegada(id) { return id in pliegues ? pliegues[id] : !(id in PLIEGUE_DEF); }
 function aplicarPliegues(root) {
   root.querySelectorAll('.dsec[id]').forEach(s => {

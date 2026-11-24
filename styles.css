@@ -349,21 +349,6 @@ table.inf td{padding:6px 8px;border-bottom:1px dashed var(--line)}
 .ch-h{color:var(--ink-dim)}
 .ch-h.over{color:var(--rojo);font-weight:600}
 .tc-conf{color:var(--rojo)}
-.tl{display:grid;gap:4px}
-.tl-row{display:grid;grid-template-columns:52px minmax(0,1fr);gap:6px;align-items:center}
-.tl-op{font-size:11px;font-weight:600}
-.tl-axis{position:relative;height:14px}
-.tl-axis span{position:absolute;transform:translateX(-50%);font-size:11px;color:var(--ink-faint)}
-.tl-track{position:relative;height:16px;background:var(--panel2);border-radius:4px}
-.tl-b{position:absolute;top:3px;height:10px;border-radius:3px;background:var(--line);cursor:pointer}
-.tl-b.st-d{background:var(--done)}
-.tl-b.st-t{background:var(--tra)}
-.tl-b.st-c{background:var(--cur)}
-.tl-b.st-p{background:#b9b3a6}
-.tl-b.late{background:var(--rojo-borde)}
-.tl-now{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--rojo-vivo)}
-.tl-real{position:absolute;top:-3px;width:6px;height:6px;margin-left:-3px;border-radius:50%;background:var(--ink)}
-.tl-sh{position:absolute;right:4px;top:1px;font-size:11px;color:var(--ink-faint)}
 .fr{display:flex;gap:4px;flex-wrap:wrap}
 .fr-edit{list-style:none;margin:0;padding:0;display:grid;gap:4px}
 .fr-edit li{display:flex;gap:4px}
@@ -537,7 +522,6 @@ details.ed-dif ul{margin:6px 0 0;padding-left:16px;font-size:12px;display:grid;g
 .mapa-nota .lg.gris{background:#9aa0a6}
 .mapa-nota .lg.aprox{border:2px dashed var(--ink-dim)}
 .mapa-nosit a{color:var(--marca)}
-.tl-b.sin-dur{width:5px !important;border-radius:3px}
 /* Barra para deshacer y cola de rutas */
 .undo-bar[hidden]{display:none}
 .undo-bar .iconbtn{color:var(--bg)}
@@ -1173,9 +1157,7 @@ html.dn .herr-b .ico{width:20px;height:20px}
 html.dn .herr-b i{margin-left:auto}
 html.dn .dia-ca,html.dn .dia-cb{display:flex;flex-direction:column;gap:10px;min-width:0}
 html.dn .dia-tit{margin:0 2px}
-html.dn #secTL{order:-1}
 html.dn .dia-cb .dia-tit{order:-2}
-html.dn #secTL{background:color-mix(in srgb, var(--acento-suave) 55%, var(--panel))}
 /* Incidencias: técnicos en tarjeta y cada línea sombreada con el color de su estado */
 html.dn #groupsPanel{gap:10px 12px}
 html.dn .tg-b{border-top:1px solid var(--line);padding:6px 10px 10px}

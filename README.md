@@ -66,7 +66,7 @@ Arriba, la fecha y cuántas cosas quedan pendientes (y cuántas urgentes).
 - Material movido (listas para visita) o pendiente de mover.
 - Tickets a tu nombre (→ Incidencias).
 
-**Seguimiento:** Novedades desde la última carga y **Hoy en directo** (línea de tiempo por técnico).
+**Seguimiento:** Novedades desde la última carga.
 
 ### Sin asignar
 Visitas en PRESENCIAL que siguen en un operario comodín «PENDIENTE ASIGNAR». Van ordenadas por urgencia: primero las que caducan antes y después las más antiguas.

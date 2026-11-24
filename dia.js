@@ -724,7 +724,6 @@ function renderDia(force) {
   const urg = tareas.filter(x => x.n === 'alta').length;
   const resumen = !tareas.length ? 'Todo al día' : `${plural(tareas.length, 'cosa')} pendiente${tareas.length === 1 ? '' : 's'}${urg ? ` · ${urg} urgente${urg === 1 ? '' : 's'}` : ''}`;
   const feed = eventos.filter(e => novFiltro === 'nv' ? !e.visto : novFiltro === 'hoy' ? isoHoy(new Date(e.ts)) === isoHoy() : true).slice(0, 80);
-  const nHoy = rutaHoy().filter(x => TECNICOS.includes(cleanInitials(x.op))).length;
   root.innerHTML = `<div class="dia-wrap">
     <p class="dia-hola dn-solo">${ahora.getHours() < 14 ? 'Buenos días' : ahora.getHours() < 21 ? 'Buenas tardes' : 'Buenas noches'}</p>
     <div class="dia-top"><h1>${esc(fecha)}</h1><span class="dia-res${urg ? ' urg' : tareas.length ? '' : ' ok'}">${tareas.length ? '' : ico('ok') + ' '}${esc(resumen)}</span></div>
@@ -741,8 +740,7 @@ function renderDia(force) {
           <span class="w">${e.num ? `<b class="mono">${esc(e.num)}</b> · ` : ''}${esc(e.op)}${e.sede ? ' · ' + esc(e.sede) : ''}</span>
           <span class="x tipo-${e.tipo}">${esc(evTexto(e))}</span></li>`).join('')}</ul>`
         : `<div class="dempty">${segSnap.start ? (novFiltro === 'nv' ? 'Todo visto. Despacho compara cada actualización de ATGO y te muestra aquí lo que cambie.' : 'Sin cambios en este periodo.') : 'Empezará a detectar cambios en la próxima actualización de ATGO.'}</div>`}
-    </section>
-    <section class="dsec" id="secTL"><div class="dsh"><h2>Hoy en directo</h2><small>${nHoy ? plural(nHoy, 'visita') + ' · hora prevista y real' : 'sin visitas enrutadas'}</small></div>${lineaTiempoHtml()}</section></div>
+    </section></div>
   </div>`;
   aplicarPliegues(root);
 }
