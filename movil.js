@@ -11,7 +11,7 @@
   if (prev && viva) { viva.style.display = ''; return; }
   if (prev) { try { if (typeof prev.salir === 'function') prev.salir(); } catch (e) { /* versión anterior: se sustituye igualmente */ } delete window.__despachoMovil; }
 }
-const MOVIL_VERSION = '1.6.0';
+const MOVIL_VERSION = '1.7.0';
 const EN_APP = /DespachoApp\//.test(navigator.userAgent);   // dentro de la app Android «Despacho»
 const CLAVE = 'despachoMovil_v1', PARALELO = 6, TIEMPO_MS = 40000, CADUCA_MS = 7 * 86400000, REFRESCO_MS = 10 * 60000, AL_VOLVER_MS = 2 * 60000;
 const ESTADOS_ATGO = [10, 20, 30, 40, 80, 100, 110];
@@ -271,7 +271,7 @@ async function asignar(k, camb) {
 // ---- Estado ----
 let E = { perfil: null, at: 0, tecs: {}, pool: {}, poolDesc: {}, der: {}, salidas: {}, fuera: {}, salidasDia: '', cierres: null, atTecs: 0, rapida: false };   // cierres: los del día elegido en Actividad   // tecs/pool: por operario. der: lo deducido del hilo. fuera: las de hoy que pasaron a otro estado (para Actividad)
 let cargando = false, fin = 0, total = 0, fallos = 0, sesionMala = false, aviso = '', pintaT = null;
-let tab = 'hoy', filtroInc = '', estadoInc = '', zonaInc = '', verMi = true, abiertos = {}, abiertosInc = {}, textoBus = '';
+let tab = 'hoy', filtroInc = '', estadoInc = '', zonaInc = '', verMi = true, abiertos = {}, abiertosInc = {}, selSin = null;   // selSin: Set con las marcadas en Sin asignar (null = sin seleccionar)
 function guardar() {
   try {
     localStorage.setItem(CLAVE, JSON.stringify({ ...E, ultimoUso: Date.now() }));
@@ -488,7 +488,7 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
 #bar{flex:none;height:3px;background:var(--marca);width:0;transition:width .3s}
 #av{flex:none;padding:10px 12px;background:var(--p2);font-size:14px;border-bottom:1px solid var(--line)}
 #v{flex:1;overflow:auto;padding:12px;overscroll-behavior:contain}
-nav{flex:none;display:grid;grid-template-columns:repeat(5,1fr);background:var(--panel);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0)}
+nav{flex:none;display:grid;grid-template-columns:repeat(4,1fr);background:var(--panel);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0)}
 nav button{height:56px;font-size:12px;line-height:1.15;padding:0 2px;color:var(--dim);position:relative}
 nav button.on{color:var(--marca);font-weight:700;box-shadow:inset 0 3px 0 var(--marca)}
 nav i{font-style:normal;font-size:11px;margin-left:3px}
@@ -520,7 +520,7 @@ select,input{font:inherit;color:var(--ink);background:var(--panel);border:1px so
 .sub{margin:8px 2px 6px;font-size:12px;font-weight:700;color:var(--dim)}
 .eg{display:flex;justify-content:space-between;align-items:center;margin:8px 2px 5px;padding-left:8px;border-left:3px solid var(--e);font-size:12px;font-weight:700}.eg small{color:var(--dim)}
 #fi,#me{position:absolute;inset:0;background:var(--bg);display:flex;flex-direction:column}
-#me{background:rgba(0,0,0,.45);justify-content:flex-end}
+#me{background:rgba(0,0,0,.45);justify-content:flex-end;z-index:5}
 .hoja{background:var(--panel);border-radius:16px 16px 0 0;padding:14px;display:grid;gap:8px}
 .hoja h3{margin:0;font-size:16px}.hoja .fila{height:48px;border:1px solid var(--line);border-radius:10px;width:100%}.hoja .perf{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
 .perf button{height:44px;border:1px solid var(--line);border-radius:10px}.perf button.on{border-color:var(--marca);color:var(--marca);font-weight:700}
@@ -551,6 +551,9 @@ dt{color:var(--dim);font-size:13px}dd{margin:0;overflow-wrap:anywhere}
 h2.hu{color:var(--rojo)}
 .cw{position:relative}.cw .c{padding-right:100px}
 .asg{position:absolute;top:8px;right:8px;height:44px;padding:0 12px;border:1px solid var(--marca);border-radius:10px;background:var(--panel);color:var(--marca);font-weight:700}
+.asg.mk{width:44px;padding:0;font-size:22px;border-radius:50%}.cw.sel .asg.mk{background:var(--marca);color:var(--panel)}.cw.sel .c{border-color:var(--marca);box-shadow:0 0 0 2px var(--marca)}
+.selbar{position:sticky;top:-12px;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:52px;margin:0 -12px 8px;padding:6px 12px;background:var(--panel);border-bottom:1px solid var(--line);font-weight:600}
+.selbar span{flex:1;min-width:0}.selbar .prim{height:44px;padding:0 18px;border-radius:10px;background:var(--marca);color:var(--panel);font-weight:700}
 .acc .prim{grid-column:1/-1}
 .hoja .prim{background:var(--marca);color:var(--panel);border-color:var(--marca);font-weight:700}
 .hoja{max-height:92%;overflow:auto}.lista{display:grid;gap:6px}
@@ -562,10 +565,10 @@ button:disabled{opacity:.5}
 </style>
 <div id="r"><header><h1 id="ti"></h1><div id="est" role="status"></div><button class="ib" data-a="cargar" aria-label="Actualizar">⟳</button><button class="ib" data-a="menu" aria-label="Más opciones">⋮</button></header>
 <div id="bar"></div><div id="av" hidden></div><main id="v"></main>
-<nav aria-label="Secciones"><button data-a="tab" data-v="hoy">Hoy</button><button data-a="tab" data-v="sin">Sin asignar<i id="nSin"></i><b class="bd" id="bSin" hidden></b></button><button data-a="tab" data-v="inc">Incidencias</button><button data-a="tab" data-v="act">Actividad<b class="bd" id="bAct" hidden></b></button><button data-a="tab" data-v="bus">Buscar</button></nav>
+<nav aria-label="Secciones"><button data-a="tab" data-v="hoy">Hoy</button><button data-a="tab" data-v="sin">Sin asignar<i id="nSin"></i><b class="bd" id="bSin" hidden></b></button><button data-a="tab" data-v="inc">Incidencias</button><button data-a="tab" data-v="act">Actividad<b class="bd" id="bAct" hidden></b></button></nav>
 <div id="fi" hidden></div><div id="me" hidden></div></div>`;
 const $ = id => raiz.getElementById(id);
-const TITULOS = { hoy: 'Hoy', sin: 'Sin asignar', inc: 'Incidencias', act: 'Actividad', bus: 'Buscar' };
+const TITULOS = { hoy: 'Hoy', sin: 'Sin asignar', inc: 'Incidencias', act: 'Actividad' };
 
 function tarjeta(r, extra, nueva) {
   const c = cad(r), nv = c ? cadNivel(c) : '';
@@ -594,12 +597,19 @@ function vistaHoy() {
       return `<button class="t" data-a="tec" data-v="${esc(op)}" aria-expanded="${!!ab}"><span><b>${esc(op)}</b> <small>${esc(zonaDe(op))}</small></span><em>${d}/${l.length}</em><small>${c ? c + ' en curso' : ''}${c && ret ? ' · ' : ''}${ret ? `<span class="ret">${plural(ret, 'retraso')}</span>` : ''}</small><span></span><span class="pb"><i style="width:${Math.round(d / l.length * 100)}%"></i></span></button>${ab ? l.sort((a, b) => horaMin(a.r.desdeHora) - horaMin(b.r.desdeHora)).map(x => tarjeta(x.r, x.salio ? 'Ya no está en la lista' : x.st === 'd' ? 'Finalizada' : x.st === 'c' ? 'En curso' : x.late ? 'Con retraso' : 'Pendiente')).join('') : ''}`; }).join('') || '<div class="vac">Nadie tiene visitas hoy.</div>'}`;
 }
 // Urgentes (caducadas o que caducan en menos de 24 h) arriba, con su zona; el resto por zona
-const itemSin = (r, extra) => `<div class="cw">${tarjeta(r, extra, sinPrev && !sinPrev.has(r.key))}<button class="asg" data-a="asignar" data-k="${esc(r.key)}">Asignar</button></div>`;
+const itemSin = (r, extra) => {
+  const t = tarjeta(r, extra, sinPrev && !sinPrev.has(r.key));
+  if (!selSin) return `<div class="cw">${t}<button class="asg" data-a="asignar" data-k="${esc(r.key)}">Asignar</button></div>`;
+  const on = selSin.has(r.key);   // en modo selección, tocar la tarjeta la marca
+  return `<div class="cw${on ? ' sel' : ''}">${t.replace('data-a="ficha"', `data-a="marca" aria-pressed="${on}"`)}<button class="asg mk" data-a="marca" data-k="${esc(r.key)}" aria-pressed="${on}" aria-label="Marcar ${esc(String(r.num).slice(-6))}">${on ? '✓' : ''}</button></div>`;
+};
+const selVivas = () => selSin ? [...selSin].filter(k => pendientes().some(r => r.key === k)) : [];
 function vistaSin() {
   const mis = new Set(zonasDe(E.perfil).map(z => z.nombre)), todos = pendientes(), mias = todos.filter(r => mis.has(zonaPool(r))), l = verMi ? mias : todos, g = {};
   const urg = l.filter(r => { const c = cad(r); return c && ['venc', 'urg'].includes(cadNivel(c)); }).sort(porCad), ku = new Set(urg.map(r => r.key));
   l.filter(r => !ku.has(r.key)).sort(porCad).forEach(r => { (g[zonaPool(r)] = g[zonaPool(r)] || []).push(r); });
-  return `<div class="chips"><button class="ch${verMi ? ' on' : ''}" data-a="mi" data-v="1">Mis zonas · ${mias.length}</button><button class="ch${verMi ? '' : ' on'}" data-a="mi" data-v="">Todas · ${todos.length}</button></div>${urg.length ? `<h2 class="hu">Urgentes · ${urg.length}</h2><div class="m" style="margin:-2px 2px 6px">Caducadas o caducan en menos de 24 h</div>${urg.map(r => itemSin(r, zonaPool(r))).join('')}` : ''}${Object.keys(g).sort().map(z => `<h2>${esc(z)} · ${g[z].length}</h2>${g[z].map(r => itemSin(r)).join('')}`).join('') || (urg.length ? '' : '<div class="vac">Nada sin asignar.</div>')}`;
+  const n = selVivas().length, enVista = l.map(r => r.key), todasM = enVista.length && enVista.every(k => selSin && selSin.has(k));
+  return `<div class="chips"><button class="ch${verMi ? ' on' : ''}" data-a="mi" data-v="1">Mis zonas · ${mias.length}</button><button class="ch${verMi ? '' : ' on'}" data-a="mi" data-v="">Todas · ${todos.length}</button>${l.length ? `<button class="ch${selSin ? ' on' : ''}" data-a="selsin">${selSin ? 'Terminar' : 'Seleccionar'}</button>` : ''}</div>${selSin ? `<div class="selbar"><span>${n ? plural(n, 'marcada') : 'Toca para marcar'}</span><button class="ch" data-a="marcatodas" data-v="${todasM ? '' : '1'}">${todasM ? 'Ninguna' : 'Todas'}</button>${n ? '<button class="prim" data-a="asigsel" data-k="sel">Asignar</button>' : ''}</div>` : ''}${urg.length ? `<h2 class="hu">Urgentes · ${urg.length}</h2><div class="m" style="margin:-2px 2px 6px">Caducadas o caducan en menos de 24 h</div>${urg.map(r => itemSin(r, zonaPool(r))).join('')}` : ''}${Object.keys(g).sort().map(z => `<h2>${esc(z)} · ${g[z].length}</h2>${g[z].map(r => itemSin(r)).join('')}`).join('') || (urg.length ? '' : '<div class="vac">Nada sin asignar.</div>')}`;
 }
 function listaInc() {
   const ahora = Date.now(), hoyI = iso(), hoy = hoyEs();
@@ -630,11 +640,6 @@ function vistaInc() {
     <div class="dos"><select data-c="estado" aria-label="Estado"><option value="">Todos los estados</option>${estados.map(e => `<option${e === estadoInc ? ' selected' : ''}>${esc(e)}</option>`).join('')}</select><select data-c="zona" aria-label="Zona"><option value="">Todas las zonas</option>${zonas.map(z => `<option${z === zonaInc ? ' selected' : ''}>${esc(z)}</option>`).join('')}</select></div>
     <div class="plg"><span>${plural(l.length, 'incidencia')}</span><button class="mini" data-a="plg" data-v="1">Plegar</button><button class="mini" data-a="plg" data-v="">Desplegar</button></div>${porTecnico(l) || '<div class="vac">Nada con este filtro.</div>'}`;
 }
-function resultadosBus() {
-  const t = norm(textoBus).trim(); if (t.length < 2) return '<div class="vac">Escribe Nº, sede, cliente, técnico o población.</div>';
-  const ps = t.split(/\s+/), l = todas().filter(r => { const s = norm([r.num, r.descSede, r.descCliente, r.operario, r.desOperario, r.poblacion, r.domicilio, r.referencia].join(' ')); return ps.every(p => s.includes(p)); });
-  return `<h2>${plural(l.length, 'resultado')}</h2>${l.slice(0, 60).map(r => tarjeta(r)).join('') || '<div class="vac">Sin resultados.</div>'}`;
-}
 function pintarEstado() {
   $('ti').textContent = TITULOS[tab];
   $('est').textContent = cargando ? (total ? 'Cargando ' + fin + '/' + total : 'Cargando…') : E.at ? 'Datos de las ' + hora(E.at) + (iso(new Date(E.at)) === iso() ? '' : ' del ' + new Date(E.at).toLocaleDateString('es-ES')) + (E.rapida ? ' · rápida' : '') : 'Sin datos';
@@ -650,10 +655,7 @@ function pintarEstado() {
 function pintar() {
   pintarEstado();
   const v = $('v'), y = v.scrollTop;
-  if (tab === 'bus') {
-    if (!$('q')) v.innerHTML = '<input id="q" type="search" placeholder="Buscar…" aria-label="Buscar" autocomplete="off" value="' + esc(textoBus) + '"><div id="br"></div>';
-    $('br').innerHTML = resultadosBus();
-  } else { v.innerHTML = tab === 'hoy' ? vistaHoy() : tab === 'sin' ? vistaSin() : tab === 'act' ? vistaAct() : vistaInc(); v.scrollTop = y; }
+  v.innerHTML = tab === 'hoy' ? vistaHoy() : tab === 'sin' ? vistaSin() : tab === 'act' ? vistaAct() : vistaInc(); v.scrollTop = y;
 }
 function pintarPronto() { pintarEstado(); clearTimeout(pintaT); pintaT = setTimeout(pintar, 600); }
 
@@ -661,14 +663,16 @@ async function abrirFicha(k, sinHistorial) {
   const r = ticket(k); if (!r) return;
   const f = $('fi'), d = E.der[k] || {}, c = cad(r), mail = /^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(r.email || '') ? r.email : '', tel = String(r.telefono || '').replace(/[^\d+]/g, '');
   const mapa = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent([r.domicilio, r.provincia].filter(Boolean).join(', '));
-  const wa = 'https://wa.me/?text=' + encodeURIComponent('Incidencia ' + r.num + ' · ' + (r.descSede || ''));
   const proy = r.numProy != null && r.numProy !== '' && r.numProy !== 'NULL' ? [r.numProy, r.codProy, r.desProy].filter(x => x != null && x !== '' && x !== 'NULL').join(' - ') : '';
-  const fila = (t, v) => v ? `<dt>${t}</dt><dd>${esc(v)}</dd>` : '';
+  // Los mismos datos de la ficha (de Técnico a Motivo) van en la tabla y en el WhatsApp
+  const datos = [['Técnico', /^XXX/i.test(r.operario) ? 'Sin asignar · ' + zonaPool(r) : [r.operario, r.desOperario].filter(Boolean).join(' · ')], ['Visita', r.fVisita ? r.fVisita + (r.desdeHora ? ' · ' + r.desdeHora + (r.hastaHora ? '–' + r.hastaHora : '') : '') : 'Sin fecha'], ['Caducidad', c ? cadTexto(c) : ''], ['Dirección', r.domicilio], ['Provincia', r.provincia], ['Teléfono', r.telefono], ['Equipo', [r.tipo, r.elemento].filter(Boolean).join(' · ')], ['Referencia', r.referencia], ['Proyecto', proy], ['Registro', r.fRegistro], ['Motivo', d.mot]].filter(x => x[1]);
+  const wa = 'https://wa.me/?text=' + encodeURIComponent(['*Incidencia ' + r.num + '* · ' + r.estado, [r.descSede, r.descCliente].filter(Boolean).join(' · '), '', ...datos.map(([t, v]) => t + ': ' + String(v).replace(/\s+/g, ' ').trim())].join('\n'));
+  const fila = (t, v) => `<dt>${t}</dt><dd>${esc(v)}</dd>`;
   f.innerHTML = `<header><button class="ib" data-a="cerrarf" aria-label="Volver">‹</button><h1 style="font-family:monospace;font-size:16px">${esc(r.num)}</h1><div id="est2"></div></header><div class="cb">
     <span class="p" style="--e:${estadoColor(r.estado)}">${esc(r.estado)}</span>
     <div class="s" style="font-size:17px;margin:8px 0 2px">${esc(r.descSede || '—')}</div><div class="m">${esc(r.descCliente || '')}</div>
     <div class="acc">${!esCerrado(r.estado) && todas().some(x => x.key === k) ? `<button type="button" class="prim" data-a="asignar" data-k="${esc(k)}">${/^XXX/i.test(r.operario) ? 'Asignar técnico' : 'Reasignar o cambiar visita'}</button>` : ''}${tel.length >= 6 ? `<a href="tel:${esc(tel)}">Llamar a la tienda</a>` : ''}${r.domicilio ? `<a href="${esc(mapa)}" target="_blank" rel="noopener">Ver en Maps</a>` : ''}${mail ? `<a href="mailto:${esc(mail)}">Correo</a>` : ''}<a href="${esc(wa)}" target="_blank" rel="noopener">WhatsApp</a>${EN_APP ? `<button type="button" data-a="atgo" data-k="${esc(k)}">Abrir en ATGO</button>` : `<a href="${esc(r.url)}" target="_blank" rel="noopener">Abrir en ATGO</a>`}</div>
-    <dl>${fila('Técnico', /^XXX/i.test(r.operario) ? 'Sin asignar · ' + zonaPool(r) : [r.operario, r.desOperario].filter(Boolean).join(' · '))}${fila('Visita', r.fVisita ? r.fVisita + (r.desdeHora ? ' · ' + r.desdeHora + (r.hastaHora ? '–' + r.hastaHora : '') : '') : 'Sin fecha')}${fila('Caducidad', c ? cadTexto(c) : '')}${fila('Dirección', r.domicilio)}${fila('Provincia', r.provincia)}${fila('Teléfono', r.telefono)}${fila('Equipo', [r.tipo, r.elemento].filter(Boolean).join(' · '))}${fila('Referencia', r.referencia)}${fila('Proyecto', proy)}${fila('Registro', r.fRegistro)}${fila('Motivo', d.mot)}</dl>
+    <dl>${datos.map(([t, v]) => fila(t, v)).join('')}</dl>
     <h2>Hilo</h2><div id="hi"><div class="vac">Cargando el hilo…</div></div></div>`;
   f.hidden = false; f.dataset.k = k;
   if (!sinHistorial) history.pushState({ despachoMovil: 1 }, '');
@@ -680,7 +684,7 @@ async function abrirFicha(k, sinHistorial) {
 const nombreTec = d => String(d || '').split(',').reverse().join(' ').trim();
 const fechaInput = es => { const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(es || ''); return m ? m[3] + '-' + m[2] + '-' + m[1] : ''; };
 function abrirAsignar(k, todasZ) {
-  const r = ticket(k); if (!r) return;
+  const varias = k === 'sel', ks = varias ? selVivas() : [k], r = ticket(ks[0]); if (!r) return;
   const pool = /^XXX/i.test(r.operario), sug = pool ? zonaPool(r) : (zonaDeTexto(r.provincia) || zonaDe(r.operario)), actual = cleanInitials(r.operario);
   const po = resumenHoy(), nom = {}, ab = {};
   filas().forEach(x => { const o = cleanInitials(x.operario); if (x.desOperario) nom[o] = x.desOperario; if (!esCerrado(x.estado)) ab[o] = (ab[o] || 0) + 1; });
@@ -689,10 +693,11 @@ function abrirAsignar(k, todasZ) {
   zs = zs.sort((a, b) => (b.nombre === sug) - (a.nombre === sug));
   const lista = zs.map(z => `<div class="sub">${esc(z.nombre)}${z.nombre === sug ? ' · zona de la sede' : ''}</div>` + z.ops.map(op => `<button class="atn${op === actual ? ' on' : ''}" data-a="eligetec" data-k="${esc(k)}" data-v="${esc(op)}"><b>${esc(op)} <small>${esc(nombreTec(nom[op]))}</small></b><span>${plural((po[op] || []).length, 'visita')} hoy · ${plural(ab[op] || 0, 'abierta')}${op === actual ? ' · la tiene ahora' : ''}</span></button>`).join('')).join('');
   const m = $('me');
-  m.innerHTML = `<div class="hoja" role="dialog" aria-label="Elegir técnico"><h3>${pool ? 'Asignar' : 'Reasignar'} ${esc(String(r.num).slice(-6))} · ${esc(r.descSede || '')}</h3><div class="lista">${lista}${todasZ ? '' : `<button class="fila" data-a="masz" data-k="${esc(k)}">Ver todas las zonas</button>`}</div><button class="fila" data-a="cmenu">Cancelar</button></div>`;
+  m.innerHTML = `<div class="hoja" role="dialog" aria-label="Elegir técnico"><h3>${varias ? 'Asignar ' + plural(ks.length, 'incidencia') : (pool ? 'Asignar' : 'Reasignar') + ' ' + esc(String(r.num).slice(-6)) + ' · ' + esc(r.descSede || '')}</h3><div class="lista">${lista}${todasZ ? '' : `<button class="fila" data-a="masz" data-k="${esc(k)}">Ver todas las zonas</button>`}</div><button class="fila" data-a="cmenu">Cancelar</button></div>`;
   m.hidden = false;
 }
 function confirmarAsignar(k, op) {
+  if (k === 'sel') return confirmarVarias(op);
   const r = ticket(k); if (!r) return;
   const nom = (filas().find(x => cleanInitials(x.operario) === op) || {}).desOperario, actual = /^XXX/i.test(r.operario) ? 'sin asignar' : cleanInitials(r.operario);
   $('me').innerHTML = `<div class="hoja" role="dialog" aria-label="Confirmar asignación"><h3>¿Asignar a ${esc(op)}${nom ? ' · ' + esc(nombreTec(nom)) : ''}?</h3>
@@ -719,6 +724,35 @@ async function hacerAsignar(k, op) {
   pintar();
   if (!$('fi').hidden && $('fi').dataset.k === k) abrirFicha(k, true);
 }
+// Varias a la vez: una confirmación con todas; se guardan una a una con la misma comprobación campo a campo
+function confirmarVarias(op) {
+  const ks = selVivas(); if (!ks.length) { $('me').hidden = true; return; }
+  const nom = (filas().find(x => cleanInitials(x.operario) === op) || {}).desOperario;
+  $('me').innerHTML = `<div class="hoja" role="dialog" aria-label="Confirmar asignación"><h3>¿Asignar ${plural(ks.length, 'incidencia')} a ${esc(op)}${nom ? ' · ' + esc(nombreTec(nom)) : ''}?</h3>
+    <div class="m">${ks.map(k => { const r = ticket(k) || {}; return esc(String(r.num).slice(-6)) + ' · ' + esc(r.descSede || ''); }).join('<br>')}</div>
+    <label class="lb">Fecha de visita para todas (opcional)<input type="date" id="af" value=""></label>
+    <div id="ares" class="m" role="status"></div>
+    <button class="fila prim" data-a="confasig" data-k="sel" data-v="${esc(op)}">Asignar ${ks.length}</button><button class="fila" data-a="asignar" data-k="sel">Elegir otro técnico</button><button class="fila" data-a="cmenu">Cancelar</button></div>`;
+}
+async function hacerVarias(op) {
+  const ks = selVivas(); if (!ks.length || asignando) return;
+  const f = $('af').value, bien = [], mal = [];
+  raiz.querySelectorAll('#me button, #me input').forEach(x => { x.disabled = true; });
+  for (let i = 0; i < ks.length; i++) {
+    const r = ticket(ks[i]); if (!r) continue;
+    const num = String(r.num).slice(-6), camb = {};
+    if (op !== cleanInitials(r.operario)) camb.codOpe = op;
+    if (f && f !== fechaInput(r.fVisita)) camb.fechaVisita = f;
+    if (!Object.keys(camb).length) { bien.push(num); continue; }
+    $('ares').textContent = `Guardando y comprobando en ATGO… ${i + 1}/${ks.length}`;
+    const res = await asignar(ks[i], camb);
+    if (res.ok) { aplicarAsignacion(r, res.despues); selSin.delete(ks[i]); bien.push(num); }
+    else { mal.push(num + ': ' + res.error); if (sesionMala) { ks.slice(i + 1).forEach(k => mal.push(String((ticket(k) || {}).num || k).slice(-6) + ': no se intentó')); break; } }
+  }
+  if (!mal.length) selSin = null;
+  $('me').innerHTML = `<div class="hoja" role="alertdialog" aria-label="Resultado"><h3>${mal.length ? (bien.length ? 'Guardadas ' + bien.length + ' de ' + (bien.length + mal.length) : 'No se ha guardado') : 'Hecho'}</h3>${bien.length ? `<div class="okm">${esc(bien.join(', '))} asignada${bien.length === 1 ? '' : 's'} a ${esc(op)} y comprobada${bien.length === 1 ? '' : 's'} en ATGO.</div>` : ''}${mal.length ? `<div class="errm">${mal.map(esc).join('<br>')}</div><div class="m">Las que fallaron siguen marcadas: revísalas antes de repetir.</div>` : ''}<button class="fila" data-a="cmenu">Cerrar</button></div>`;
+  pintar();
+}
 // Lo asignado pasa al técnico en este móvil; la próxima carga completa lo confirma
 function aplicarAsignacion(r, d) {
   const op = cleanInitials(d.codOpe), n = { ...r, operario: op, desOperario: d.desOpe || '', fVisita: ymdToEs(d.fechaVisita), desdeHora: d.horaInicioVisita || '', hastaHora: d.horaFinVisita || '' };
@@ -742,7 +776,11 @@ function acciones(b) {
   else if (a === 'asignar') abrirAsignar(b.dataset.k);
   else if (a === 'masz') abrirAsignar(b.dataset.k, true);
   else if (a === 'eligetec') confirmarAsignar(b.dataset.k, v);
-  else if (a === 'confasig') hacerAsignar(b.dataset.k, v);
+  else if (a === 'confasig') b.dataset.k === 'sel' ? hacerVarias(v) : hacerAsignar(b.dataset.k, v);
+  else if (a === 'selsin') { selSin = selSin ? null : new Set(); pintar(); }
+  else if (a === 'marca') { const k = b.dataset.k; if (selSin && k) { selSin.has(k) ? selSin.delete(k) : selSin.add(k); pintar(); } }
+  else if (a === 'marcatodas') { const mis = new Set(zonasDe(E.perfil).map(z => z.nombre)); pendientes().filter(r => !verMi || mis.has(zonaPool(r))).forEach(r => { v ? selSin.add(r.key) : selSin.delete(r.key); }); pintar(); }
+  else if (a === 'asigsel') abrirAsignar('sel');
   else if (a === 'modo') { PA.modo = v; guardarPA(); abrirMenu(); }
   else if (a === 'completa') { $('me').hidden = true; cargar(true); }
   else if (a === 'tabf') { tab = 'inc'; filtroInc = v; estadoInc = ''; zonaInc = ''; $('v').innerHTML = ''; $('v').scrollTop = 0; pintar(); }
@@ -767,7 +805,7 @@ function acciones(b) {
   else if (a === 'fil') { filtroInc = v; pintar(); $('v').scrollTop = 0; }
   else if (a === 'tecinc') { abiertosInc[v] = !abiertosInc[v]; pintar(); }
   else if (a === 'plg') { if (v) abiertosInc = {}; else filas().forEach(r => { abiertosInc[r.operario] = true; }); pintar(); $('v').scrollTop = 0; }
-  else if (a === 'perfil') { $('me').hidden = true; if (v !== E.perfil) { E = { ...E, perfil: v, tecs: {}, pool: {}, der: {}, salidas: {}, fuera: {}, at: 0, cierres: null, atTecs: 0, rapida: false }; zonaInc = ''; guardar(); cargar(); } }
+  else if (a === 'perfil') { $('me').hidden = true; if (v !== E.perfil) { selSin = null; E = { ...E, perfil: v, tecs: {}, pool: {}, der: {}, salidas: {}, fuera: {}, at: 0, cierres: null, atTecs: 0, rapida: false }; zonaInc = ''; guardar(); cargar(); } }
   else if (a === 'salir') salir();
   else if (a === 'atgo') { const r = ticket(b.dataset.k); cerrarFicha(); host.style.display = 'none'; if (r) location.hash = '#/mistickets/' + r.key; }   // en la app: el botón «Despacho» vuelve aquí
   else if (a === 'borrar') { if (confirm('¿Borrar los datos guardados en este móvil?')) { try { localStorage.removeItem(CLAVE); } catch (e) { /* nada que borrar */ } salir(); } }
@@ -796,7 +834,6 @@ const sueltaTira = ok => { if (!tira) return; const { b, dx, h } = tira; tira = 
   if (ok && Math.abs(dx) > 80) { if (navigator.vibrate) navigator.vibrate(15); deslizar(b, dx < 0 ? 'izq' : 'der'); } };
 raiz.addEventListener('pointerup', () => sueltaTira(true));
 raiz.addEventListener('pointercancel', () => sueltaTira(false));
-raiz.addEventListener('input', e => { if (e.target.id === 'q') { textoBus = e.target.value; $('br').innerHTML = resultadosBus(); } });
 function atras(e) { if (!$('fi').hidden) { e.stopImmediatePropagation(); cerrarFicha(); } }
 window.addEventListener('popstate', atras, true);
 function alVolver() { if (document.hidden) marcarVisto(); else if (Date.now() - E.at > AL_VOLVER_MS) cargar(); }
