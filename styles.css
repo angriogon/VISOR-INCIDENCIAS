@@ -1127,6 +1127,10 @@ html.dn .tab[hidden]{display:none}
 .dn-est i{width:8px;height:8px;border-radius:50%;background:var(--ink-faint)}
 .dn-est.ok{color:var(--done-tx)}
 .dn-est.ok i{background:var(--done)}
+.dn-srv{width:100%;margin-top:6px;font:inherit;font-size:12px;font-weight:600;text-align:left;cursor:pointer}
+.dn-srv.ok{color:var(--done-tx)}.dn-srv.ok i{background:var(--done)}
+.dn-srv.load i{background:var(--warn)}
+.dn-srv.err{color:var(--rojo)}.dn-srv.err i{background:var(--rojo)}
 .dn-vis{display:grid;grid-template-columns:1fr auto;gap:6px;color:var(--ink-dim)}
 .dn-vis b{color:var(--ink)}
 .dn-bar{grid-column:1/-1;height:6px;border-radius:999px;background:var(--line);overflow:hidden}

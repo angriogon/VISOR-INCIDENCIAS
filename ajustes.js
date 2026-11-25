@@ -3,9 +3,9 @@
 // asistente de inicio, diagnóstico, resumen matinal, aviso de técnico sin actividad y exportar a Excel.
 // Usa utilidades de app.js, dia.js, herramientas.js, edicion.js y panel.js solo en tiempo de llamada.
 
-const APP_VERSION = '1.43.1';   // súbela a la vez que VERSION en sw.js
+const APP_VERSION = '1.44.0';   // súbela a la vez que VERSION en sw.js
 const NOVEDADES = [
-  { v: '1.43.1', f: '2026-11-25', l: ['⚙ › Servidor: pide también la Instancia de ATGO para que el servidor pueda iniciar sesión.'] },
+  { v: '1.44.0', f: '2026-11-25', l: ['Menú lateral: debajo de «ATGO conectado» (la pestaña de este equipo) sale «Servidor» con su propio color: verde al día, ámbar cargando, rojo sin conexión o sin sesión. Pulsándolo se abre ⚙ › Servidor.', '⚙ › Servidor pide también la Instancia de ATGO.'] },
   { v: '1.43.0', f: '2026-11-25', l: ['⚙ › Servidor: estado del motor que mantiene ATGO abierto en tu servidor día y noche (sesión, última carga, historial). Por ahora solo lee: es la base del piloto automático de asignaciones.'] },
   { v: '1.42.7', f: '2026-11-24', l: ['Mi día: se quita «Hoy en directo» (la línea de tiempo por técnico). Seguimiento queda solo con Novedades.'] },
   { v: '1.42.6', f: '2026-11-24', l: ['Mi día › Caducidades y los avisos de Windows: solo PRESENCIAL, PTE. MOVER MATERIAL y MATERIAL PTE. FABRICANTE. FUERA DE MANTENIMIENTO y los demás estados ya no salen, porque su caducidad no cuenta.'] },
@@ -365,7 +365,7 @@ function dnMenu() {
   const pie = document.getElementById('dnPie'), ok = source === 'atgo' && rows.length;
   const ru = rows.length ? rutaHoy().filter(x => TECNICOS.includes(cleanInitials(x.op))) : [];
   const hechas = ru.filter(x => x.st === 'd' || x.st === 't').length;
-  pie.innerHTML = `<div class="dn-est${ok ? ' ok' : ''}"><i></i>${ok ? 'ATGO conectado' : rows.length ? 'Datos de Excel' : 'Sin datos de ATGO'}</div>${ru.length ? `<div class="dn-vis"><span>Visitas de hoy</span><b>${hechas} de ${ru.length}</b><span class="dn-bar"><i style="width:${Math.round(hechas * 100 / ru.length)}%"></i></span></div>` : ''}<div class="dn-ver">Despacho ${esc(APP_VERSION)}</div>`;
+  pie.innerHTML = `<div class="dn-est${ok ? ' ok' : ''}" title="La pestaña de ATGO de este equipo: de ella salen los datos de Despacho"><i></i>${ok ? 'ATGO conectado' : rows.length ? 'Datos de Excel' : 'Sin datos de ATGO'}</div>${srvPildora()}${ru.length ? `<div class="dn-vis"><span>Visitas de hoy</span><b>${hechas} de ${ru.length}</b><span class="dn-bar"><i style="width:${Math.round(hechas * 100 / ru.length)}%"></i></span></div>` : ''}<div class="dn-ver">Despacho ${esc(APP_VERSION)}</div>`;
 }
 function setPref(k, v) { tecCfg[k] = v; if (k === 'densidad') delete tecCfg.densa; saveTec(); aplicarApariencia(); renderCfg(); }
 
@@ -522,7 +522,34 @@ async function srvRevisar(forzar) {
     // El servidor sincroniza los mismos técnicos que esta PWA (perfil activo)
     if (source === 'atgo' && OPERARIOS.length && OPERARIOS.length <= 200) srvPedir('/config', { operarios: OPERARIOS, permitidos: TODOS_OPS }).catch(() => {});
   } catch (e) { srvUltimo = { ok: false, error: e.message }; }
-  finally { srvPidiendo = false; srvAt = Date.now(); if (cfgTab === 'srv' && !ocupado()) renderCfg(); }
+  finally {
+    srvPidiendo = false; srvAt = Date.now();
+    const m = document.getElementById('cfgMenu');
+    if (m && !m.hidden && cfgTab === 'srv' && !ocupado()) renderCfg();
+    if (document.getElementById('dnPie')) dnMenu();
+  }
+}
+// Píldora del menú lateral (diseño nuevo): verde al día, ámbar arrancando o cargando, rojo sin conexión o sin sesión
+function srvEstadoCorto() {
+  const u = srvUltimo;
+  if (!u) return { c: 'load', t: 'Comprobando…', d: '' };
+  if (!u.ok) return { c: 'err', t: 'Sin conexión', d: u.error };
+  const d = u.d, ca = d.ultimaCarga;
+  if (d.sesion === 'sin-credenciales') return { c: 'err', t: 'Sin usuario de ATGO', d: 'Guárdalo en ⚙ › Servidor' };
+  if (/fall|pausa/.test(d.sesion)) return { c: 'err', t: 'Sin sesión', d: 'ATGO rechazó el inicio de sesión' };
+  if (d.sesion !== 'ok') return { c: 'load', t: 'Iniciando…', d: '' };
+  if (!ca) return { c: 'load', t: 'Cargando…', d: d.texto || '' };
+  if (Date.now() - ca.at > 10 * 60000) return { c: 'err', t: 'Sin datos nuevos', d: 'Última carga ' + srvHace(ca.at) };
+  return { c: 'ok', t: 'Al día', d: 'Última carga ' + srvHace(ca.at) + ' · ' + plural(ca.filas, 'incidencia') + (ca.pool != null ? ' · ' + ca.pool + ' sin asignar' : '') };
+}
+function srvPildora() {
+  if (!srvCfg().url || !srvCfg().clave) return '';
+  const e = srvEstadoCorto();
+  return `<button class="dn-est dn-srv ${e.c}" onclick="srvAbrir(event)" title="Motor del servidor (solo lectura). ${esc(e.d)} · Abre ⚙ › Servidor"><i></i><span>Servidor · ${esc(e.t)}</span></button>`;
+}
+function srvAbrir(ev) {
+  if (ev) ev.stopPropagation();
+  cfgTab = 'srv'; const m = document.getElementById('cfgMenu'); m.hidden = false; renderCfg();
 }
 function srvHace(ts) {
   const m = Math.round((Date.now() - ts) / 60000);
@@ -541,7 +568,7 @@ function srvHtml() {
     est = `<div class="srv-l">
       <div><b>Motor ${esc(d.motor)}</b> · fase ${d.fase}${d.fase === 0 ? ' (solo lectura: no escribe en ATGO)' : ''}</div>
       <div class="${d.sesion === 'ok' ? 'srv-bien' : /fall|pausa/.test(d.sesion) ? 'srv-mal' : ''}">${esc(SES[d.sesion] || d.sesion)}${d.usuario ? ' · ' + esc(d.usuario) : ''}</div>
-      <div>${ca ? `Última carga ${srvHace(ca.at)}: ${plural(ca.filas, 'incidencia')}${ca.pool != null ? ' · ' + ca.pool + ' sin asignar' : ''} · ${ca.segundos} s${ca.sospechosa ? ' · incompleta' : ''}` : 'Aún sin datos de ATGO'}${d.texto && d.sesion === 'ok' ? ' · ' + esc(d.texto) : ''}</div>
+      <div>${ca ? `Última carga ${srvHace(ca.at)}: ${plural(ca.filas, 'incidencia')}${ca.pool != null ? ' · ' + ca.pool + ' sin asignar' : ''} · ${ca.segundos} s${ca.sospechosa ? ' · incompleta' : ''}` : 'Aún sin datos de ATGO'}${/^Cargando/.test(d.texto || '') ? ' · ' + esc(d.texto) : ''}</div>
       <div>Historial${hi.desde ? ' desde el ' + new Date(hi.desde).toLocaleDateString('es-ES') : ''}: ${plural(hi.cargasHoy || 0, 'carga')} hoy · ${plural(hi.eventosHoy || 0, 'cambio')} · ${hi.asignacionesHoy || 0} reasignaci${hi.asignacionesHoy === 1 ? 'ón' : 'ones'}</div>
       <div>Hoy ${d.laborable ? 'es laborable' : 'es fin de semana: el piloto no actuará'} · ${plural(d.tecnicos || 0, 'técnico')} · ${d.memoriaMB} MB</div>
       ${(d.errores || []).slice(0, 3).map(e => `<div class="srv-err">${srvHace(e.at)}: ${esc(e.t)}</div>`).join('')}
@@ -948,6 +975,8 @@ window.addEventListener('DOMContentLoaded', () => {
   // Tras una actualización silenciosa (app.js), un aviso discreto con la versión nueva
   if (ssLee('despacho_actualizado')) { ssQuita('despacho_actualizado'); setTimeout(() => toast(`Despacho se ha actualizado a la versión ${APP_VERSION} · novedades en ⓘ`), 1200); }
   try { revisarEspacio(); } catch (e) { diagLog('Revisión de espacio: ' + e.message); }
+  // Estado del servidor para la píldora del menú lateral: al arrancar y cada minuto (si está configurado)
+  srvRevisar(true); setInterval(() => srvRevisar(), 60000);
   const visto = lsTexto(BIENV_KEY);
   if (!visto && !lsGet(ATGO_KEY, null)) setTimeout(() => { if (document.getElementById('modal').hidden) abrirAsistente(1); }, 800);
   else if (!visto) lsPonTexto(BIENV_KEY, '1');

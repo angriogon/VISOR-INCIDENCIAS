@@ -164,7 +164,7 @@ No se avisa en fines de semana ni en festivos.
   - Cada opción se puede activar por separado. Hay además una letra de lectura fácil.
   - Siempre activo: «Saltar al contenido», foco dentro de las ventanas y nombres para lectores de pantalla.
 - **Técnicos · Perfiles · Festivos** (nacionales incluidos; se añaden los autonómicos y locales) · **WhatsApp** (plantillas).
-- **Servidor:** estado del motor que mantiene ATGO abierto en tu servidor día y noche: sesión, última carga e historial de cambios. Pon la dirección y la clave que da `servidor/instalar.sh`, y guarda una vez el usuario de ATGO (se queda en el servidor, no en este equipo). De momento solo lee; es la base del piloto automático, que solo actuará de lunes a viernes.
+- **Servidor:** estado del motor que mantiene ATGO abierto en tu servidor día y noche: sesión, última carga e historial de cambios. Pon la dirección y la clave que da `servidor/instalar.sh`, y guarda una vez el usuario de ATGO (se queda en el servidor, no en este equipo). De momento solo lee; es la base del piloto automático, que solo actuará de lunes a viernes. En el diseño nuevo, debajo de «ATGO conectado» (la pestaña de este equipo) sale **Servidor** con su color: verde al día, ámbar cargando, rojo sin conexión o sin sesión.
 - **Datos:**
   - Copia de seguridad manual y automática en **OneDrive**: cada 10 minutos y una copia por día de los últimos 7.
   - **Exportar a Excel:** incidencias o planificación de la semana.
