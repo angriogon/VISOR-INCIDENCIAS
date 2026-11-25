@@ -4,13 +4,14 @@ Archivo de traspaso entre sesiones. Al empezar una sesión: «lee docs/ESTADO.md
 Máximo ~40 líneas: lo antiguo se resume o se borra (el detalle está en git y en `NOVEDADES` de `ajustes.js`).
 
 ## Versión actual
-- `sw.js` despacho-v1.42.7 = `APP_VERSION` (ajustes.js). `SYNC_VERSION` 1.42.4 (atgo-sync.js = app.js). App Android 1.1.0 (logo nuevo). Extensión 2.3.0: descarga la sincronización firmada (`tools/firmar-sync.mjs`; clave en `%USERPROFILE%\.despacho`, si se pierde hay que generar otra y reinstalar).
+- `sw.js` despacho-v1.43.0 = `APP_VERSION` (ajustes.js). `SYNC_VERSION` 1.42.4 (atgo-sync.js = app.js). App Android 1.1.0 (logo nuevo). Extensión 2.3.0: descarga la sincronización firmada (`tools/firmar-sync.mjs`; clave en `%USERPROFILE%\.despacho`, si se pierde hay que generar otra y reinstalar).
 - 1.35.0 (auditoría, lotes 1–5 y mejoras sin API; publicada el 2026-11-08): ver NOVEDADES. Nuevo `prioridades.js`.
   Control: `ctlPorDsp`, `CTL_EDADES`, vistas pron/esta, `revisarInformeAuto`. Nómina: `hab` y `vac[].p` ('m'/'t'). Incidencias: `tecCfg.vistaInc`.
   CSS: limpieza comprobada sin diferencias en 83.224 elementos; después, contraste AA y letra mínima de 11 px.
 - Publicación: `.github/workflows/pruebas.yml` publica solo si pasan las pruebas. Pages ya usa «GitHub Actions» como fuente.
 
 - Desarrollo en el servidor Ubuntu (`automation`, 2026-11-17): repo, claves en `~/.despacho` (comprobadas con las firmas publicadas), gh, Docker y Claude siempre abierto (`tools/sesion-permanente.sh`). Ya no hace falta el TL021A. Prueba de arranque: `NAVEGADOR=chromium` (docs/servidor-ubuntu.md).
+- 1.43.0 · piloto automático, fase 0 (solo lectura): `servidor/motor.mjs` (Chromium sin pantalla con ATGO, inicio de sesión con `~/.despacho/atgo.json`, atgo-sync firmado, historial SQLite en `~/.local/share/despacho-motor/historial.db`: tablas carga/ticket/evento, API en 127.0.0.1:8791 publicada con Tailscale Funnel en :8443). PWA: ⚙ › Servidor (`srvHtml`/`srvRevisar`, `tecCfg.srvUrl`/`srvClave`). Plan: fase 1 sombra (propone y mide acierto), fase 2 asigna sola L–V con margen de cortesía y «La llevo yo», fase 3 planificación. El usuario aceptó cambiar la regla de confirmación para el piloto y que no funcione en fin de semana.
 - 1.42.7: retirada «Hoy en directo» de Mi día (`lineaTiempoHtml`, `#secTL`, CSS `.tl-*`).
 - 1.42.6: Caducidades de Mi día y avisos SLA solo en `ESTADOS_CADUCIDAD` (herramientas.js): PRESENCIAL, PTE. MOVER MATERIAL, MATERIAL PTE. FABRICANTE.
 - 1.42.5: logo nuevo (ruta → pin con ✓; PWA y app Android 1.1.0, APK en ../app-despacho). Ficha: comentario + estado en un solo envío (`actuarAtgo`) y «Mover también otras de…» en Planificar (`asExtra`, va por `asignarLote`).

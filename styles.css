@@ -539,6 +539,9 @@ details.ed-dif ul{margin:6px 0 0;padding-left:16px;font-size:12px;display:grid;g
 .cfg-row{display:flex;justify-content:space-between;gap:8px;align-items:center}
 .cfg-row label{display:flex;gap:6px;align-items:center}
 .cfg-row input[type=time]{font:inherit;font-size:12px;padding:2px 5px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink)}
+.cfg-row input.srv-f{font:inherit;font-size:12px;padding:3px 6px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);width:250px;max-width:60%}
+.srv-l{display:flex;flex-direction:column;gap:3px;font-size:12px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg)}
+.srv-bien{color:var(--marca)}.srv-mal{color:var(--warn)}.srv-err{color:var(--ink-dim);font-size:11px}
 .cfg-ta{display:grid;gap:3px}
 .cfg-ta span{font-weight:600}
 .cfg-ta textarea{font:inherit;font-size:12px;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);resize:vertical}

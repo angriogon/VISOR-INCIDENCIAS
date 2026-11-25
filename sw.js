@@ -1,6 +1,6 @@
 // Service worker del Panel de Despacho.
 // Sube VERSION cada vez que publiques cambios para que la app instalada se actualice.
-const VERSION = 'despacho-v1.42.7';
+const VERSION = 'despacho-v1.43.0';
 const SHELL = [
   './',
   './index.html',
@@ -49,8 +49,8 @@ self.addEventListener('message', (event) => {
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
-  // Mapa: los mosaicos y la búsqueda de direcciones no se guardan en la caché de la app
-  if (/tile\.openstreetmap\.org|nominatim\.openstreetmap\.org|router\.project-osrm\.org/.test(req.url)) return;
+  // Mapa (mosaicos, búsqueda de direcciones) y el servidor (⚙ › Servidor): no se guardan en la caché de la app
+  if (/\.ts\.net[:/]|tile\.openstreetmap\.org|nominatim\.openstreetmap\.org|router\.project-osrm\.org/.test(req.url)) return;
 
   // Páginas: la de esta misma versión. La nueva llega con la actualización, junto a su código: así nunca se mezclan
   // una página nueva y un código antiguo (el código antiguo podría no encontrar lo que busca y no arrancar).

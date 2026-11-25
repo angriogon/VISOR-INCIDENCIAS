@@ -1,0 +1,8 @@
+{
+  "private": true,
+  "type": "module",
+  "description": "Despacho · motor del servidor (ATGO sin pantalla, historial y API para la PWA)",
+  "dependencies": {
+    "playwright-core": "1.65.0"
+  }
+}
