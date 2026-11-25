@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import { chromium } from 'playwright-core';
 
-const MOTOR_VERSION = '0.1.0';
+const MOTOR_VERSION = '0.1.1';
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const CLAVES = process.env.DESPACHO_CLAVES || path.join(os.homedir(), '.despacho');          // nunca va al repositorio
 const DATOS = process.env.DESPACHO_DATOS || path.join(os.homedir(), '.local', 'share', 'despacho-motor');
@@ -211,7 +211,7 @@ async function verSesion() {
 }
 async function iniciarSesion() {
   const cred = leerJson(F.cred, null);
-  if (!cred || !cred.usuario || !cred.clave) { estado.sesion = 'sin-credenciales'; return; }
+  if (!cred || !cred.instancia || !cred.usuario || !cred.clave) { estado.sesion = 'sin-credenciales'; return; }
   if (Date.now() < estado.loginPausaHasta) return;
   estado.sesion = 'iniciando';
   log('Iniciando sesión en ATGO');
@@ -221,22 +221,26 @@ async function iniciarSesion() {
   let ok = false;
   if (clave) {
     // Mismo criterio que la extensión para encontrar el campo de usuario
-    await page.evaluate(({ u, c }) => {
+    const rellenado = await page.evaluate(({ ins, u, c }) => {
       const vis = el => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
       const pass = [...document.querySelectorAll('input[type="password"]')].find(vis);
       const form = pass.closest('form') || document;
       const campos = [...form.querySelectorAll('input')].filter(i => vis(i) && /^(text|email|)$/i.test(i.type || ''));
-      const user = campos.find(i => /user|usu|login|mail|nombre/i.test((i.name || '') + (i.id || '') + (i.placeholder || '') + (i.getAttribute('formcontrolname') || '')))
-        || campos.filter(i => i.compareDocumentPosition(pass) & Node.DOCUMENT_POSITION_FOLLOWING).pop() || campos[0];
+      // ATGO pide Instancia, Usuario y Contraseña; sus ids cambian en cada carga, así que se buscan por la etiqueta
+      const etiqueta = i => ((i.closest('label, mat-form-field, div') || {}).innerText || '') + ' ' + (i.placeholder || '') + ' ' + (i.getAttribute('aria-label') || '');
+      const inst = campos.find(i => /instancia/i.test(etiqueta(i)));
+      const user = campos.find(i => i !== inst && /usuario|user/i.test(etiqueta(i)));
+      if (!inst || !user) return false;
       const escribir = (el, v) => { el.focus(); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, v); ['input', 'change', 'blur'].forEach(t => el.dispatchEvent(new Event(t, { bubbles: true }))); };
-      if (!user) return;
-      escribir(user, u); escribir(pass, c);
+      escribir(inst, ins); escribir(user, u); escribir(pass, c);
       [...form.querySelectorAll('input[type="checkbox"]')].forEach(ch => { const t = ((ch.closest('label') || {}).textContent || '') + (ch.name || '') + (ch.id || ''); if (/record|remember|mantener/i.test(t) && !ch.checked) ch.click(); });
       setTimeout(() => {
         const b = form.querySelector('button[type="submit"], input[type="submit"]') || [...form.querySelectorAll('button')].find(x => vis(x) && /entrar|acceder|iniciar|login|aceptar/i.test(x.textContent || ''));
         if (b) b.click(); else if (form.requestSubmit) form.requestSubmit();
       }, 400);
-    }, { u: cred.usuario, c: cred.clave });
+      return true;
+    }, { ins: cred.instancia, u: cred.usuario, c: cred.clave });
+    if (!rellenado) fallo('La página de acceso de ATGO ha cambiado: no encuentro Instancia y Usuario');
     const fin = Date.now() + 30000;
     while (!ok && Date.now() < fin) { await page.waitForTimeout(1000); ok = (await verSesion().catch(() => ({}))).valida; }
   }
@@ -317,9 +321,9 @@ http.createServer(async (req, res) => {
       return responder(200, { ok: true, tecnicos: ops.length });
     }
     if (req.method === 'POST' && ruta === '/credenciales') {
-      const b = await leerCuerpo(req), u = String(b.usuario || '').trim(), c = String(b.clave || '');
-      if (!u || !c || u.length > 100 || c.length > 200) return responder(400, { error: 'Usuario o contraseña vacíos' });
-      escribirPrivado(F.cred, { usuario: u, clave: c });
+      const b = await leerCuerpo(req), ins = String(b.instancia || '').trim(), u = String(b.usuario || '').trim(), c = String(b.clave || '');
+      if (!ins || !u || !c || ins.length > 100 || u.length > 100 || c.length > 200) return responder(400, { error: 'Faltan la instancia, el usuario o la contraseña' });
+      escribirPrivado(F.cred, { instancia: ins, usuario: u, clave: c });
       estado.loginFallos = 0; estado.loginPausaHasta = 0; log('Usuario de ATGO guardado');
       setTimeout(revisar, 500);
       return responder(200, { ok: true });

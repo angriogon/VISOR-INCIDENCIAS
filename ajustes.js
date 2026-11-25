@@ -3,13 +3,13 @@
 // asistente de inicio, diagnóstico, resumen matinal, aviso de técnico sin actividad y exportar a Excel.
 // Usa utilidades de app.js, dia.js, herramientas.js, edicion.js y panel.js solo en tiempo de llamada.
 
-const APP_VERSION = '1.43.0';   // súbela a la vez que VERSION en sw.js
+const APP_VERSION = '1.43.1';   // súbela a la vez que VERSION en sw.js
 const NOVEDADES = [
+  { v: '1.43.1', f: '2026-11-25', l: ['⚙ › Servidor: pide también la Instancia de ATGO para que el servidor pueda iniciar sesión.'] },
   { v: '1.43.0', f: '2026-11-25', l: ['⚙ › Servidor: estado del motor que mantiene ATGO abierto en tu servidor día y noche (sesión, última carga, historial). Por ahora solo lee: es la base del piloto automático de asignaciones.'] },
   { v: '1.42.7', f: '2026-11-24', l: ['Mi día: se quita «Hoy en directo» (la línea de tiempo por técnico). Seguimiento queda solo con Novedades.'] },
   { v: '1.42.6', f: '2026-11-24', l: ['Mi día › Caducidades y los avisos de Windows: solo PRESENCIAL, PTE. MOVER MATERIAL y MATERIAL PTE. FABRICANTE. FUERA DE MANTENIMIENTO y los demás estados ya no salen, porque su caducidad no cuenta.'] },
   { v: '1.42.5', f: '2026-11-23', l: ['Ficha › Actuar: comentario y estado se envían juntos con un solo «Enviar a ATGO» (primero el comentario y, si sale bien, el estado).', 'Ficha › Planificar: «Mover también otras de…» marca otras incidencias del mismo técnico (las de la misma sede, primero) y las pasa con esta al nuevo técnico o fecha.', 'Logo nuevo: una ruta que llega a un pin con el visto bueno, en la app de Windows, la pestaña del navegador y la app Android (1.1.0, hay que reinstalarla).'] },
-  { v: '1.42.4', f: '2026-11-23', l: ['Quitar la fecha de visita no es posible: ATGO la conserva aunque diga que ha guardado, también desde su propia web. Si la borras en la ficha, Despacho te lo avisa y la deja como estaba. Recarga la pestaña de ATGO cuando Despacho lo pida.'] },
 ];
 // Resumen de lo más importante de las versiones anteriores a las 5 últimas (se ve en ⓘ › Anteriores)
 const ANTERIORES = [
@@ -52,9 +52,10 @@ const ANTERIORES = [
   'Incidencias: seleccionar varias y reasignarlas de una vez',
   'Mi día con herramientas arriba y lo pendiente debajo',
   'Las rutas ya no piden enviarse por WhatsApp',
-  'Diseño nuevo (prueba) con menú lateral y tonos claros'
+  'Diseño nuevo (prueba) con menú lateral y tonos claros',
+  'ATGO no deja quitar la fecha de visita: Despacho lo avisa'
 ];
-const NOV_VISIBLES = 5, ANTERIORES_HASTA = '1.42.0';   // al añadir una versión, quita la más antigua de NOVEDADES y resúmela aquí si importa
+const NOV_VISIBLES = 5, ANTERIORES_HASTA = '1.42.4';   // al añadir una versión, quita la más antigua de NOVEDADES y resúmela aquí si importa
 const NOV_KEY = 'dispatcher_version_vista_v1', BIENV_KEY = 'dispatcher_bienvenida_v1', DATOS_VER_KEY = 'dispatcher_datos_version_v1';
 
 // ---- Novedades de la versión ----
@@ -529,7 +530,7 @@ function srvHace(ts) {
 }
 function srvHtml() {
   const c = srvCfg(), u = srvUltimo, d = u && u.ok ? u.d : null;
-  const SES = { ok: '● Sesión de ATGO abierta', 'sin-credenciales': '○ Falta el usuario de ATGO: guárdalo abajo', iniciando: '◌ Iniciando sesión en ATGO…', arrancando: '◌ Arrancando…',
+  const SES = { ok: '● Sesión de ATGO abierta', 'sin-credenciales': '○ Faltan los datos de acceso a ATGO: guárdalos abajo', iniciando: '◌ Iniciando sesión en ATGO…', arrancando: '◌ Arrancando…',
     'login-pausa': '✕ ATGO rechazó el inicio de sesión: lo reintenta más tarde', 'login-fallido': '✕ ATGO rechaza el usuario: guárdalo de nuevo' };
   let est = '';
   if (!c.url || !c.clave) est = '<div class="cfg-t">Pon la dirección y la clave que te dio la instalación del servidor.</div>';
@@ -555,14 +556,15 @@ function srvHtml() {
     <div class="cfg-row"><label for="srvClave">Clave de acceso</label><input id="srvClave" class="srv-f" type="password" autocomplete="off" value="${esc(tecCfg.srvClave || '')}" onchange="setPref('srvClave',this.value.trim());srvRevisar(true)"></div>
     <div class="cfg-h">Usuario de ATGO del servidor</div>
     <div class="cfg-t">Se manda cifrado solo a tu servidor y se guarda allí, fuera del repositorio. Aquí no se guarda.</div>
+    <div class="cfg-row"><label for="srvI">Instancia</label><input id="srvI" class="srv-f" type="text" autocomplete="off"></div>
     <div class="cfg-row"><label for="srvU">Usuario</label><input id="srvU" class="srv-f" type="text" autocomplete="off"></div>
     <div class="cfg-row"><label for="srvP">Contraseña</label><input id="srvP" class="srv-f" type="password" autocomplete="new-password"></div>
     <div class="acts"><button class="btn sm pri" onclick="event.stopPropagation();srvCredenciales()">Guardar en el servidor</button></div>`;
 }
 async function srvCredenciales() {
-  const u = document.getElementById('srvU'), p = document.getElementById('srvP');
-  if (!u.value.trim() || !p.value) { toast('Escribe el usuario y la contraseña de ATGO'); return; }
-  try { await srvPedir('/credenciales', { usuario: u.value.trim(), clave: p.value }); u.value = p.value = ''; toast('Guardado en el servidor: inicia sesión en ATGO en unos segundos'); setTimeout(() => srvRevisar(true), 8000); }
+  const i = document.getElementById('srvI'), u = document.getElementById('srvU'), p = document.getElementById('srvP');
+  if (!i.value.trim() || !u.value.trim() || !p.value) { toast('Escribe la instancia, el usuario y la contraseña de ATGO'); return; }
+  try { await srvPedir('/credenciales', { instancia: i.value.trim(), usuario: u.value.trim(), clave: p.value }); i.value = u.value = p.value = ''; toast('Guardado en el servidor: inicia sesión en ATGO en unos segundos'); setTimeout(() => srvRevisar(true), 8000); }
   catch (e) { toast('No se pudo guardar: ' + e.message); }
 }
 document.addEventListener('click', e => { const m = document.getElementById('cfgMenu'); if (m && !m.hidden && !m.contains(e.target) && e.target.id !== 'cfgBtn' && e.target.id !== 'perfilBtn' && document.body.contains(e.target)) m.hidden = true; });
