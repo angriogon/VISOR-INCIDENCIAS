@@ -3,13 +3,13 @@
 // asistente de inicio, diagnóstico, resumen matinal, aviso de técnico sin actividad y exportar a Excel.
 // Usa utilidades de app.js, dia.js, herramientas.js, edicion.js y panel.js solo en tiempo de llamada.
 
-const APP_VERSION = '1.45.0';   // súbela a la vez que VERSION en sw.js
+const APP_VERSION = '1.46.0';   // súbela a la vez que VERSION en sw.js
 const NOVEDADES = [
+  { v: '1.46.0', f: '2026-11-25', l: ['Despacho en la tablet, el móvil o cualquier PC sin la extensión: si pones en ⚙ › Servidor la dirección y la clave, las incidencias, Sin asignar, hilos y estados llegan de tu servidor cada 30 s. Arriba sale «Desde el servidor · hora».', 'Es solo lectura: comentar, cambiar estado y asignar siguen necesitando el PC con ATGO abierto. En el PC con la extensión no cambia nada; si su pestaña de ATGO deja de sincronizar 6 min, entra el servidor de respaldo.'] },
   { v: '1.45.0', f: '2026-11-25', l: ['⚙ Ajustes renovado: ventana propia con las secciones a la izquierda (Conexión, Servidor, Avisos, Apariencia, Equipo, Festivos, WhatsApp y Datos) y cada opción en una fila con su explicación e interruptor. Los recordatorios del día pasan a Avisos; perfiles y técnicos, a Equipo. Se cierra con ✕, Escape o pulsando fuera.', 'Servidor: con el acceso a ATGO ya guardado solo sale «Guardado en el servidor ✓» y un botón Cambiar. No hace falta volver a iniciar sesión.'] },
   { v: '1.44.0', f: '2026-11-25', l: ['Menú lateral: debajo de «ATGO conectado» (la pestaña de este equipo) sale «Servidor» con su propio color: verde al día, ámbar cargando, rojo sin conexión o sin sesión. Pulsándolo se abre ⚙ › Servidor.', '⚙ › Servidor pide también la Instancia de ATGO.'] },
   { v: '1.43.0', f: '2026-11-25', l: ['⚙ › Servidor: estado del motor que mantiene ATGO abierto en tu servidor día y noche (sesión, última carga, historial). Por ahora solo lee: es la base del piloto automático de asignaciones.'] },
   { v: '1.42.7', f: '2026-11-24', l: ['Mi día: se quita «Hoy en directo» (la línea de tiempo por técnico). Seguimiento queda solo con Novedades.'] },
-  { v: '1.42.6', f: '2026-11-24', l: ['Mi día › Caducidades y los avisos de Windows: solo PRESENCIAL, PTE. MOVER MATERIAL y MATERIAL PTE. FABRICANTE. FUERA DE MANTENIMIENTO y los demás estados ya no salen, porque su caducidad no cuenta.'] },
 ];
 // Resumen de lo más importante de las versiones anteriores a las 5 últimas (se ve en ⓘ › Anteriores)
 const ANTERIORES = [
@@ -54,9 +54,10 @@ const ANTERIORES = [
   'Las rutas ya no piden enviarse por WhatsApp',
   'Diseño nuevo (prueba) con menú lateral y tonos claros',
   'ATGO no deja quitar la fecha de visita: Despacho lo avisa',
-  'Comentario y estado en un solo envío y logo nuevo'
+  'Comentario y estado en un solo envío y logo nuevo',
+  'Caducidades y avisos solo de los estados presenciales'
 ];
-const NOV_VISIBLES = 5, ANTERIORES_HASTA = '1.42.5';   // al añadir una versión, quita la más antigua de NOVEDADES y resúmela aquí si importa
+const NOV_VISIBLES = 5, ANTERIORES_HASTA = '1.42.6';   // al añadir una versión, quita la más antigua de NOVEDADES y resúmela aquí si importa
 const NOV_KEY = 'dispatcher_version_vista_v1', BIENV_KEY = 'dispatcher_bienvenida_v1', DATOS_VER_KEY = 'dispatcher_datos_version_v1';
 
 // ---- Novedades de la versión ----
@@ -585,6 +586,47 @@ function srvHace(ts) {
   const m = Math.round((Date.now() - ts) / 60000);
   return m < 1 ? 'ahora' : m < 60 ? 'hace ' + m + ' min' : 'a las ' + hhmm(ts) + (new Date(ts).toDateString() === new Date().toDateString() ? '' : ' del ' + new Date(ts).toLocaleDateString('es-ES'));
 }
+// ---- Datos desde el servidor: la PWA en la tablet, el móvil o un PC sin la extensión ----
+// Si este equipo no tiene una pestaña de ATGO que sincronice (atgoDirectoAt, app.js), las incidencias, hilos y estados
+// llegan del motor. SRV_ATGO hace de «ventana de ATGO» para el resto del código, como ATGO_PUENTE.
+// Solo lectura: de los datos del servidor se quitan las capacidades de escritura (editar, asignar, lote, alta).
+const SRV_LEER = ['despacho-hilo', 'despacho-estado', 'despacho-refresh', 'despacho-ready', 'despacho-config'];
+const SRV_ATGO = {
+  get closed() { return !srvViaActiva(); },
+  postMessage(msg) {
+    if (!msg || !SRV_LEER.includes(msg.type)) return;
+    srvPedir('/pedir', { msg }).then(() => { [1500, 4000, 9000].forEach(t => setTimeout(srvSondear, t)); }).catch(e => diagLog('Servidor › pedir: ' + e.message));
+  },
+  focus() { abrirAtgo(); }
+};
+const srvArranque = Date.now();
+// Con la extensión (o si ATGO abrió esta ventana) se dan 90 s a la pestaña de este equipo antes de tirar del servidor
+function srvViaActiva() {
+  const c = srvCfg(); if (!c.url || !c.clave) return false;
+  if (Date.now() - atgoDirectoAt < 6 * 60000) return false;
+  return !((puenteAtgo || window.opener) && Date.now() - srvArranque < 90000);
+}
+let srvN = 0, srvSondeando = false, srvSondeoAt = 0;
+async function srvSondear() {
+  if (srvSondeando || !srvViaActiva()) return;
+  srvSondeando = true; srvSondeoAt = Date.now();
+  try {
+    const d = await srvPedir('/mensajes?desde=' + srvN);
+    srvN = Number(d.n) || 0;
+    for (const m of d.msgs || []) {
+      if (!m || typeof m !== 'object') continue;
+      if (!srvViaActiva()) break;   // mientras tanto ha vuelto la pestaña de ATGO de este equipo
+      const x = m.type === 'atgo-data' ? { ...m, desdeServidor: true, caps: (m.caps || []).filter(c => ['hilo', 'estado', 'pool'].includes(c)) }
+        : m.type === 'atgo-status' ? { ...m, text: 'Desde el servidor' + (/^\s*·/.test(m.text || '') ? m.text : ' · ' + (m.text || '')) } : m;
+      recibirDeAtgo({ origin: ATGO_ORIGIN, data: x, source: SRV_ATGO });
+    }
+  } catch (e) { diagLog('Servidor › datos: ' + e.message); }
+  finally { srvSondeando = false; }
+}
+// Cada 30 s con la app a la vista y cada 2 min en segundo plano; al volver a la app, en el momento
+setInterval(() => { if (Date.now() - srvSondeoAt > (document.hidden ? 120000 : 30000)) srvSondear(); }, 10000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) srvSondear(); });
+
 let srvEditar = false;   // muestra el formulario de acceso a ATGO aunque ya esté guardado
 function srvHtml() {
   const c = srvCfg(), u = srvUltimo, d = u && u.ok ? u.d : null;

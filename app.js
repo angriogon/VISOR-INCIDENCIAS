@@ -352,7 +352,7 @@ function applyAtgo(msg, fromCache){
   setRows(Array.isArray(msg.rows) ? msg.rows : [], 'ATGO', !firstAtgo);
   if (msg.partial) setAtgoStatus(`Cargando… ${msg.progress||''}`, '');
   else if (fromCache) setAtgoStatus(`Último dato ${new Date(msg.at).toLocaleString('es-ES',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})} · sin conexión con ATGO`, 'off');
-  else setAtgoStatus(`En vivo · ${hhmm(msg.at)}`, '');
+  else setAtgoStatus(`${msg.desdeServidor ? 'Desde el servidor' : 'En vivo'} · ${hhmm(msg.at)}`, '');
   if (!msg.partial && !fromCache){
     lsSet(ATGO_KEY, msg);
     hilosTrasCarga(trackChanges(rows));   // novedades, avisos, rutas cambiadas e hilos nuevos (dia.js)
@@ -417,8 +417,14 @@ window.addEventListener('message', (ev) => {
     if (ev.data.__despacho !== 'de-atgo' || !ev.data.msg || typeof ev.data.msg !== 'object') return;
     e = { origin: ATGO_ORIGIN, data: ev.data.msg, source: ATGO_PUENTE };
   }
+  recibirDeAtgo(e);
+});
+// Mensajes de ATGO: de su pestaña (directa o por la extensión) o del servidor (SRV_ATGO, ajustes.js)
+let atgoDirectoAt = 0;   // último dato de una pestaña de ATGO de este equipo: mientras sea reciente, el servidor no se usa
+function recibirDeAtgo(e){
   if (e.origin !== ATGO_ORIGIN || !e.data || typeof e.data !== 'object') return;
   const m = e.data;
+  if (e.source !== SRV_ATGO && (m.type === 'atgo-data' || m.type === 'atgo-hello')) atgoDirectoAt = Date.now();
   // Pestaña de ATGO que sincroniza: a ella se le piden los hilos y se mandan los cambios. Solo cambia con datos o al
   // conectarse: antes cualquier mensaje la cambiaba, y una pestaña antigua con la sesión caducada (que avisa cada 30 s)
   // se quedaba con los cambios y fallaban con «sesión caducada» aunque la buena funcionara.
@@ -439,7 +445,7 @@ window.addEventListener('message', (ev) => {
   else if (m.type === 'atgo-estado') recibirEstados(m.estados);
   else if (m.type === 'atgo-status') setAtgoStatus(String(m.text||''), m.error ? 'err' : '');
   else if (m.type === 'atgo-hello'){ e.source.postMessage({type:'despacho-ready'}, ATGO_ORIGIN); configurarAtgo(e.source); }
-});
+}
 // Versión de la sincronización que espera esta app. Si la pestaña de ATGO trae otra (la cargó antes de una
 // actualización), se avisa de que hay que recargarla. Debe coincidir con SYNC_VERSION de atgo-sync.js.
 const SYNC_VERSION = '1.42.4';

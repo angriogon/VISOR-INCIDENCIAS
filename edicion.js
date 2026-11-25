@@ -291,7 +291,7 @@ function edicionHtml(key, r) {
   const histHtml = hist.length ? `<ul class="dw-hist ed-hist">${hist.slice(0, 8).map(e => `<li class="${e.ok ? '' : 'ko'}"><span>${esc(cuando(e.ts))}</span>${e.ok ? '✓' : '✕'} ${esc(e.detalle || e.accion)}${e.ok ? '' : ' · ' + esc(e.error || 'no aplicado')}</li>`).join('')}</ul>` : '';
   if (!puedeEditar()) {
     return `<div class="dw-sec"><div class="dw-h">Actuar en ATGO</div>
-      <div class="dw-empty">${hiloFuente() ? 'Recarga la pestaña de ATGO para activar la edición.' : 'Conecta ATGO (Ajustes › General) para poder comentar o cambiar el estado desde aquí.'}</div>${histHtml}</div>`;
+      <div class="dw-empty">${hiloFuente() === SRV_ATGO ? 'Estás viendo los datos del servidor, que de momento solo lee. Para comentar o cambiar el estado, usa Despacho en el PC con ATGO abierto.' : hiloFuente() ? 'Recarga la pestaña de ATGO para activar la edición.' : 'Conecta ATGO (Ajustes › General) para poder comentar o cambiar el estado desde aquí.'}</div>${histHtml}</div>`;
   }
   const opciones = atgoEstados.filter(x => norm(x.desEstado) !== norm(r.estado));
   return `<div class="dw-sec">

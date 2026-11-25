@@ -2,18 +2,20 @@
 // Mantiene ATGO abierto en un Chromium sin pantalla con tu sesión, ejecuta dentro el atgo-sync.js firmado
 // (el token no sale de esa pestaña, igual que en el PC), guarda el historial de cambios en SQLite y
 // publica su estado en una API pequeña para la PWA (⚙ › General › Servidor).
-// En esta fase no envía ninguna orden de escritura a ATGO: solo 'despacho-config' y 'despacho-refresh'.
+// En esta fase no envía ninguna orden de escritura a ATGO: solo lecturas (config, refresh, hilos y estados).
+// También hace de «pestaña de ATGO» para la PWA en la tablet, el móvil o un PC sin extensión: /mensajes y /pedir.
 // Uso: node --no-warnings servidor/motor.mjs   (lo arranca el servicio que crea servidor/instalar.sh)
 import http from 'node:http';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import { chromium } from 'playwright-core';
 
-const MOTOR_VERSION = '0.1.1';
+const MOTOR_VERSION = '0.2.0';
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const CLAVES = process.env.DESPACHO_CLAVES || path.join(os.homedir(), '.despacho');          // nunca va al repositorio
 const DATOS = process.env.DESPACHO_DATOS || path.join(os.homedir(), '.local', 'share', 'despacho-motor');
@@ -22,7 +24,7 @@ const PWA_URL = 'https://angriogon.github.io/VISOR-INCIDENCIAS/';
 const ORIGENES = new Set(['https://angriogon.github.io', 'http://localhost:8765', 'http://127.0.0.1:8765']);
 const ATGO = 'https://atgo.tier1.es';
 const ATGO_URL = ATGO + '/#/mistickets/';
-const SOLO_LECTURA = new Set(['despacho-config', 'despacho-refresh', 'despacho-ready']);   // lo único que el motor puede mandar a ATGO
+const SOLO_LECTURA = new Set(['despacho-config', 'despacho-refresh', 'despacho-ready', 'despacho-hilo', 'despacho-estado']);   // lo único que el motor puede mandar a ATGO
 
 fs.mkdirSync(CLAVES, { recursive: true, mode: 0o700 });
 fs.mkdirSync(DATOS, { recursive: true });
@@ -32,7 +34,8 @@ const F = {
   navegador: path.join(CLAVES, 'navegador-atgo'),  // perfil de Chromium (guarda la sesión de ATGO)
   config: path.join(DATOS, 'config.json'),         // técnicos que manda la PWA
   sync: path.join(DATOS, 'atgo-sync.js'), firma: path.join(DATOS, 'atgo-sync.firma.json'),   // última versión válida
-  db: path.join(DATOS, 'historial.db')
+  db: path.join(DATOS, 'historial.db'),
+  ultimo: path.join(DATOS, 'ultimo.json')          // última carga completa (para la PWA tras reiniciar el motor)
 };
 
 const log = (...a) => console.log(new Date().toISOString().slice(0, 19), ...a);
@@ -176,10 +179,25 @@ async function abrirNavegador() {
   page.on('crash', () => { fallo('La pestaña de ATGO se ha colgado'); process.exit(1); });
   await page.goto(ATGO_URL, { waitUntil: 'domcontentloaded', timeout: 60000 });
 }
+// Cola de mensajes para la PWA que lee desde aquí (/mensajes): la última carga completa, el último estado y las
+// respuestas de hilos y estados. Cada PWA pide lo que haya desde el último número que vio.
+let colaN = 0, cola = [];
+function encolar(m) {
+  if (m.type === 'atgo-data' || m.type === 'atgo-status') cola = cola.filter(x => x.m.type !== m.type);   // de estos basta el último
+  cola.push({ n: ++colaN, m }); if (cola.length > 60) cola = cola.slice(-60);
+}
+{ const u = leerJson(F.ultimo, null); if (u && u.type === 'atgo-data') encolar(u); }
 function recibir(m) {
   if (!m || typeof m !== 'object') return;
-  if (m.type === 'atgo-status') { estado.texto = String(m.text || '').slice(0, 200); estado.error = !!m.error; }
-  else if (m.type === 'atgo-data' && !m.partial) { ultimoDato = Date.now(); guardarCarga(m); }
+  if (m.type === 'atgo-status') { estado.texto = String(m.text || '').slice(0, 200); estado.error = !!m.error; encolar({ type: 'atgo-status', text: estado.texto, error: estado.error }); }
+  else if (m.type === 'atgo-data' && !m.partial) {
+    ultimoDato = Date.now();
+    const previa = cola.find(x => x.m.type === 'atgo-data');
+    if (previa && previa.m.at === m.at) return;   // la misma carga reenviada (despacho-ready)
+    guardarCarga(m); encolar(m);
+    try { escribirPrivado(F.ultimo, m); } catch (e) { fallo('No se pudo guardar la última carga: ' + e.message); }
+  }
+  else if (m.type === 'atgo-hilo' || m.type === 'atgo-estado') encolar(m);
 }
 async function aAtgo(msg) {
   if (!SOLO_LECTURA.has(msg.type)) throw new Error('Fase 0: el motor no escribe en ATGO');
@@ -291,6 +309,14 @@ function leerCuerpo(req) {
     req.on('end', () => { try { ok(t ? JSON.parse(t) : {}); } catch (e) { mal(e); } });
   });
 }
+async function guardarConfig(b) {
+  const ops = limpiaOps(b.operarios), perm = limpiaOps(b.permitidos);
+  if (!ops.length || ops.length > 200) return 0;
+  const vieja = leerJson(F.config, {});
+  fs.writeFileSync(F.config, JSON.stringify({ operarios: ops, permitidos: perm.length ? perm : ops, at: Date.now() }));
+  if ((vieja.operarios || []).slice().sort().join() !== ops.slice().sort().join() && estado.sesion === 'ok') await mandarConfig().catch(e => fallo(e.message));
+  return ops.length;
+}
 const limpiaOps = a => [...new Set((Array.isArray(a) ? a : []).map(x => String(x).trim().toUpperCase()).filter(x => /^[A-Z0-9]{2,12}$/.test(x)))];
 http.createServer(async (req, res) => {
   const origen = req.headers.origin;
@@ -313,12 +339,25 @@ http.createServer(async (req, res) => {
       });
     }
     if (req.method === 'POST' && ruta === '/config') {
-      const b = await leerCuerpo(req), ops = limpiaOps(b.operarios), perm = limpiaOps(b.permitidos);
-      if (!ops.length || ops.length > 200) return responder(400, { error: 'Lista de técnicos no válida' });
-      const nueva = { operarios: ops, permitidos: perm.length ? perm : ops, at: Date.now() }, vieja = leerJson(F.config, {});
-      fs.writeFileSync(F.config, JSON.stringify(nueva));
-      if ((vieja.operarios || []).slice().sort().join() !== ops.slice().sort().join() && estado.sesion === 'ok') await mandarConfig().catch(e => fallo(e.message));
-      return responder(200, { ok: true, tecnicos: ops.length });
+      const b = await leerCuerpo(req), n = await guardarConfig(b);
+      return n ? responder(200, { ok: true, tecnicos: n }) : responder(400, { error: 'Lista de técnicos no válida' });
+    }
+    if (req.method === 'GET' && ruta === '/mensajes') {
+      let desde = Number(new URL(req.url, 'http://x').searchParams.get('desde')) || 0;
+      if (desde > colaN) desde = 0;   // el motor se ha reiniciado: se manda todo
+      const cuerpo = JSON.stringify({ n: colaN, msgs: cola.filter(x => x.n > desde).map(x => x.m), sesion: estado.sesion, fase: estado.fase });
+      if (/\bgzip\b/.test(String(req.headers['accept-encoding'] || ''))) { res.writeHead(200, { ...cab, 'Content-Encoding': 'gzip' }); return res.end(zlib.gzipSync(cuerpo)); }
+      res.writeHead(200, cab); return res.end(cuerpo);
+    }
+    if (req.method === 'POST' && ruta === '/pedir') {
+      const m = (await leerCuerpo(req)).msg;
+      if (!m || typeof m !== 'object') return responder(400, { error: 'Falta el mensaje' });
+      if (m.type === 'despacho-config') return responder(200, { ok: !!(await guardarConfig(m)) });
+      if (!SOLO_LECTURA.has(m.type)) return responder(403, { error: 'Desde el servidor, de momento solo se puede leer' });
+      const keys = Array.isArray(m.keys) ? m.keys.map(String).filter(k => /^\d+\/[^/]+\/\d+$/.test(k)).slice(0, 200) : undefined;
+      if (estado.sesion !== 'ok') return responder(503, { error: 'El servidor no tiene sesión en ATGO' });
+      await aAtgo(keys ? { type: m.type, keys } : { type: m.type });
+      return responder(200, { ok: true });
     }
     if (req.method === 'POST' && ruta === '/credenciales') {
       const b = await leerCuerpo(req), ins = String(b.instancia || '').trim(), u = String(b.usuario || '').trim(), c = String(b.clave || '');
