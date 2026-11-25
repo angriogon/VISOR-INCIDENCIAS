@@ -3,13 +3,13 @@
 // asistente de inicio, diagnóstico, resumen matinal, aviso de técnico sin actividad y exportar a Excel.
 // Usa utilidades de app.js, dia.js, herramientas.js, edicion.js y panel.js solo en tiempo de llamada.
 
-const APP_VERSION = '1.46.0';   // súbela a la vez que VERSION en sw.js
+const APP_VERSION = '1.47.0';   // súbela a la vez que VERSION en sw.js
 const NOVEDADES = [
+  { v: '1.47.0', f: '2026-11-25', l: ['Tablet y equipos sin extensión: ya se puede actuar en ATGO a través del servidor (comentar, cambiar estado, asignar, asignar varias, rellenar el día y nueva incidencia). Igual que en el PC: confirmas, se comprueba campo a campo y nunca se repite solo. La respuesta llega en unos segundos.'] },
   { v: '1.46.0', f: '2026-11-25', l: ['Despacho en la tablet, el móvil o cualquier PC sin la extensión: si pones en ⚙ › Servidor la dirección y la clave, las incidencias, Sin asignar, hilos y estados llegan de tu servidor cada 30 s. Arriba sale «Desde el servidor · hora».', 'Es solo lectura: comentar, cambiar estado y asignar siguen necesitando el PC con ATGO abierto. En el PC con la extensión no cambia nada; si su pestaña de ATGO deja de sincronizar 6 min, entra el servidor de respaldo.'] },
   { v: '1.45.0', f: '2026-11-25', l: ['⚙ Ajustes renovado: ventana propia con las secciones a la izquierda (Conexión, Servidor, Avisos, Apariencia, Equipo, Festivos, WhatsApp y Datos) y cada opción en una fila con su explicación e interruptor. Los recordatorios del día pasan a Avisos; perfiles y técnicos, a Equipo. Se cierra con ✕, Escape o pulsando fuera.', 'Servidor: con el acceso a ATGO ya guardado solo sale «Guardado en el servidor ✓» y un botón Cambiar. No hace falta volver a iniciar sesión.'] },
   { v: '1.44.0', f: '2026-11-25', l: ['Menú lateral: debajo de «ATGO conectado» (la pestaña de este equipo) sale «Servidor» con su propio color: verde al día, ámbar cargando, rojo sin conexión o sin sesión. Pulsándolo se abre ⚙ › Servidor.', '⚙ › Servidor pide también la Instancia de ATGO.'] },
   { v: '1.43.0', f: '2026-11-25', l: ['⚙ › Servidor: estado del motor que mantiene ATGO abierto en tu servidor día y noche (sesión, última carga, historial). Por ahora solo lee: es la base del piloto automático de asignaciones.'] },
-  { v: '1.42.7', f: '2026-11-24', l: ['Mi día: se quita «Hoy en directo» (la línea de tiempo por técnico). Seguimiento queda solo con Novedades.'] },
 ];
 // Resumen de lo más importante de las versiones anteriores a las 5 últimas (se ve en ⓘ › Anteriores)
 const ANTERIORES = [
@@ -55,9 +55,10 @@ const ANTERIORES = [
   'Diseño nuevo (prueba) con menú lateral y tonos claros',
   'ATGO no deja quitar la fecha de visita: Despacho lo avisa',
   'Comentario y estado en un solo envío y logo nuevo',
-  'Caducidades y avisos solo de los estados presenciales'
+  'Caducidades y avisos solo de los estados presenciales',
+  'Mi día sin «Hoy en directo»'
 ];
-const NOV_VISIBLES = 5, ANTERIORES_HASTA = '1.42.6';   // al añadir una versión, quita la más antigua de NOVEDADES y resúmela aquí si importa
+const NOV_VISIBLES = 5, ANTERIORES_HASTA = '1.42.7';   // al añadir una versión, quita la más antigua de NOVEDADES y resúmela aquí si importa
 const NOV_KEY = 'dispatcher_version_vista_v1', BIENV_KEY = 'dispatcher_bienvenida_v1', DATOS_VER_KEY = 'dispatcher_datos_version_v1';
 
 // ---- Novedades de la versión ----
@@ -528,20 +529,20 @@ document.body.appendChild(document.getElementById('cfgMenu'));
 document.getElementById('cfgMenu').addEventListener('click', e => { if (e.target.id === 'cfgMenu') cerrarCfg(); });
 document.addEventListener('keydown', e => { const m = document.getElementById('cfgMenu'); if (e.key === 'Escape' && m && !m.hidden && document.getElementById('modal').hidden) { cerrarCfg(); document.getElementById('cfgBtn').focus(); } });
 
-// ---- Servidor (⚙ › Servidor): el motor que vive en «automation» (servidor/motor.mjs). Fase 0: solo lectura ----
+// ---- Servidor (⚙ › Servidor): el motor que vive en «automation» (servidor/motor.mjs). Piloto en fase 0: no asigna por su cuenta ----
 // Dirección y clave en tecCfg (srvUrl, srvClave). El usuario de ATGO se manda una vez al servidor y no se guarda aquí.
 let srvUltimo = null, srvAt = 0, srvPidiendo = false;
 const srvCfg = () => ({ url: String(tecCfg.srvUrl || '').trim().replace(/\/+$/, ''), clave: String(tecCfg.srvClave || '').trim() });
-async function srvPedir(ruta, cuerpo) {
+async function srvPedir(ruta, cuerpo, espera = 10000) {
   const c = srvCfg();
   if (!c.url || !c.clave) throw new Error('Falta la dirección o la clave');
   let r;
   try {
-    r = await fetch(c.url + ruta, { method: cuerpo ? 'POST' : 'GET', cache: 'no-store', signal: AbortSignal.timeout(10000),
+    r = await fetch(c.url + ruta, { method: cuerpo ? 'POST' : 'GET', cache: 'no-store', signal: AbortSignal.timeout(espera),
       headers: { Authorization: 'Bearer ' + c.clave, ...(cuerpo ? { 'Content-Type': 'application/json' } : {}) }, body: cuerpo ? JSON.stringify(cuerpo) : undefined });
   } catch (e) { throw new Error(e.name === 'TimeoutError' ? 'El servidor no responde' : 'No se llega al servidor (revisa la dirección)'); }
   const d = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(d.error || 'Error ' + r.status);
+  if (!r.ok) { const e = new Error(d.error || 'Error ' + r.status); e.respondio = true; throw e; }
   return d;
 }
 async function srvRevisar(forzar) {
@@ -576,7 +577,7 @@ function srvEstadoCorto() {
 function srvPildora() {
   if (!srvCfg().url || !srvCfg().clave) return '';
   const e = srvEstadoCorto();
-  return `<button class="dn-est dn-srv ${e.c}" onclick="srvAbrir(event)" title="Motor del servidor (solo lectura). ${esc(e.d)} · Abre ⚙ › Servidor"><i></i><span>Servidor · ${esc(e.t)}</span></button>`;
+  return `<button class="dn-est dn-srv ${e.c}" onclick="srvAbrir(event)" title="Motor del servidor. ${esc(e.d)} · Abre ⚙ › Servidor"><i></i><span>Servidor · ${esc(e.t)}</span></button>`;
 }
 function srvAbrir(ev) {
   if (ev) ev.stopPropagation();
@@ -589,16 +590,32 @@ function srvHace(ts) {
 // ---- Datos desde el servidor: la PWA en la tablet, el móvil o un PC sin la extensión ----
 // Si este equipo no tiene una pestaña de ATGO que sincronice (atgoDirectoAt, app.js), las incidencias, hilos y estados
 // llegan del motor. SRV_ATGO hace de «ventana de ATGO» para el resto del código, como ATGO_PUENTE.
-// Solo lectura: de los datos del servidor se quitan las capacidades de escritura (editar, asignar, lote, alta).
-const SRV_LEER = ['despacho-hilo', 'despacho-estado', 'despacho-refresh', 'despacho-ready', 'despacho-config'];
+// Los cambios (comentar, estado, asignar, alta) siguen el mismo camino que en el PC: confirmación aquí, comprobación
+// campo a campo en atgo-sync y sin repetir (el servidor rechaza un id ya enviado). Mientras hay uno en curso, la
+// respuesta se espera con /mensajes?espera (llega al momento, sin esperar al siguiente sondeo).
+const SRV_MSGS = ['despacho-hilo', 'despacho-estado', 'despacho-refresh', 'despacho-ready', 'despacho-config',
+  'despacho-editar', 'despacho-editar-lote', 'despacho-alta-lista', 'despacho-alta'];
+let srvRapidoHasta = 0;
 const SRV_ATGO = {
   get closed() { return !srvViaActiva(); },
   postMessage(msg) {
-    if (!msg || !SRV_LEER.includes(msg.type)) return;
-    srvPedir('/pedir', { msg }).then(() => { [1500, 4000, 9000].forEach(t => setTimeout(srvSondear, t)); }).catch(e => diagLog('Servidor › pedir: ' + e.message));
+    if (!msg || !SRV_MSGS.includes(msg.type)) return;
+    srvRapidoHasta = Date.now() + (/^despacho-(editar|alta)/.test(msg.type) ? 120000 : 20000);
+    srvPedir('/pedir', { msg }, 20000).then(() => srvSondear()).catch(e => {
+      diagLog('Servidor › ' + msg.type + ': ' + e.message);
+      if (!e.respondio) return;   // sin respuesta del servidor no se sabe si llegó: la PWA avisa de comprobarlo en ATGO
+      // El servidor contestó con un error: seguro que no lo ha enviado a ATGO
+      const error = 'el servidor no lo ha enviado (' + e.message + '). No se ha cambiado nada';
+      const resp = msg.type === 'despacho-editar' ? [{ type: 'atgo-editado', id: msg.id, ok: false, error }]
+        : msg.type === 'despacho-editar-lote' ? (msg.items || []).map(i => ({ type: 'atgo-editado', id: i.id, ok: false, error }))
+        : msg.type === 'despacho-alta' ? [{ type: 'atgo-alta', id: msg.id, ok: false, error }] : [];
+      resp.forEach(r => recibirDeAtgo({ origin: ATGO_ORIGIN, data: r, source: SRV_ATGO }));
+    });
   },
   focus() { abrirAtgo(); }
 };
+// Hay algo esperando respuesta de ATGO: se escucha al servidor sin pausa
+const srvEnCurso = () => Date.now() < srvRapidoHasta || !!editPend || lotePend.size > 0 || !!(altaEst && altaEst.enviando);
 const srvArranque = Date.now();
 // Con la extensión (o si ATGO abrió esta ventana) se dan 90 s a la pestaña de este equipo antes de tirar del servidor
 function srvViaActiva() {
@@ -610,18 +627,22 @@ let srvN = 0, srvSondeando = false, srvSondeoAt = 0;
 async function srvSondear() {
   if (srvSondeando || !srvViaActiva()) return;
   srvSondeando = true; srvSondeoAt = Date.now();
+  let seguir = false;
   try {
-    const d = await srvPedir('/mensajes?desde=' + srvN);
+    const rapido = srvEnCurso() && !document.hidden;
+    const d = await srvPedir('/mensajes?desde=' + srvN + (rapido ? '&espera=20' : ''), null, rapido ? 30000 : 10000);
     srvN = Number(d.n) || 0;
     for (const m of d.msgs || []) {
       if (!m || typeof m !== 'object') continue;
       if (!srvViaActiva()) break;   // mientras tanto ha vuelto la pestaña de ATGO de este equipo
-      const x = m.type === 'atgo-data' ? { ...m, desdeServidor: true, caps: (m.caps || []).filter(c => ['hilo', 'estado', 'pool'].includes(c)) }
+      const x = m.type === 'atgo-data' ? { ...m, desdeServidor: true }
         : m.type === 'atgo-status' ? { ...m, text: 'Desde el servidor' + (/^\s*·/.test(m.text || '') ? m.text : ' · ' + (m.text || '')) } : m;
       recibirDeAtgo({ origin: ATGO_ORIGIN, data: x, source: SRV_ATGO });
     }
+    seguir = srvEnCurso() && !document.hidden;
   } catch (e) { diagLog('Servidor › datos: ' + e.message); }
   finally { srvSondeando = false; }
+  if (seguir) setTimeout(srvSondear, 300);
 }
 // Cada 30 s con la app a la vista y cada 2 min en segundo plano; al volver a la app, en el momento
 setInterval(() => { if (Date.now() - srvSondeoAt > (document.hidden ? 120000 : 30000)) srvSondear(); }, 10000);
@@ -638,7 +659,7 @@ function srvHtml() {
   else if (u && !u.ok) det = `<small>${esc(u.error)}</small>`;
   else if (d) {
     const ca = d.ultimaCarga, hi = d.historial || {};
-    det = `<small>${esc(SES[d.sesion] || d.sesion)}${d.usuario ? ' · ' + esc(d.usuario) : ''} · motor ${esc(d.motor)} · fase ${d.fase}${d.fase === 0 ? ', solo lectura' : ''}</small>
+    det = `<small>${esc(SES[d.sesion] || d.sesion)}${d.usuario ? ' · ' + esc(d.usuario) : ''} · motor ${esc(d.motor)} · piloto en fase ${d.fase}${d.fase === 0 ? ' (observa)' : ''}</small>
       <small>${ca ? `Última carga ${srvHace(ca.at)}: ${plural(ca.filas, 'incidencia')}${ca.pool != null ? ' · ' + ca.pool + ' sin asignar' : ''} · ${ca.segundos} s${ca.sospechosa ? ' · incompleta' : ''}` : 'Aún sin datos de ATGO'}${/^Cargando/.test(d.texto || '') ? ' · ' + esc(d.texto) : ''}</small>`;
   }
   const hi = d && d.historial || {};
@@ -648,7 +669,7 @@ function srvHtml() {
       (d.errores || []).slice(0, 3).map(x => cfgIt('Aviso ' + srvHace(x.at), esc(x.t), '', 'err')).join('')) : '';
   const guardado = d && d.credenciales && !srvEditar;
   return `<div class="cfg-hero ${e.c}"><i></i><div><b>Servidor · ${esc(e.t)}</b>${det}</div><button class="btn sm" onclick="event.stopPropagation();srvRevisar(true)">⟳ Comprobar</button></div>
-    <p class="cfg-nota">ATGO abierto día y noche en tu servidor. De momento solo lee y guarda el historial; más adelante asignará solo de lunes a viernes. No hace falta volver a iniciar sesión: el servidor la renueva solo.</p>
+    <p class="cfg-nota">ATGO abierto día y noche en tu servidor. Da los datos a Despacho en la tablet o sin extensión y guarda los cambios que confirmes allí. El piloto de momento solo observa; más adelante asignará solo de lunes a viernes. No hace falta volver a iniciar sesión: el servidor la renueva solo.</p>
     ${resumen}
     ${cfgCard('Conexión con el servidor', cfgIt('Dirección', '', `<input id="srvUrl" class="cfg-in largo" type="url" aria-label="Dirección del servidor" placeholder="https://….ts.net:8443" value="${esc(tecCfg.srvUrl || '')}" onchange="setPref('srvUrl',this.value.trim());srvRevisar(true)">`) +
       cfgIt('Clave de acceso', 'Se guarda en este equipo.', `<input id="srvClave" class="cfg-in largo" type="password" aria-label="Clave de acceso" autocomplete="off" value="${esc(tecCfg.srvClave || '')}" onchange="setPref('srvClave',this.value.trim());srvRevisar(true)">`))}

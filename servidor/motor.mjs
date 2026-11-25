@@ -2,8 +2,10 @@
 // Mantiene ATGO abierto en un Chromium sin pantalla con tu sesión, ejecuta dentro el atgo-sync.js firmado
 // (el token no sale de esa pestaña, igual que en el PC), guarda el historial de cambios en SQLite y
 // publica su estado en una API pequeña para la PWA (⚙ › General › Servidor).
-// En esta fase no envía ninguna orden de escritura a ATGO: solo lecturas (config, refresh, hilos y estados).
+// El piloto (fase 0) no escribe nada por su cuenta: solo lecturas (config, refresh, hilos y estados).
 // También hace de «pestaña de ATGO» para la PWA en la tablet, el móvil o un PC sin extensión: /mensajes y /pedir.
+// Por /pedir pasan además los cambios que el usuario confirma en la PWA (comentar, estado, asignar, alta): la PWA
+// pide la confirmación, atgo-sync los comprueba campo a campo y el motor no los repite nunca (cada id, una sola vez).
 // Uso: node --no-warnings servidor/motor.mjs   (lo arranca el servicio que crea servidor/instalar.sh)
 import http from 'node:http';
 import fs from 'node:fs';
@@ -15,7 +17,7 @@ import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import { chromium } from 'playwright-core';
 
-const MOTOR_VERSION = '0.2.0';
+const MOTOR_VERSION = '0.3.0';
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const CLAVES = process.env.DESPACHO_CLAVES || path.join(os.homedir(), '.despacho');          // nunca va al repositorio
 const DATOS = process.env.DESPACHO_DATOS || path.join(os.homedir(), '.local', 'share', 'despacho-motor');
@@ -24,7 +26,8 @@ const PWA_URL = 'https://angriogon.github.io/VISOR-INCIDENCIAS/';
 const ORIGENES = new Set(['https://angriogon.github.io', 'http://localhost:8765', 'http://127.0.0.1:8765']);
 const ATGO = 'https://atgo.tier1.es';
 const ATGO_URL = ATGO + '/#/mistickets/';
-const SOLO_LECTURA = new Set(['despacho-config', 'despacho-refresh', 'despacho-ready', 'despacho-hilo', 'despacho-estado']);   // lo único que el motor puede mandar a ATGO
+const SOLO_LECTURA = new Set(['despacho-config', 'despacho-refresh', 'despacho-ready', 'despacho-hilo', 'despacho-estado']);   // lo único que el motor manda a ATGO por su cuenta
+const DEL_USUARIO = new Set(['despacho-editar', 'despacho-editar-lote', 'despacho-alta-lista', 'despacho-alta']);   // solo a petición de la PWA, ya confirmados allí
 
 fs.mkdirSync(CLAVES, { recursive: true, mode: 0o700 });
 fs.mkdirSync(DATOS, { recursive: true });
@@ -181,11 +184,13 @@ async function abrirNavegador() {
 }
 // Cola de mensajes para la PWA que lee desde aquí (/mensajes): la última carga completa, el último estado y las
 // respuestas de hilos y estados. Cada PWA pide lo que haya desde el último número que vio.
-let colaN = 0, cola = [];
+let colaN = 0, cola = [], vistos = new Map();   // vistos: ids de cambios ya enviados (no se repiten)
 function encolar(m) {
   if (m.type === 'atgo-data' || m.type === 'atgo-status') cola = cola.filter(x => x.m.type !== m.type);   // de estos basta el último
   cola.push({ n: ++colaN, m }); if (cola.length > 60) cola = cola.slice(-60);
+  const w = esperando; esperando = []; w.forEach(f => f());
 }
+let esperando = [];   // PWA esperando mensajes nuevos (/mensajes?espera=s): se contestan al llegar uno
 { const u = leerJson(F.ultimo, null); if (u && u.type === 'atgo-data') encolar(u); }
 function recibir(m) {
   if (!m || typeof m !== 'object') return;
@@ -197,10 +202,11 @@ function recibir(m) {
     guardarCarga(m); encolar(m);
     try { escribirPrivado(F.ultimo, m); } catch (e) { fallo('No se pudo guardar la última carga: ' + e.message); }
   }
-  else if (m.type === 'atgo-hilo' || m.type === 'atgo-estado') encolar(m);
+  else if (m.type === 'atgo-hilo' || m.type === 'atgo-estado' || m.type === 'atgo-alta-lista') encolar(m);
+  else if (m.type === 'atgo-editado' || m.type === 'atgo-alta') { log('Cambio', m.id, m.ok ? 'aplicado y comprobado' : 'NO aplicado: ' + String(m.error || '').slice(0, 200)); encolar(m); }
 }
-async function aAtgo(msg) {
-  if (!SOLO_LECTURA.has(msg.type)) throw new Error('Fase 0: el motor no escribe en ATGO');
+async function aAtgo(msg, delUsuario) {
+  if (!SOLO_LECTURA.has(msg.type) && !(delUsuario && DEL_USUARIO.has(msg.type))) throw new Error('Fase 0: el motor no escribe en ATGO por su cuenta');
   await page.evaluate(m => window.postMessage({ __despacho: 'a-atgo', msg: m }, location.origin), msg);
 }
 async function mandarConfig() {
@@ -303,9 +309,9 @@ function autorizado(req) {
   const h = String(req.headers.authorization || ''), dada = Buffer.from(h.replace(/^Bearer /, '')), buena = Buffer.from(acceso.clave);
   return dada.length === buena.length && crypto.timingSafeEqual(dada, buena);
 }
-function leerCuerpo(req) {
+function leerCuerpo(req, max = 20000) {
   return new Promise((ok, mal) => {
-    let t = ''; req.on('data', d => { t += d; if (t.length > 20000) { mal(new Error('demasiado grande')); req.destroy(); } });
+    let t = ''; req.on('data', d => { t += d; if (t.length > max) { mal(new Error('demasiado grande')); req.destroy(); } });
     req.on('end', () => { try { ok(t ? JSON.parse(t) : {}); } catch (e) { mal(e); } });
   });
 }
@@ -343,17 +349,33 @@ http.createServer(async (req, res) => {
       return n ? responder(200, { ok: true, tecnicos: n }) : responder(400, { error: 'Lista de técnicos no válida' });
     }
     if (req.method === 'GET' && ruta === '/mensajes') {
-      let desde = Number(new URL(req.url, 'http://x').searchParams.get('desde')) || 0;
+      const sp = new URL(req.url, 'http://x').searchParams, espera = Math.min(25, Number(sp.get('espera')) || 0);
+      let desde = Number(sp.get('desde')) || 0;
       if (desde > colaN) desde = 0;   // el motor se ha reiniciado: se manda todo
+      if (espera && !cola.some(x => x.n > desde)) await new Promise(fin => {
+        const f = () => { clearTimeout(t); esperando = esperando.filter(x => x !== f); fin(); }, t = setTimeout(f, espera * 1000);
+        esperando.push(f); req.on('close', f);
+      });
       const cuerpo = JSON.stringify({ n: colaN, msgs: cola.filter(x => x.n > desde).map(x => x.m), sesion: estado.sesion, fase: estado.fase });
       if (/\bgzip\b/.test(String(req.headers['accept-encoding'] || ''))) { res.writeHead(200, { ...cab, 'Content-Encoding': 'gzip' }); return res.end(zlib.gzipSync(cuerpo)); }
       res.writeHead(200, cab); return res.end(cuerpo);
     }
     if (req.method === 'POST' && ruta === '/pedir') {
-      const m = (await leerCuerpo(req)).msg;
+      const m = (await leerCuerpo(req, 300000)).msg;
       if (!m || typeof m !== 'object') return responder(400, { error: 'Falta el mensaje' });
       if (m.type === 'despacho-config') return responder(200, { ok: !!(await guardarConfig(m)) });
-      if (!SOLO_LECTURA.has(m.type)) return responder(403, { error: 'Desde el servidor, de momento solo se puede leer' });
+      if (DEL_USUARIO.has(m.type)) {
+        const ids = m.type === 'despacho-editar-lote' ? (Array.isArray(m.items) ? m.items.slice(0, 200).map(i => i && i.id) : []) : [m.id];
+        if (!ids.length || ids.some(i => typeof i !== 'string' || !/^[\w-]{3,40}$/.test(i))) return responder(400, { error: 'Cambio sin identificador' });
+        if (ids.some(i => vistos.has(i))) return responder(409, { error: 'Ese cambio ya se envió una vez y no se repite' });
+        if (estado.sesion !== 'ok') return responder(503, { error: 'El servidor no tiene sesión en ATGO' });
+        const ahora = Date.now(); ids.forEach(i => vistos.set(i, ahora));
+        for (const [i, t] of vistos) if (ahora - t > 86400000) vistos.delete(i);
+        if (m.type !== 'despacho-alta-lista') log('Cambio pedido desde la PWA:', m.type, m.type === 'despacho-editar-lote' ? ids.length + ' tickets' : (m.key || '') + ' ' + (m.accion || ''), ids.join(',').slice(0, 120));
+        await aAtgo(m.type === 'despacho-editar-lote' ? { ...m, items: m.items.slice(0, 200) } : m, true);
+        return responder(200, { ok: true });
+      }
+      if (!SOLO_LECTURA.has(m.type)) return responder(403, { error: 'Ese mensaje no está permitido' });
       const keys = Array.isArray(m.keys) ? m.keys.map(String).filter(k => /^\d+\/[^/]+\/\d+$/.test(k)).slice(0, 200) : undefined;
       if (estado.sesion !== 'ok') return responder(503, { error: 'El servidor no tiene sesión en ATGO' });
       await aAtgo(keys ? { type: m.type, keys } : { type: m.type });

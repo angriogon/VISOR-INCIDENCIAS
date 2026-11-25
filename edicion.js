@@ -291,12 +291,12 @@ function edicionHtml(key, r) {
   const histHtml = hist.length ? `<ul class="dw-hist ed-hist">${hist.slice(0, 8).map(e => `<li class="${e.ok ? '' : 'ko'}"><span>${esc(cuando(e.ts))}</span>${e.ok ? '✓' : '✕'} ${esc(e.detalle || e.accion)}${e.ok ? '' : ' · ' + esc(e.error || 'no aplicado')}</li>`).join('')}</ul>` : '';
   if (!puedeEditar()) {
     return `<div class="dw-sec"><div class="dw-h">Actuar en ATGO</div>
-      <div class="dw-empty">${hiloFuente() === SRV_ATGO ? 'Estás viendo los datos del servidor, que de momento solo lee. Para comentar o cambiar el estado, usa Despacho en el PC con ATGO abierto.' : hiloFuente() ? 'Recarga la pestaña de ATGO para activar la edición.' : 'Conecta ATGO (Ajustes › General) para poder comentar o cambiar el estado desde aquí.'}</div>${histHtml}</div>`;
+      <div class="dw-empty">${hiloFuente() ? 'Recarga la pestaña de ATGO para activar la edición.' : 'Conecta ATGO (Ajustes › General) para poder comentar o cambiar el estado desde aquí.'}</div>${histHtml}</div>`;
   }
   const opciones = atgoEstados.filter(x => norm(x.desEstado) !== norm(r.estado));
   return `<div class="dw-sec">
     <div class="dw-h">Actuar en ATGO <small>con tu usuario</small></div>
-    ${pend ? `<div class="ed-pend" role="status">⏳ Enviando a ATGO y comprobando… no cierres la pestaña de ATGO.</div>` : ''}
+    ${pend ? `<div class="ed-pend" role="status">⏳ Enviando a ATGO${hiloFuente() === SRV_ATGO ? ' por el servidor' : ''} y comprobando…${hiloFuente() === SRV_ATGO ? '' : ' no cierres la pestaña de ATGO.'}</div>` : ''}
     ${!pend && edResultado && edResultado.key === key && Date.now() - edResultado.ts < 120000 ? `<div class="ed-res ${edResultado.ok ? 'ok' : 'ko'}" id="edRes" role="status"><span>${esc(edResultado.txt)}</span><small>${esc(hhmm(edResultado.ts))}</small><button class="iconbtn sm" onclick="edResultado=null;this.parentNode.remove()" aria-label="Cerrar aviso">✕</button></div>` : ''}
     ${frasesHtml(r)}
     <textarea id="edCom" rows="2" placeholder="Comentario para el hilo (lo verá el técnico). Opcional si solo cambias el estado"${pend ? ' disabled' : ''}></textarea>
