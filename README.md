@@ -152,23 +152,18 @@ No se avisa en fines de semana ni en festivos.
 
 ## Ajustes (⚙)
 
-- **General:** **ACTUALIZAR** (trae al momento los datos de ATGO sin recargar la página y busca versión nueva), conexión con ATGO (*Abrir ATGO*, *Forzar reconexión*, *Importar Excel*) y horas de los avisos del día.
+Ventana propia con las secciones a la izquierda; cada opción va en una fila con su explicación y un interruptor. Se cierra con ✕, Escape o pulsando fuera.
+
+- **Conexión:** estado de ATGO, **Actualizar ahora** (trae los datos sin esperar a los 2 minutos y busca versión nueva), *Abrir ATGO*, *Forzar reconexión*, descarga de la extensión, importar Excel y asistente de inicio.
+- **Servidor:** estado del motor que mantiene ATGO abierto en tu servidor día y noche: sesión, última carga e historial de cambios. Pon la dirección y la clave que da `servidor/instalar.sh` y guarda una vez la instancia, el usuario y la contraseña de ATGO (se quedan en el servidor, no en este equipo; no hay que volver a iniciar sesión). De momento solo lee; es la base del piloto automático, que solo actuará de lunes a viernes. En el diseño nuevo, debajo de «ATGO conectado» (la pestaña de este equipo) sale **Servidor** con su color: verde al día, ámbar cargando, rojo sin conexión o sin sesión.
+- **Avisos:** avisos de Windows y recordatorios del día (resumen matinal, técnico sin actividad, visitas sin cerrar, horas para marcar sin asignar olvidadas e informe de control en COORD).
 - **Apariencia:**
-  - **Tema:** como Windows, claro u oscuro.
-  - **Color:** naranja, azul ATGO, verde, morado o grafito.
-  - **Tamaño:** compacto, normal o amplio.
-  - **Zoom:** del 100 al 150 %.
-  - **Diseño nuevo (prueba):** menú lateral con las secciones y las herramientas del día, tonos claros, Mi día en dos columnas e Incidencias con cada línea sombreada del color de su estado. Desmarcándolo vuelve el diseño de siempre.
-- **Accesibilidad**, en Apariencia:
-  - **Modo accesible**, que activa de una vez el alto contraste, el foco visible, los botones grandes, los enlaces subrayados y quita las animaciones.
-  - Cada opción se puede activar por separado. Hay además una letra de lectura fácil.
-  - Siempre activo: «Saltar al contenido», foco dentro de las ventanas y nombres para lectores de pantalla.
-- **Técnicos · Perfiles · Festivos** (nacionales incluidos; se añaden los autonómicos y locales) · **WhatsApp** (plantillas).
-- **Servidor:** estado del motor que mantiene ATGO abierto en tu servidor día y noche: sesión, última carga e historial de cambios. Pon la dirección y la clave que da `servidor/instalar.sh`, y guarda una vez el usuario de ATGO (se queda en el servidor, no en este equipo). De momento solo lee; es la base del piloto automático, que solo actuará de lunes a viernes. En el diseño nuevo, debajo de «ATGO conectado» (la pestaña de este equipo) sale **Servidor** con su color: verde al día, ámbar cargando, rojo sin conexión o sin sesión.
-- **Datos:**
-  - Copia de seguridad manual y automática en **OneDrive**: cada 10 minutos y una copia por día de los últimos 7.
-  - **Exportar a Excel:** incidencias o planificación de la semana.
-  - Espacio usado y **Diagnóstico** para enviar si algo falla.
+  - **Diseño nuevo (prueba):** menú lateral con las secciones y las herramientas del día, tonos claros, Mi día en dos columnas e Incidencias con cada línea sombreada del color de su estado.
+  - **Tema** (como Windows, claro u oscuro), **color** (naranja, azul ATGO, verde, morado o grafito), **densidad** y **zoom** (100–150 %).
+  - **Accesibilidad:** **modo accesible**, que activa de una vez el alto contraste, el foco visible, los botones grandes, los enlaces subrayados y quita las animaciones; cada opción se puede activar por separado y hay una letra de lectura fácil. Siempre activo: «Saltar al contenido», foco dentro de las ventanas y nombres para lectores de pantalla.
+- **Equipo:** perfil activo y gestión de perfiles, elegir el perfil según el usuario de ATGO y nómina de técnicos.
+- **Festivos** (nacionales incluidos; se añaden los autonómicos y locales) · **WhatsApp** (plantillas).
+- **Datos:** copia automática en **OneDrive** (cada 10 minutos y una por día de los últimos 7) y manual, **exportar a Excel** (incidencias o planificación de la semana), informe semanal, espacio usado y **diagnóstico**.
 - **Atajos:**
   - `1`–`4`: pestañas.
   - `J` / `K`: moverse por la lista; `Enter`: abrir la ficha.

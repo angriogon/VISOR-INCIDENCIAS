@@ -3,13 +3,13 @@
 // asistente de inicio, diagnóstico, resumen matinal, aviso de técnico sin actividad y exportar a Excel.
 // Usa utilidades de app.js, dia.js, herramientas.js, edicion.js y panel.js solo en tiempo de llamada.
 
-const APP_VERSION = '1.44.0';   // súbela a la vez que VERSION en sw.js
+const APP_VERSION = '1.45.0';   // súbela a la vez que VERSION en sw.js
 const NOVEDADES = [
+  { v: '1.45.0', f: '2026-11-25', l: ['⚙ Ajustes renovado: ventana propia con las secciones a la izquierda (Conexión, Servidor, Avisos, Apariencia, Equipo, Festivos, WhatsApp y Datos) y cada opción en una fila con su explicación e interruptor. Los recordatorios del día pasan a Avisos; perfiles y técnicos, a Equipo. Se cierra con ✕, Escape o pulsando fuera.', 'Servidor: con el acceso a ATGO ya guardado solo sale «Guardado en el servidor ✓» y un botón Cambiar. No hace falta volver a iniciar sesión.'] },
   { v: '1.44.0', f: '2026-11-25', l: ['Menú lateral: debajo de «ATGO conectado» (la pestaña de este equipo) sale «Servidor» con su propio color: verde al día, ámbar cargando, rojo sin conexión o sin sesión. Pulsándolo se abre ⚙ › Servidor.', '⚙ › Servidor pide también la Instancia de ATGO.'] },
   { v: '1.43.0', f: '2026-11-25', l: ['⚙ › Servidor: estado del motor que mantiene ATGO abierto en tu servidor día y noche (sesión, última carga, historial). Por ahora solo lee: es la base del piloto automático de asignaciones.'] },
   { v: '1.42.7', f: '2026-11-24', l: ['Mi día: se quita «Hoy en directo» (la línea de tiempo por técnico). Seguimiento queda solo con Novedades.'] },
   { v: '1.42.6', f: '2026-11-24', l: ['Mi día › Caducidades y los avisos de Windows: solo PRESENCIAL, PTE. MOVER MATERIAL y MATERIAL PTE. FABRICANTE. FUERA DE MANTENIMIENTO y los demás estados ya no salen, porque su caducidad no cuenta.'] },
-  { v: '1.42.5', f: '2026-11-23', l: ['Ficha › Actuar: comentario y estado se envían juntos con un solo «Enviar a ATGO» (primero el comentario y, si sale bien, el estado).', 'Ficha › Planificar: «Mover también otras de…» marca otras incidencias del mismo técnico (las de la misma sede, primero) y las pasa con esta al nuevo técnico o fecha.', 'Logo nuevo: una ruta que llega a un pin con el visto bueno, en la app de Windows, la pestaña del navegador y la app Android (1.1.0, hay que reinstalarla).'] },
 ];
 // Resumen de lo más importante de las versiones anteriores a las 5 últimas (se ve en ⓘ › Anteriores)
 const ANTERIORES = [
@@ -53,9 +53,10 @@ const ANTERIORES = [
   'Mi día con herramientas arriba y lo pendiente debajo',
   'Las rutas ya no piden enviarse por WhatsApp',
   'Diseño nuevo (prueba) con menú lateral y tonos claros',
-  'ATGO no deja quitar la fecha de visita: Despacho lo avisa'
+  'ATGO no deja quitar la fecha de visita: Despacho lo avisa',
+  'Comentario y estado en un solo envío y logo nuevo'
 ];
-const NOV_VISIBLES = 5, ANTERIORES_HASTA = '1.42.4';   // al añadir una versión, quita la más antigua de NOVEDADES y resúmela aquí si importa
+const NOV_VISIBLES = 5, ANTERIORES_HASTA = '1.42.5';   // al añadir una versión, quita la más antigua de NOVEDADES y resúmela aquí si importa
 const NOV_KEY = 'dispatcher_version_vista_v1', BIENV_KEY = 'dispatcher_bienvenida_v1', DATOS_VER_KEY = 'dispatcher_datos_version_v1';
 
 // ---- Novedades de la versión ----
@@ -393,14 +394,14 @@ function vigilarVentana(id) {
     if (abierto && !el.__abierto) {
       el.__abierto = true; antes = document.activeElement;
       if (id === 'modal') el.setAttribute('aria-label', (el.querySelector('.dw-num, .md-txt b, h2, h3') || {}).textContent || 'Ventana');
-      setTimeout(() => { if (el.hidden || el.contains(document.activeElement)) return; const f = el.querySelector('[autofocus], .cfg-tabs button.on') || visiblesFoco(el).find(x => !/iconbtn/.test(x.className)) || visiblesFoco(el)[0]; if (f) f.focus({ preventScroll: true }); }, 30);
+      setTimeout(() => { if (el.hidden || el.contains(document.activeElement)) return; const f = el.querySelector('[autofocus], .cfg-nav button.on') || visiblesFoco(el).find(x => !/iconbtn/.test(x.className)) || visiblesFoco(el)[0]; if (f) f.focus({ preventScroll: true }); }, 30);
     } else if (!abierto && el.__abierto) {
       el.__abierto = false;
       if (antes && document.body.contains(antes) && (!document.activeElement || document.activeElement === document.body || el.contains(document.activeElement))) { enfocar(antes, { preventScroll: true }); }
     }
   }).observe(el, { attributes: true, attributeFilter: ['hidden'] });
   el.addEventListener('keydown', e => {
-    if (e.key !== 'Tab' || id === 'cfgMenu') return;
+    if (e.key !== 'Tab') return;
     const l = visiblesFoco(el); if (!l.length) return;
     const i = l.indexOf(document.activeElement);
     if (e.shiftKey && i <= 0) { e.preventDefault(); l[l.length - 1].focus(); }
@@ -408,95 +409,124 @@ function vigilarVentana(id) {
   });
 }
 
-// ---- ⚙ Ajustes por secciones ----
+// ---- ⚙ Ajustes: ventana con secciones a la izquierda y tarjetas a la derecha ----
 let cfgTab = 'gen';
+const CFG_SEC = [
+  ['gen', 'Conexión', 'enlace', 'ATGO, extensión y otras fuentes de datos'],
+  ['srv', 'Servidor', 'servidor', 'El motor que mantiene ATGO abierto en tu servidor'],
+  ['avi', 'Avisos', 'campana', 'Avisos de Windows y recordatorios del día'],
+  ['apa', 'Apariencia', 'paleta', 'Diseño, tema, tamaño y accesibilidad'],
+  ['equ', 'Equipo', 'equipo', 'Perfiles y técnicos'],
+  ['fes', 'Festivos', 'calendario', 'Los nacionales ya están; añade los autonómicos y locales'],
+  ['wa', 'WhatsApp', 'mensaje', 'Plantillas de los mensajes'],
+  ['dat', 'Datos', 'datos', 'Copias de seguridad, exportar y diagnóstico']
+];
 function toggleCfg(ev) {
   const m = document.getElementById('cfgMenu');
   m.hidden = !m.hidden; if (!m.hidden) renderCfg();
   if (ev) ev.stopPropagation();
 }
+function cerrarCfg() { const m = document.getElementById('cfgMenu'); if (m) m.hidden = true; }
+function cfgIr(t) { cfgTab = t; srvEditar = false; renderCfg(); const c = document.querySelector('#cfgMenu .cfg-main'); if (c) c.scrollTop = 0; }
+// Piezas de la ventana: interruptor, fila (título, explicación y control) y tarjeta
+const cfgSw = (on, cambio, nombre) => `<input type="checkbox" class="sw" role="switch" ${on ? 'checked' : ''} aria-label="${esc(nombre)}" onchange="${cambio}">`;
+const cfgIt = (titulo, desc, ctrl, cls) => `<div class="cfg-it${cls ? ' ' + cls : ''}"><div class="cfg-it-t"><b>${titulo}</b>${desc ? `<small>${desc}</small>` : ''}</div>${ctrl ? `<div class="cfg-ctl">${ctrl}</div>` : ''}</div>`;
+const cfgCard = (titulo, cuerpo) => `${titulo ? `<div class="cfg-h">${titulo}</div>` : ''}<div class="cfg-sec">${cuerpo}</div>`;
+const cfgPad = h => `<div class="cfg-pad">${h}</div>`;
+const cfgHora = (k, v, nombre) => `<input type="time" class="cfg-in" aria-label="${esc(nombre)}" value="${esc(v)}" onchange="setPref('${k}',this.value)">`;
+function cfgPunto(t) {
+  if (t === 'gen') return source === 'atgo' && rows.length ? 'ok' : 'off';
+  if (t === 'srv') return srvCfg().url && srvCfg().clave ? srvEstadoCorto().c : '';
+  return '';
+}
 function renderCfg() {
   const m = document.getElementById('cfgMenu'); if (!m || m.hidden) return;
-  const tabs = [['gen', 'General'], ['apa', 'Apariencia'], ['avi', 'Avisos'], ['tec', 'Técnicos'], ['perf', 'Perfiles'], ['fes', 'Festivos'], ['wa', 'WhatsApp'], ['srv', 'Servidor'], ['dat', 'Datos']];
+  if (!CFG_SEC.some(s => s[0] === cfgTab)) cfgTab = 'gen';
+  const sec = CFG_SEC.find(s => s[0] === cfgTab);
   let h = '';
-  if (cfgTab === 'srv') {
+  if (cfgTab === 'gen') {
+    const ok = source === 'atgo' && rows.length;
+    const estado = (document.getElementById('fileStatus').textContent + document.getElementById('atgoStatus').textContent).replace(/^\s*·\s*/, '');
+    h = `<div class="cfg-hero${ok ? ' ok' : ''}"><i></i><div><b>${ok ? 'ATGO conectado' : rows.length ? 'Datos de Excel' : 'Sin datos de ATGO'}</b><small>${esc(estado || 'La pestaña de ATGO de este equipo da los datos a Despacho')}</small>
+        ${ultimaCarga && ultimaCarga.s != null ? `<small>Última carga: ${ultimaCarga.ops != null ? plural(ultimaCarga.ops, 'técnico') + ' en ' : ''}${ultimaCarga.s} s${ultimaCarga.s > 90 ? ' · lenta: avisa si pasa a menudo' : ''}</small>` : ''}</div></div>
+      <div class="acts"><button class="btn pri" onclick="event.stopPropagation();actualizarAhora()" title="Trae ya los datos de ATGO, sin esperar a los 2 minutos ni recargar, y busca una versión nueva de Despacho">⟳ Actualizar ahora</button><button class="btn" onclick="abrirAtgo()">Abrir ATGO</button><button class="btn ghost" onclick="forzarAtgo()" title="Si ATGO se queda pillado: lo recarga desde cero y rehace la conexión">Forzar reconexión</button></div>
+      ${cfgCard('Más opciones',
+        cfgIt('Extensión para Chrome y Edge', 'Descomprímela, sustituye la carpeta anterior y pulsa ⟳ en chrome://extensions. La sincronización se actualiza sola.', '<a class="btn sm" href="despacho-extension.zip" download>Descargar</a>') +
+        cfgIt('Importar Excel', 'Carga incidencias desde un Excel en lugar de ATGO.', '<button class="btn sm" onclick="elegirExcel()">Elegir archivo</button>') +
+        cfgIt('Asistente de inicio', 'Repasa la puesta en marcha paso a paso.', '<button class="btn sm" onclick="abrirAsistente()">Abrir</button>'))}`;
+  } else if (cfgTab === 'srv') {
     h = srvHtml();
     srvRevisar();
-  } else if (cfgTab === 'gen') {
-    h = `<div class="cfg-h">Conexión</div>
-      <div class="cfg-t">${esc(document.getElementById('fileStatus').textContent)}${esc(document.getElementById('atgoStatus').textContent)}</div>
-      ${ultimaCarga && ultimaCarga.s != null ? `<div class="cfg-t">Última carga: ${ultimaCarga.ops != null ? plural(ultimaCarga.ops, 'técnico') + ' en ' : ''}${ultimaCarga.s} s${ultimaCarga.s > 90 ? ' · lenta: avisa si pasa a menudo' : ''}</div>` : ''}
-      <div class="acts"><button class="btn sm pri" onclick="event.stopPropagation();actualizarAhora()" title="Trae ya los datos de ATGO, sin esperar a los 2 minutos ni recargar, y busca una versión nueva de Despacho">⟳ ACTUALIZAR</button><button class="btn sm" onclick="abrirAtgo()">Abrir ATGO</button><button class="btn sm" onclick="forzarAtgo()" title="Si ATGO se queda pillado: lo recarga desde cero y rehace la conexión">⟳ Forzar reconexión</button><button class="btn sm" onclick="elegirExcel()">Importar Excel</button><button class="btn sm ghost" onclick="abrirAsistente()">Asistente de inicio</button></div>
-      <div class="cfg-t">Extensión para Chrome y Edge: <a href="despacho-extension.zip" download>descargar</a>. Descomprímela, sustituye la carpeta anterior y pulsa ⟳ en chrome://extensions. La sincronización se actualiza sola.</div>
-      <div class="cfg-t">Tema, color, tamaño y accesibilidad: en la pestaña <a href="#" onclick="event.preventDefault();event.stopPropagation();cfgTab='apa';renderCfg()">Apariencia</a>.</div>
-      <div class="cfg-h">Resúmenes y avisos del día</div>
-      <div class="cfg-row"><label><input type="checkbox" ${tecCfg.resumenOn !== false ? 'checked' : ''} onchange="setPref('resumenOn',this.checked)"> Resumen matinal a las</label><input type="time" aria-label="Hora del resumen matinal" value="${esc(tecCfg.resumenHora || '08:00')}" onchange="setPref('resumenHora',this.value)"></div>
-      <div class="cfg-row"><label><input type="checkbox" ${tecCfg.inactOn !== false ? 'checked' : ''} onchange="setPref('inactOn',this.checked)"> Avisar si un técnico no ha iniciado nada a las</label><input type="time" aria-label="Hora del aviso de técnico sin actividad" value="${esc(tecCfg.inactHora || '11:00')}" onchange="setPref('inactHora',this.value)"></div>
-      <div class="cfg-row"><label><input type="checkbox" ${tecCfg.cierreOn !== false ? 'checked' : ''} onchange="setPref('cierreOn',this.checked)"> Avisar de visitas de hoy sin cerrar a las</label><input type="time" aria-label="Hora del aviso de visitas sin cerrar" value="${esc(horaCierre())}" onchange="setPref('cierreHora',this.value)"></div>
-      ${esCoord() ? `<div class="cfg-row"><label><input type="checkbox" ${tecCfg.informeOn ? 'checked' : ''} onchange="setPref('informeOn',this.checked)"> Guardar el informe de control cada día a las</label><input type="time" aria-label="Primera hora del informe" value="${esc(tecCfg.informeHora || '09:00')}" onchange="setPref('informeHora',this.value)"><input type="time" aria-label="Segunda hora del informe (opcional)" value="${esc(tecCfg.informeHora2 || '')}" onchange="setPref('informeHora2',this.value)"></div><div class="cfg-t">Va a la carpeta de la copia en OneDrive si hay una elegida; si no, se descarga. La segunda hora es opcional.</div>` : ''}
-      <div class="cfg-row"><label><input type="checkbox" ${tecCfg.perfilAuto !== false ? 'checked' : ''} onchange="setPref('perfilAuto',this.checked)"> Elegir el perfil según mi usuario de ATGO${perfilCfg.usuario ? ' (' + esc(perfilCfg.usuario) + ')' : ''}</label></div>
-      <div class="cfg-row"><label>Sin asignar de tu zona: avisar si llevan más de</label><span><input type="number" aria-label="Horas sin técnico para avisar" min="1" max="72" value="${horasOlvido()}" onchange="setPref('olvidoHoras',Math.max(1,Number(this.value)||4))" style="width:56px"> h</span></div>
-`;
-  } else if (cfgTab === 'apa') {
-    const a = accCfg(), on = accActivo(), seg = (k, ops, cur) => `<span class="seg mini" role="group">${ops.map(([v, l]) => `<button class="segb${cur === v ? ' on' : ''}" aria-pressed="${cur === v}" onclick="event.stopPropagation();${k}">${l}</button>`.replace(k, k.replace('@', String(v)))).join('')}</span>`;
-    h = `<div class="cfg-h">Diseño</div>
-      <label class="dn-cfg${tecCfg.disenoNuevo ? ' on' : ''}"><input type="checkbox" ${tecCfg.disenoNuevo ? 'checked' : ''} onchange="setPref('disenoNuevo',this.checked)"><span><b>Diseño nuevo (prueba)</b><small>Menú lateral, tonos claros, Mi día en dos columnas y líneas de Incidencias sombreadas con el color de su estado. Se quita desmarcando esta casilla.</small></span></label>
-      <div class="cfg-h">Tema</div>
-      <div class="cfg-row"><span>Claro u oscuro</span>${seg("setPref('tema','@')", [['auto', 'Como Windows'], ['light', 'Claro'], ['dark', 'Oscuro']], tecCfg.tema || 'auto')}</div>
-      <div class="cfg-h">Color</div>
-      <div class="acentos" role="group" aria-label="Color de la aplicación">${ACENTOS.map(([v, l, c]) => `<button class="acento-b${(tecCfg.acento || '') === v ? ' on' : ''}" aria-pressed="${(tecCfg.acento || '') === v}" onclick="event.stopPropagation();setPref('acento','${v}')"><i style="background:${c}"></i>${l}</button>`).join('')}</div>
-      <div class="cfg-h">Tamaño</div>
-      <div class="cfg-row"><span>Espacio entre filas y letra</span>${seg("setPref('densidad','@')", [['compacta', 'Compacto'], ['normal', 'Normal'], ['amplia', 'Amplio']], densidad())}</div>
-      <div class="cfg-row"><span>Zoom de toda la app</span>${seg("setAcc('texto',@)", ACC_TEXTO.map(n => [n, n + ' %']), a.texto || 100)}</div>
-      <div class="cfg-h">Accesibilidad</div>
-      <div class="acc-card${on ? ' on' : ''}"><span class="acc-ico">${ico('accesible')}</span><div><b>Modo accesible</b><span>${on ? 'Activado. Ajusta abajo cada opción.' : 'Letra más grande, alto contraste, foco visible, botones grandes y sin animaciones, de una vez.'}</span></div>
-        <button class="btn sm${on ? '' : ' pri'}" aria-pressed="${on}" onclick="event.stopPropagation();modoAccesible(${!on})">${on ? 'Desactivar' : 'Activar'}</button></div>
-      <div class="acc-l">${ACC_OPS.map(([k, l, d]) => `<label><input type="checkbox" ${a[k] ? 'checked' : ''} onchange="setAcc('${k}',this.checked)"><span>${l}<small>${d}</small></span></label>`).join('')}</div>
-      <div class="cfg-t">Siempre activo: navegación completa con teclado (pulsa <kbd>?</kbd>), enlace «Saltar al contenido» con Tab, nombres para lectores de pantalla y foco que vuelve a su sitio al cerrar ventanas.</div>`;
   } else if (cfgTab === 'avi') {
     const perm = 'Notification' in window ? Notification.permission : 'unsupported';
-    const ck = (k, l) => `<label><input type="checkbox" ${avisos[k] ? 'checked' : ''} onchange="avisos['${k}']=this.checked;lsSet(AVI_KEY,avisos)"> ${l}</label>`;
-    h = `<div class="cfg-h">Avisos de Windows</div>
-    ${avisos.on && perm === 'granted'
-      ? `<div class="cfg-ck">${ck('miNombre', 'Tickets nuevos o reasignados a mi nombre')}${ck('escalado', 'Escalados a TIER1')}${ck('ruta', 'Cambios en las rutas de mañana')}${ck('material', 'PTE. MOVER MATERIAL y su vuelta a PRESENCIAL')}${ck('sla', 'Caducidad en menos de ' + SLA_AVISO_HORAS + ' h')}${ck('sinAsignar', 'Nuevos sin asignar en mi zona')}${ck('comentarios', 'Comentarios de técnicos en el hilo')}${ck('nuevos', 'Cualquier ticket nuevo')}</div>
-         <div class="acts"><button class="btn sm" onclick="notificarPrueba()">Probar</button><button class="btn sm ghost" onclick="avisos.on=false;lsSet(AVI_KEY,avisos);renderCfg()">Desactivar</button></div>`
-      : perm === 'denied' ? '<div class="cfg-t">Windows tiene bloqueados los avisos de esta app. Actívalos en el candado de la barra de direcciones → Notificaciones.</div>'
-      : `<div class="cfg-t">Te avisa aunque estés en otra ventana. Necesita la pestaña de ATGO abierta.</div><button class="btn sm pri" onclick="activarAvisos()">Activar avisos</button>`}`;
-  } else if (cfgTab === 'perf') {
-    h = `<div class="cfg-h">Perfiles · ahora ${esc(PERFIL)}</div><div class="acts"><button class="btn sm pri" onclick="abrirPerfiles()">Gestionar perfiles y técnicos</button></div>`;
+    const ck = (k, l) => cfgIt(l, '', cfgSw(avisos[k], `avisos['${k}']=this.checked;lsSet(AVI_KEY,avisos)`, l));
+    const win = avisos.on && perm === 'granted'
+      ? cfgIt('Avisos de Windows', 'Te avisa aunque estés en otra ventana. Necesita la pestaña de ATGO abierta.', '<button class="btn sm" onclick="notificarPrueba()">Probar</button>' + cfgSw(true, 'avisos.on=false;lsSet(AVI_KEY,avisos);renderCfg()', 'Avisos de Windows')) +
+        ck('miNombre', 'Tickets nuevos o reasignados a mi nombre') + ck('escalado', 'Escalados a TIER1') + ck('ruta', 'Cambios en las rutas de mañana') + ck('material', 'PTE. MOVER MATERIAL y su vuelta a PRESENCIAL') +
+        ck('sla', 'Caducidad en menos de ' + SLA_AVISO_HORAS + ' h') + ck('sinAsignar', 'Nuevos sin asignar en mi zona') + ck('comentarios', 'Comentarios de técnicos en el hilo') + ck('nuevos', 'Cualquier ticket nuevo')
+      : perm === 'denied' ? cfgIt('Avisos de Windows', 'Windows tiene bloqueados los avisos de esta app. Actívalos en el candado de la barra de direcciones › Notificaciones.', '')
+      : cfgIt('Avisos de Windows', 'Te avisa aunque estés en otra ventana. Necesita la pestaña de ATGO abierta.', cfgSw(false, 'this.checked=false;activarAvisos()', 'Avisos de Windows'));
+    h = cfgCard('Windows', win) +
+      cfgCard('Recordatorios del día',
+        cfgIt('Resumen matinal', '', cfgHora('resumenHora', tecCfg.resumenHora || '08:00', 'Hora del resumen matinal') + cfgSw(tecCfg.resumenOn !== false, "setPref('resumenOn',this.checked)", 'Resumen matinal')) +
+        cfgIt('Técnico sin actividad', 'Avisa si un técnico no ha iniciado nada a esa hora.', cfgHora('inactHora', tecCfg.inactHora || '11:00', 'Hora del aviso de técnico sin actividad') + cfgSw(tecCfg.inactOn !== false, "setPref('inactOn',this.checked)", 'Técnico sin actividad')) +
+        cfgIt('Visitas de hoy sin cerrar', '', cfgHora('cierreHora', horaCierre(), 'Hora del aviso de visitas sin cerrar') + cfgSw(tecCfg.cierreOn !== false, "setPref('cierreOn',this.checked)", 'Visitas de hoy sin cerrar')) +
+        cfgIt('Sin asignar olvidadas', 'Marca con ⏰ las de tu zona que llevan más horas sin técnico.', `<input type="number" class="cfg-in num" aria-label="Horas sin técnico para avisar" min="1" max="72" value="${horasOlvido()}" onchange="setPref('olvidoHoras',Math.max(1,Number(this.value)||4))"><span class="cfg-ud">h</span>`) +
+        (esCoord() ? cfgIt('Informe de control diario', 'Va a la carpeta de la copia en OneDrive si hay una elegida; si no, se descarga. La segunda hora es opcional.', cfgHora('informeHora', tecCfg.informeHora || '09:00', 'Primera hora del informe') + cfgHora('informeHora2', tecCfg.informeHora2 || '', 'Segunda hora del informe (opcional)') + cfgSw(!!tecCfg.informeOn, "setPref('informeOn',this.checked)", 'Informe de control diario')) : ''));
+  } else if (cfgTab === 'apa') {
+    const a = accCfg(), on = accActivo(), seg = (k, ops, cur) => `<span class="seg mini" role="group">${ops.map(([v, l]) => `<button class="segb${cur === v ? ' on' : ''}" aria-pressed="${cur === v}" onclick="event.stopPropagation();${k.replace('@', String(v))}">${l}</button>`).join('')}</span>`;
+    h = cfgCard('', cfgIt('Diseño nuevo (prueba)', 'Menú lateral, tonos claros, Mi día en dos columnas y líneas de Incidencias sombreadas con el color de su estado.', cfgSw(!!tecCfg.disenoNuevo, "setPref('disenoNuevo',this.checked)", 'Diseño nuevo')) +
+        cfgIt('Tema', '', seg("setPref('tema','@')", [['auto', 'Como Windows'], ['light', 'Claro'], ['dark', 'Oscuro']], tecCfg.tema || 'auto')) +
+        cfgIt('Color', '', '', 'col') + cfgPad(`<div class="acentos" role="group" aria-label="Color de la aplicación">${ACENTOS.map(([v, l, c]) => `<button class="acento-b${(tecCfg.acento || '') === v ? ' on' : ''}" aria-pressed="${(tecCfg.acento || '') === v}" onclick="event.stopPropagation();setPref('acento','${v}')"><i style="background:${c}"></i>${l}</button>`).join('')}</div>`)) +
+      cfgCard('Tamaño', cfgIt('Densidad', 'Espacio entre filas y letra.', seg("setPref('densidad','@')", [['compacta', 'Compacto'], ['normal', 'Normal'], ['amplia', 'Amplio']], densidad())) +
+        cfgIt('Zoom', 'De toda la aplicación.', seg("setAcc('texto',@)", ACC_TEXTO.map(n => [n, n + ' %']), a.texto || 100))) +
+      cfgCard('Accesibilidad', cfgIt('Modo accesible', on ? 'Activado. Ajusta abajo cada opción.' : 'Letra más grande, alto contraste, foco visible, botones grandes y sin animaciones, de una vez.', `<button class="btn sm${on ? '' : ' pri'}" aria-pressed="${on}" onclick="event.stopPropagation();modoAccesible(${!on})">${on ? 'Desactivar' : 'Activar'}</button>`, on ? 'resalta' : '') +
+        ACC_OPS.map(([k, l, d]) => cfgIt(l, d, cfgSw(!!a[k], `setAcc('${k}',this.checked)`, l))).join('')) +
+      '<p class="cfg-nota">Siempre activo: navegación completa con teclado (pulsa <kbd>?</kbd>), enlace «Saltar al contenido» con Tab, nombres para lectores de pantalla y foco que vuelve a su sitio al cerrar ventanas.</p>';
+  } else if (cfgTab === 'equ') {
+    h = cfgCard('', cfgIt('Perfil activo: ' + esc(PERFIL), 'Qué técnicos y zonas ves y sincronizas.', '<button class="btn sm pri" onclick="abrirPerfiles()">Gestionar perfiles</button>') +
+        cfgIt('Elegir el perfil según mi usuario de ATGO', perfilCfg.usuario ? 'Usuario: ' + esc(perfilCfg.usuario) : '', cfgSw(tecCfg.perfilAuto !== false, "setPref('perfilAuto',this.checked)", 'Elegir el perfil según mi usuario de ATGO')) +
+        cfgIt('Técnicos', plural(TECNICOS.length, 'técnico') + ' en tu perfil. Altas, zona, bajas y vacaciones.', '<button class="btn sm" onclick="abrirNomina()">Abrir nómina</button>'));
   } else if (cfgTab === 'fes') {
     const y = new Date().getFullYear(), hoy = isoHoy();
     const prox = [...festivosNacionales(y), ...festivosNacionales(y + 1)].filter(x => x[0] >= hoy).slice(0, 4);
     const loc = (tecCfg.festivos || []).slice().sort((a, b) => a.f < b.f ? -1 : 1);
-    h = `<div class="cfg-h">Festivos</div>
-      <div class="cfg-t">Los nacionales ya están (próximos: ${esc(prox.map(x => x[1] + ' ' + x[0].slice(8) + '/' + x[0].slice(5, 7)).join(', '))}). Añade los autonómicos y locales: los de todas las zonas cuentan para el «próximo laborable»; los de una zona marcan sus casillas en Planificación.</div>
-      <div class="fes-add"><input type="date" id="fesF"><select id="fesZ"><option value="">Todas las zonas</option>${ZONAS_BASE.filter(z => !z.dispatcher).map(z => `<option>${esc(z.nombre)}</option>`).join('')}</select><input id="fesN" placeholder="Nombre (opcional)"><button class="btn sm pri" onclick="event.stopPropagation();anadirFestivo()">Añadir</button></div>
-      ${loc.length ? `<ul class="fes-l">${loc.map(x => `<li${x.f < hoy ? ' class="pasado"' : ''}><span class="mono">${esc(x.f.split('-').reverse().join('/'))}</span><b>${esc(x.n || 'Festivo')}</b><small>${esc(x.z || 'Todas las zonas')}</small><button class="iconbtn sm" onclick="event.stopPropagation();quitarFestivo('${x.f}','${jsq(x.z || '')}')" aria-label="Quitar">×</button></li>`).join('')}</ul>` : '<div class="cfg-t">Aún no has añadido festivos locales.</div>'}`;
+    h = cfgCard('Añadir', cfgPad(`<p class="cfg-nota">Los de todas las zonas cuentan para el «próximo laborable»; los de una zona marcan sus casillas en Planificación. Próximos nacionales: ${esc(prox.map(x => x[1] + ' ' + x[0].slice(8) + '/' + x[0].slice(5, 7)).join(', '))}.</p>
+        <div class="fes-add"><input type="date" id="fesF" aria-label="Fecha"><select id="fesZ" aria-label="Zona"><option value="">Todas las zonas</option>${ZONAS_BASE.filter(z => !z.dispatcher).map(z => `<option>${esc(z.nombre)}</option>`).join('')}</select><input id="fesN" placeholder="Nombre (opcional)"><button class="btn sm pri" onclick="event.stopPropagation();anadirFestivo()">Añadir</button></div>`)) +
+      cfgCard('Tus festivos', loc.length ? `<ul class="fes-l">${loc.map(x => `<li${x.f < hoy ? ' class="pasado"' : ''}><span class="mono">${esc(x.f.split('-').reverse().join('/'))}</span><b>${esc(x.n || 'Festivo')}</b><small>${esc(x.z || 'Todas las zonas')}</small><button class="iconbtn sm" onclick="event.stopPropagation();quitarFestivo('${x.f}','${jsq(x.z || '')}')" aria-label="Quitar">×</button></li>`).join('')}</ul>` : cfgPad('<p class="cfg-nota">Aún no has añadido festivos locales.</p>'));
   } else if (cfgTab === 'wa') {
-    h = `<div class="cfg-h">Plantillas de WhatsApp (desde la ficha › Actuar)</div>
-      <div class="cfg-t">Campos: {nombre} {num} {sede} {fecha} {hora} {cliente} {direccion}</div>
-      ${Object.keys(WA_PLANT_DEF).map(t => `<label class="cfg-ta"><span>${esc(WA_PLANT_LAB[t])}</span><textarea rows="2" onchange="tecCfg.waPlant={...(tecCfg.waPlant||{}),'${t}':this.value.trim()};saveTec()">${esc(waPlant(t))}</textarea></label>`).join('')}
-      <label class="cfg-ta"><span>Confirmar visita a la tienda · {tecnico} {fecha} {franja} {sede} {num} {cliente} {direccion}</span><textarea rows="5" onchange="tecCfg.confirmaTpl=this.value.trim();saveTec()">${esc(confirmaPlant())}</textarea></label>
-      <div class="acts"><button class="btn sm ghost" onclick="tecCfg.waPlant={};saveTec();renderCfg()">Restaurar textos</button></div>
-      <div class="cfg-t">El mensaje de la ruta se cambia en Planificación › día › «Técnicos y mensaje».</div>`;
+    h = cfgCard('Desde la ficha › Actuar', cfgPad(`<p class="cfg-nota">Campos: {nombre} {num} {sede} {fecha} {hora} {cliente} {direccion}</p>
+        ${Object.keys(WA_PLANT_DEF).map(t => `<label class="cfg-ta"><span>${esc(WA_PLANT_LAB[t])}</span><textarea rows="2" onchange="tecCfg.waPlant={...(tecCfg.waPlant||{}),'${t}':this.value.trim()};saveTec()">${esc(waPlant(t))}</textarea></label>`).join('')}
+        <label class="cfg-ta"><span>Confirmar visita a la tienda</span><small class="cfg-nota">{tecnico} {fecha} {franja} {sede} {num} {cliente} {direccion}</small><textarea rows="5" onchange="tecCfg.confirmaTpl=this.value.trim();saveTec()">${esc(confirmaPlant())}</textarea></label>
+        <div class="acts"><button class="btn sm ghost" onclick="tecCfg.waPlant={};saveTec();renderCfg()">Restaurar textos</button></div>`)) +
+      '<p class="cfg-nota">El mensaje de la ruta se cambia en Planificación › día › «Técnicos y mensaje».</p>';
   } else {
-    h = `<div class="cfg-h">Copia automática en OneDrive</div>
-      ${odCfgHtml()}
-      <div class="cfg-h">Copia de seguridad manual</div>
-      <div class="cfg-t">Notas, teléfonos, nómina y perfiles, filtros, preferencias, cerradas e informes.</div>
-      <div class="acts"><button class="btn sm" onclick="exportBackup()">Exportar</button><button class="btn sm" onclick="document.getElementById('backupInput').click()">Restaurar</button></div>
-      <div class="cfg-h">Exportar a Excel</div>
-      <div class="acts"><button class="btn sm" onclick="exportarExcel('inc')">Incidencias</button><button class="btn sm" onclick="exportarExcel('sem')">Planificación de la semana</button><button class="btn sm" onclick="abrirInforme()">Informe semanal</button></div>
-      <div class="cfg-h">Datos cargados</div>
-      <div class="cfg-t">${esc(document.getElementById('fileStatus').textContent)} · ${Math.round(espacioUsado() / 1024)} KB guardados en este equipo (límite ~5 MB; lo antiguo se limpia solo).</div>
-      <div class="acts">${rows.length ? '<button class="btn sm ghost" onclick="quitarDatos()">Quitar datos cargados</button>' : ''}<button class="btn sm ghost" onclick="liberarEspacio();renderCfg();toast(\'Espacio liberado\')">Liberar espacio ahora</button></div>
-      ${(() => { const l = Object.entries(poolOpsDesc).filter(([op]) => !zonaComodin(op)); return l.length ? `<div class="cfg-h">Comodines sin zona</div><div class="cfg-t">Estos «PENDIENTE ASIGNAR» de ATGO no se asocian a ninguna zona por su nombre (sus incidencias usan la provincia del ticket): ${esc(l.map(([op, d]) => op + ' (' + d + ')').join(', '))}. Si alguno debería ser de una zona, dímelo.</div>` : ''; })()}
-      <div class="cfg-h">Diagnóstico</div>
-      <div class="cfg-t">Versión ${esc(APP_VERSION)} · ${plural(diagLista().length, 'error')} registrado${diagLista().length === 1 ? '' : 's'}.</div>
-      <div class="acts"><button class="btn sm" onclick="copiarDiagnostico()">Copiar diagnóstico</button>${diagLista().length ? '<button class="btn sm ghost" onclick="lsSet(DIAG_KEY,[]);renderCfg()">Vaciar</button>' : ''}</div>`;
+    const comodines = Object.entries(poolOpsDesc).filter(([op]) => !zonaComodin(op));
+    h = cfgCard('Copias de seguridad', cfgIt('Copia automática en OneDrive', '', '', 'col') + cfgPad(odCfgHtml()) +
+        cfgIt('Copia manual', 'Notas, teléfonos, nómina y perfiles, filtros, preferencias, cerradas e informes.', '<button class="btn sm" onclick="exportBackup()">Exportar</button><button class="btn sm" onclick="document.getElementById(\'backupInput\').click()">Restaurar</button>')) +
+      cfgCard('Exportar a Excel', cfgIt('Incidencias', '', '<button class="btn sm" onclick="exportarExcel(\'inc\')">Exportar</button>') +
+        cfgIt('Planificación de la semana', '', '<button class="btn sm" onclick="exportarExcel(\'sem\')">Exportar</button>') +
+        cfgIt('Informe semanal', '', '<button class="btn sm" onclick="abrirInforme()">Abrir</button>')) +
+      cfgCard('Este equipo', cfgIt('Datos cargados', `${esc(document.getElementById('fileStatus').textContent)} · ${Math.round(espacioUsado() / 1024)} KB guardados (límite ~5 MB; lo antiguo se limpia solo).`, `${rows.length ? '<button class="btn sm ghost" onclick="quitarDatos()">Quitar datos</button>' : ''}<button class="btn sm ghost" onclick="liberarEspacio();renderCfg();toast(\'Espacio liberado\')">Liberar espacio</button>`) +
+        cfgIt('Diagnóstico', `Versión ${esc(APP_VERSION)} · ${diagLista().length} error${diagLista().length === 1 ? ' registrado' : 'es registrados'}.`, `<button class="btn sm" onclick="copiarDiagnostico()">Copiar</button>${diagLista().length ? '<button class="btn sm ghost" onclick="lsSet(DIAG_KEY,[]);renderCfg()">Vaciar</button>' : ''}`)) +
+      (comodines.length ? cfgCard('Comodines sin zona', cfgPad(`<p class="cfg-nota">Estos «PENDIENTE ASIGNAR» de ATGO no se asocian a ninguna zona por su nombre (sus incidencias usan la provincia del ticket): ${esc(comodines.map(([op, d]) => op + ' (' + d + ')').join(', '))}. Si alguno debería ser de una zona, dímelo.</p>`)) : '');
   }
-  m.innerHTML = `<div class="cfg-tabs">${tabs.map(([t, l]) => `<button class="${cfgTab === t ? 'on' : ''}" onclick="event.stopPropagation();${t === 'perf' ? 'abrirPerfiles()' : t === 'tec' ? 'abrirNomina()' : `cfgTab='${t}';renderCfg()`}">${l}</button>`).join('')}</div><div class="cfg-body">${h}</div>`;
+  // Repintar sin perder dónde estabas (cada interruptor vuelve a pintar la ventana)
+  const prev = m.querySelector('.cfg-main'), scroll = prev ? prev.scrollTop : 0;
+  m.innerHTML = `<div class="cfg-win">
+    <nav class="cfg-nav" aria-label="Secciones de ajustes"><div class="cfg-nav-t">Ajustes</div>
+      ${CFG_SEC.map(([t, l, i]) => { const p = cfgPunto(t); return `<button class="${cfgTab === t ? 'on' : ''}" aria-current="${cfgTab === t ? 'page' : 'false'}" onclick="event.stopPropagation();cfgIr('${t}')"><span class="dn-ico" aria-hidden="true">${ico(i)}</span><span>${l}</span>${p ? `<i class="cfg-p ${p}" aria-hidden="true"></i>` : ''}</button>`; }).join('')}
+      <button class="cfg-ver" onclick="event.stopPropagation();cerrarCfg();abrirNovedades()">Despacho ${esc(APP_VERSION)} · Novedades</button></nav>
+    <section class="cfg-main"><header class="cfg-head"><div><h2>${sec[1]}</h2><p>${esc(sec[3])}</p></div><button class="iconbtn" onclick="event.stopPropagation();cerrarCfg()" aria-label="Cerrar ajustes">✕</button></header>
+      <div class="cfg-body">${h}</div></section></div>`;
+  const nuevo = m.querySelector('.cfg-main'); if (nuevo) nuevo.scrollTop = scroll;
 }
+// La ventana cuelga del body: dentro de la cabecera (que tiene desenfoque de fondo) «fixed» no cubriría la pantalla
+document.body.appendChild(document.getElementById('cfgMenu'));
+// Fuera de la ventana o Escape: se cierra
+document.getElementById('cfgMenu').addEventListener('click', e => { if (e.target.id === 'cfgMenu') cerrarCfg(); });
+document.addEventListener('keydown', e => { const m = document.getElementById('cfgMenu'); if (e.key === 'Escape' && m && !m.hidden && document.getElementById('modal').hidden) { cerrarCfg(); document.getElementById('cfgBtn').focus(); } });
+
 // ---- Servidor (⚙ › Servidor): el motor que vive en «automation» (servidor/motor.mjs). Fase 0: solo lectura ----
 // Dirección y clave en tecCfg (srvUrl, srvClave). El usuario de ATGO se manda una vez al servidor y no se guarda aquí.
 let srvUltimo = null, srvAt = 0, srvPidiendo = false;
@@ -555,43 +585,42 @@ function srvHace(ts) {
   const m = Math.round((Date.now() - ts) / 60000);
   return m < 1 ? 'ahora' : m < 60 ? 'hace ' + m + ' min' : 'a las ' + hhmm(ts) + (new Date(ts).toDateString() === new Date().toDateString() ? '' : ' del ' + new Date(ts).toLocaleDateString('es-ES'));
 }
+let srvEditar = false;   // muestra el formulario de acceso a ATGO aunque ya esté guardado
 function srvHtml() {
   const c = srvCfg(), u = srvUltimo, d = u && u.ok ? u.d : null;
-  const SES = { ok: '● Sesión de ATGO abierta', 'sin-credenciales': '○ Faltan los datos de acceso a ATGO: guárdalos abajo', iniciando: '◌ Iniciando sesión en ATGO…', arrancando: '◌ Arrancando…',
-    'login-pausa': '✕ ATGO rechazó el inicio de sesión: lo reintenta más tarde', 'login-fallido': '✕ ATGO rechaza el usuario: guárdalo de nuevo' };
-  let est = '';
-  if (!c.url || !c.clave) est = '<div class="cfg-t">Pon la dirección y la clave que te dio la instalación del servidor.</div>';
-  else if (!u) est = '<div class="cfg-t">Comprobando…</div>';
-  else if (!u.ok) est = `<div class="cfg-t srv-mal">✕ ${esc(u.error)}</div>`;
-  else {
+  const SES = { ok: 'Sesión de ATGO abierta', 'sin-credenciales': 'Faltan los datos de acceso a ATGO', iniciando: 'Iniciando sesión en ATGO…', arrancando: 'Arrancando…',
+    'login-pausa': 'ATGO rechazó el inicio de sesión: lo reintenta más tarde', 'login-fallido': 'ATGO rechaza el usuario: guárdalo de nuevo' };
+  const e = c.url && c.clave ? srvEstadoCorto() : { c: 'off', t: 'Sin configurar', d: '' };
+  let det = '';
+  if (!c.url || !c.clave) det = '<small>Pon abajo la dirección y la clave que te dio la instalación del servidor.</small>';
+  else if (u && !u.ok) det = `<small>${esc(u.error)}</small>`;
+  else if (d) {
     const ca = d.ultimaCarga, hi = d.historial || {};
-    est = `<div class="srv-l">
-      <div><b>Motor ${esc(d.motor)}</b> · fase ${d.fase}${d.fase === 0 ? ' (solo lectura: no escribe en ATGO)' : ''}</div>
-      <div class="${d.sesion === 'ok' ? 'srv-bien' : /fall|pausa/.test(d.sesion) ? 'srv-mal' : ''}">${esc(SES[d.sesion] || d.sesion)}${d.usuario ? ' · ' + esc(d.usuario) : ''}</div>
-      <div>${ca ? `Última carga ${srvHace(ca.at)}: ${plural(ca.filas, 'incidencia')}${ca.pool != null ? ' · ' + ca.pool + ' sin asignar' : ''} · ${ca.segundos} s${ca.sospechosa ? ' · incompleta' : ''}` : 'Aún sin datos de ATGO'}${/^Cargando/.test(d.texto || '') ? ' · ' + esc(d.texto) : ''}</div>
-      <div>Historial${hi.desde ? ' desde el ' + new Date(hi.desde).toLocaleDateString('es-ES') : ''}: ${plural(hi.cargasHoy || 0, 'carga')} hoy · ${plural(hi.eventosHoy || 0, 'cambio')} · ${hi.asignacionesHoy || 0} reasignaci${hi.asignacionesHoy === 1 ? 'ón' : 'ones'}</div>
-      <div>Hoy ${d.laborable ? 'es laborable' : 'es fin de semana: el piloto no actuará'} · ${plural(d.tecnicos || 0, 'técnico')} · ${d.memoriaMB} MB</div>
-      ${(d.errores || []).slice(0, 3).map(e => `<div class="srv-err">${srvHace(e.at)}: ${esc(e.t)}</div>`).join('')}
-    </div>`;
+    det = `<small>${esc(SES[d.sesion] || d.sesion)}${d.usuario ? ' · ' + esc(d.usuario) : ''} · motor ${esc(d.motor)} · fase ${d.fase}${d.fase === 0 ? ', solo lectura' : ''}</small>
+      <small>${ca ? `Última carga ${srvHace(ca.at)}: ${plural(ca.filas, 'incidencia')}${ca.pool != null ? ' · ' + ca.pool + ' sin asignar' : ''} · ${ca.segundos} s${ca.sospechosa ? ' · incompleta' : ''}` : 'Aún sin datos de ATGO'}${/^Cargando/.test(d.texto || '') ? ' · ' + esc(d.texto) : ''}</small>`;
   }
-  return `<div class="cfg-h">Motor del servidor</div>
-    <div class="cfg-t">ATGO abierto día y noche en tu servidor. De momento solo lee y guarda el historial; más adelante asignará solo de lunes a viernes.</div>
-    ${est}
-    <div class="acts"><button class="btn sm" onclick="event.stopPropagation();srvRevisar(true)">⟳ Comprobar</button></div>
-    <div class="cfg-h">Conexión</div>
-    <div class="cfg-row"><label for="srvUrl">Dirección</label><input id="srvUrl" class="srv-f" type="url" placeholder="https://….ts.net:8443" value="${esc(tecCfg.srvUrl || '')}" onchange="setPref('srvUrl',this.value.trim());srvRevisar(true)"></div>
-    <div class="cfg-row"><label for="srvClave">Clave de acceso</label><input id="srvClave" class="srv-f" type="password" autocomplete="off" value="${esc(tecCfg.srvClave || '')}" onchange="setPref('srvClave',this.value.trim());srvRevisar(true)"></div>
-    <div class="cfg-h">Usuario de ATGO del servidor</div>
-    <div class="cfg-t">Se manda cifrado solo a tu servidor y se guarda allí, fuera del repositorio. Aquí no se guarda.</div>
-    <div class="cfg-row"><label for="srvI">Instancia</label><input id="srvI" class="srv-f" type="text" autocomplete="off"></div>
-    <div class="cfg-row"><label for="srvU">Usuario</label><input id="srvU" class="srv-f" type="text" autocomplete="off"></div>
-    <div class="cfg-row"><label for="srvP">Contraseña</label><input id="srvP" class="srv-f" type="password" autocomplete="new-password"></div>
-    <div class="acts"><button class="btn sm pri" onclick="event.stopPropagation();srvCredenciales()">Guardar en el servidor</button></div>`;
+  const hi = d && d.historial || {};
+  const resumen = d ? cfgCard('Hoy', cfgIt('Historial', `${hi.desde ? 'Desde el ' + new Date(hi.desde).toLocaleDateString('es-ES') + ' · ' : ''}${plural(hi.cargasHoy || 0, 'carga')} hoy · ${plural(hi.eventosHoy || 0, 'cambio')} · ${hi.asignacionesHoy || 0} reasignaci${hi.asignacionesHoy === 1 ? 'ón' : 'ones'}`, '') +
+      cfgIt('Calendario', d.laborable ? 'Hoy es laborable.' : 'Hoy es fin de semana: el piloto no actuará.', '') +
+      cfgIt('Técnicos sincronizados', plural(d.tecnicos || 0, 'técnico') + ' de tu perfil · ' + d.memoriaMB + ' MB de memoria', '') +
+      (d.errores || []).slice(0, 3).map(x => cfgIt('Aviso ' + srvHace(x.at), esc(x.t), '', 'err')).join('')) : '';
+  const guardado = d && d.credenciales && !srvEditar;
+  return `<div class="cfg-hero ${e.c}"><i></i><div><b>Servidor · ${esc(e.t)}</b>${det}</div><button class="btn sm" onclick="event.stopPropagation();srvRevisar(true)">⟳ Comprobar</button></div>
+    <p class="cfg-nota">ATGO abierto día y noche en tu servidor. De momento solo lee y guarda el historial; más adelante asignará solo de lunes a viernes. No hace falta volver a iniciar sesión: el servidor la renueva solo.</p>
+    ${resumen}
+    ${cfgCard('Conexión con el servidor', cfgIt('Dirección', '', `<input id="srvUrl" class="cfg-in largo" type="url" aria-label="Dirección del servidor" placeholder="https://….ts.net:8443" value="${esc(tecCfg.srvUrl || '')}" onchange="setPref('srvUrl',this.value.trim());srvRevisar(true)">`) +
+      cfgIt('Clave de acceso', 'Se guarda en este equipo.', `<input id="srvClave" class="cfg-in largo" type="password" aria-label="Clave de acceso" autocomplete="off" value="${esc(tecCfg.srvClave || '')}" onchange="setPref('srvClave',this.value.trim());srvRevisar(true)">`))}
+    ${cfgCard('Acceso del servidor a ATGO', guardado
+      ? cfgIt('Guardado en el servidor ✓', `${d.usuario ? 'Usuario ' + esc(d.usuario) + '. ' : ''}Solo hace falta cambiarlo si cambias la contraseña de ATGO.`, '<button class="btn sm" onclick="event.stopPropagation();srvEditar=true;renderCfg()">Cambiar</button>')
+      : cfgIt('Instancia', '', '<input id="srvI" class="cfg-in largo" type="text" aria-label="Instancia de ATGO" autocomplete="off">') +
+        cfgIt('Usuario', '', '<input id="srvU" class="cfg-in largo" type="text" aria-label="Usuario de ATGO" autocomplete="off">') +
+        cfgIt('Contraseña', '', '<input id="srvP" class="cfg-in largo" type="password" aria-label="Contraseña de ATGO" autocomplete="new-password">') +
+        cfgIt('', 'Se manda cifrado solo a tu servidor y se guarda allí, fuera del repositorio. Aquí no se guarda.', `${srvEditar ? '<button class="btn sm ghost" onclick="event.stopPropagation();srvEditar=false;renderCfg()">Cancelar</button>' : ''}<button class="btn sm pri" onclick="event.stopPropagation();srvCredenciales()">Guardar en el servidor</button>`))}`;
 }
 async function srvCredenciales() {
   const i = document.getElementById('srvI'), u = document.getElementById('srvU'), p = document.getElementById('srvP');
   if (!i.value.trim() || !u.value.trim() || !p.value) { toast('Escribe la instancia, el usuario y la contraseña de ATGO'); return; }
-  try { await srvPedir('/credenciales', { instancia: i.value.trim(), usuario: u.value.trim(), clave: p.value }); i.value = u.value = p.value = ''; toast('Guardado en el servidor: inicia sesión en ATGO en unos segundos'); setTimeout(() => srvRevisar(true), 8000); }
+  try { await srvPedir('/credenciales', { instancia: i.value.trim(), usuario: u.value.trim(), clave: p.value }); i.value = u.value = p.value = ''; srvEditar = false; renderCfg(); toast('Guardado en el servidor: inicia sesión en ATGO en unos segundos'); setTimeout(() => srvRevisar(true), 8000); }
   catch (e) { toast('No se pudo guardar: ' + e.message); }
 }
 document.addEventListener('click', e => { const m = document.getElementById('cfgMenu'); if (m && !m.hidden && !m.contains(e.target) && e.target.id !== 'cfgBtn' && e.target.id !== 'perfilBtn' && document.body.contains(e.target)) m.hidden = true; });
